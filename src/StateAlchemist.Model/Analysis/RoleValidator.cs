@@ -56,7 +56,8 @@ public static class RoleValidator
                 Check(model, hierarchy, completion.Complete, Use.Transform, leaves, leaf => PathPlanner.Move(hierarchy, leaf, completion.Target), diagnostics);
             }
 
-            if (transition.Kind == MoveKind.Reenter && model.States[transition.Source].HasData)
+            // A re-entry of the root is a move to the root, which never exits it: nothing is cleared.
+            if (transition.Kind == MoveKind.Reenter && model.States[transition.Source].HasData && transition.Source != hierarchy.Root)
             {
                 diagnostics.Add(new(DiagnosticCatalog.ReentryClearsData, transition.Location, transition.Name, model.States[transition.Source].Name));
             }

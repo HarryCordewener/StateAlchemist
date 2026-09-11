@@ -34,6 +34,7 @@ public interface IMachine<TValue> : IAsyncDisposable
         where TState : struct;
 
     /// <summary>Runs the initial path's <c>[Entered]</c> actions, root first. Call once, before firing.</summary>
+    /// <exception cref="InvalidOperationException">The machine has already been started.</exception>
     ValueTask StartAsync();
 
     /// <summary>Cancels a pending decision and runs <c>[Exited]</c> actions from the leaf to the root.</summary>
@@ -66,6 +67,9 @@ public interface IMachine<TValue> : IAsyncDisposable
     /// <summary>Queues an event to run after the current transition, for recovery from hooks and actions.</summary>
     /// <typeparam name="TEvent">The event type.</typeparam>
     /// <param name="e">The event.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Called from outside a transition. From outside the machine, use <see cref="FireAsync{TEvent}(TEvent)"/>.
+    /// </exception>
     void Enqueue<TEvent>(TEvent e)
         where TEvent : struct, IEvent;
 

@@ -8,6 +8,7 @@
     <Project Path="src/StateAlchemist/StateAlchemist.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/StateAlchemist.Contracts/StateAlchemist.Contracts.csproj" />
     <Project Path="tests/StateAlchemist.Model.Tests/StateAlchemist.Model.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Reference.Tests/StateAlchemist.Reference.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Tests/StateAlchemist.Tests.csproj" />

@@ -73,6 +73,13 @@ public class RoleValidatorTests
     }
 
     [Test]
+    public async Task ReenteringTheRootClearsNothingSoIsNotWarned()
+    {
+        _model.Add("Restart", _root, _root, TriggerModel.Value(6), _model.Ref(_root));
+        await Assert.That(Problems()).IsEqualTo("");
+    }
+
+    [Test]
     public async Task AGuardOnlyReads()
     {
         var guarded = _model.Add("Maybe", _naws, _idle, TriggerModel.Value(2), guarded: true, order: 0);

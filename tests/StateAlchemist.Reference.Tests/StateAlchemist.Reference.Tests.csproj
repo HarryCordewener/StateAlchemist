@@ -10,5 +10,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\StateAlchemist.Reference\StateAlchemist.Reference.csproj" />
     <ProjectReference Include="..\..\samples\StateAlchemist.Samples\StateAlchemist.Samples.csproj" />
+    <ProjectReference Include="..\StateAlchemist.Contracts\StateAlchemist.Contracts.csproj" />
   </ItemGroup>
 </Project>

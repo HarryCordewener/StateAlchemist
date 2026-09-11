@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The contract suite: abstract tests against IMachine<byte>, and the machines they run. Every implementation's
+         test project inherits these with [InheritsTests]; this library runs nothing on its own. -->
+    <TargetFrameworks>net8.0;net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>StateAlchemist.Contracts</RootNamespace>
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit.Core" />
+    <PackageReference Include="TUnit.Assertions" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />
+    <ProjectReference Include="..\..\samples\StateAlchemist.Samples\StateAlchemist.Samples.csproj" />
+  </ItemGroup>
+</Project>
