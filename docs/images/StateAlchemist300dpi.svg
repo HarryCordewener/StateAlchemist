@@ -7,8 +7,30 @@
    width="1111.0969"
    height="1159.1854"
    viewBox="0 0 1111.0969 1159.1854"
+   sodipodi:docname="StateAlchemist300dpi.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
    xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.53203394"
+     inkscape:cx="265.02069"
+     inkscape:cy="913.47557"
+     inkscape:window-width="1806"
+     inkscape:window-height="1016"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g1" />
   <defs
      id="defs1" />
   <g
@@ -40,14 +62,17 @@
        style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:146.667px;font-family:Sans;-inkscape-font-specification:'Sans Bold';letter-spacing:-3px;writing-mode:lr-tb;direction:ltr;fill:#000000;fill-opacity:1"
        x="66.465126"
        y="1102.0836"
-       id="text7"><tspan
+       id="text7"
+       inkscape:export-filename="text7.svg"
+       inkscape:export-xdpi="300"
+       inkscape:export-ydpi="300"><tspan
          id="tspan7"
          x="66.465126"
          y="1102.0836"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:146.667px;font-family:Serif;-inkscape-font-specification:'Serif Bold';letter-spacing:-3px"><tspan
-   style="fill:#0263e1;fill-opacity:1"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:146.667px;font-family:Serif;-inkscape-font-specification:'Serif Bold';letter-spacing:-3px;fill:#000000;fill-opacity:1"><tspan
+   style="fill:#000000;fill-opacity:1"
    id="tspan8">S</tspan>tate <tspan
-   style="fill:#0263e1;fill-opacity:1"
+   style="fill:#000000;fill-opacity:1"
    id="tspan9">A</tspan>lchemist</tspan></text>
   </g>
 </svg>
