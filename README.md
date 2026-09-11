@@ -6,9 +6,9 @@
 A source-generated hierarchical state machine library for .NET. Your states own their data, your transitions
 own the transformation, and the compiler writes the machine.
 
-> **Status: design.** Nothing is on NuGet yet, and the API below is the planned shape, not a shipped one.
-> The design spec is in review:
-> [`2026-09-11-statealchemist-design.md`](https://github.com/HarryCordewener/TelnetNegotiationCore/blob/claude/statealchemist-design/docs/superpowers/specs/2026-09-11-statealchemist-design.md).
+> **Status: design approved, implementation not started.** Nothing is on NuGet yet, and the API below is the
+> planned shape, not a shipped one. The design spec:
+> [`docs/superpowers/specs/2026-09-11-statealchemist-design.md`](docs/superpowers/specs/2026-09-11-statealchemist-design.md).
 
 ## Why
 
@@ -51,7 +51,7 @@ lives in a state that isn't being left.
   cancels the decision.
 
 ```csharp
-// Planned API: subject to change during design review.
+// Planned API, per the approved design.
 public struct SubNegotiation : IState<Connected> { public byte Option; }
 [Initial] public struct AwaitingOption : IState<SubNegotiation> { }
 public struct Naws : IState<SubNegotiation> { public byte[]? Bytes; public int Index; }
