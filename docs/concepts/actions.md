@@ -11,17 +11,19 @@ Transforms change the machine's data; **actions run your code**: network writes,
 | `[Exited(typeof(S))]` on a module method | whenever `S` is left, by any transition | cleanup, tracing |
 | `[Entered(typeof(S))]` on a module method | whenever `S` is entered, by any transition | "ready" notifications |
 
-```csharp
+<!-- snippet: sample-class-form -->
+<a id='snippet-sample-class-form'></a>
+```cs
 [Transition(From = typeof(Willing), To = typeof(Idle)), On(GmcpOption)]
 public static class Accept
 {
     public static void Transform(ref Connected root) => root.GmcpEnabled = true;
+
     public static ValueTask CompletedAsync(TelnetContext context) => context.SendAsync(Iac, Do, GmcpOption);
 }
-
-[Entered(typeof(Idle))]
-public static void Ready(TelnetContext context) => context.Log.Add("ready");
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/GmcpModule.cs#L11-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-class-form' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## The order of one transition
 

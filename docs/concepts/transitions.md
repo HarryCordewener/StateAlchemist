@@ -7,14 +7,22 @@ a module can add a transition out of a state it did not write.
 
 **A method**, when the transition only changes data. The method *is* the transition's `Transform`:
 
-```csharp
+<!-- snippet: sample-move -->
+<a id='snippet-sample-move'></a>
+```cs
 [Transition(From = typeof(Idle), To = typeof(Command)), On(Iac)]
-public static void BeginCommand(in Idle from) { }
+public static void BeginCommand(in Idle from)
+{
+}
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/TelnetCore.cs#L20-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-move' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 **A static class**, when it has more than one part. Its methods are named for when they run:
 
-```csharp
+<!-- snippet: sample-guard -->
+<a id='snippet-sample-guard'></a>
+```cs
 [Transition(From = typeof(NawsEscaping), To = typeof(Idle)), On(Se)]
 public static class Finish
 {
@@ -27,10 +35,11 @@ public static class Finish
         root.Height = (bytes[2] << 8) | bytes[3];
     }
 
-    public static void Completed(TelnetContext context, Connected root) =>
-        context.Log.Add($"window {root.Width}x{root.Height}");
+    public static void Completed(TelnetContext context, Connected root) => context.Log.Add($"window {root.Width}x{root.Height}");
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L30-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-guard' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 | Method | Runs | Shape |
 |---|---|---|
@@ -54,14 +63,21 @@ async methods. Every method is optional. A method in the class that is not a pha
 
 A stay is how a state consumes input without leaving:
 
-```csharp
+<!-- snippet: sample-capture -->
+<a id='snippet-sample-capture'></a>
+```cs
 [Transition(From = typeof(Naws)), OnAny]
 public static void Capture(ref Naws self, byte value)
 {
     self.Bytes ??= new byte[4];
-    if (self.Index < 4) self.Bytes[self.Index++] = value;
+    if (self.Index < 4)
+    {
+        self.Bytes[self.Index++] = value;
+    }
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L15-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-capture' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 A re-entry clears data, so re-entering a state that has data is warning
 [`SALCH0301`](../reference/diagnostics.md#salch0301): if you meant "keep going", you meant a stay. The root is
@@ -89,11 +105,14 @@ role:
 Here the LCA of `AwaitingOption` and `Naws` is `SubNegotiation`, so the transition can record the option in the
 parent that outlives both:
 
-```csharp
+<!-- snippet: sample-roles -->
+<a id='snippet-sample-roles'></a>
+```cs
 [Transition(From = typeof(AwaitingOption), To = typeof(Naws)), On(NawsOption)]
-public static void Begin(in AwaitingOption from, ref SubNegotiation parent, ref Naws to) =>
-    parent.Option = NawsOption;
+public static void Begin(in AwaitingOption from, ref SubNegotiation parent, ref Naws to) => parent.Option = NawsOption;
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L10-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-roles' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Change `To` to `Idle` and `SubNegotiation` becomes exiting: `ref SubNegotiation` is then
 [`SALCH0201`](../reference/diagnostics.md#salch0201), because an edit to a state about to be cleared would be lost
@@ -122,18 +141,6 @@ from `Naws` there is nothing to read.
 | the context | the implementer's object — allowed unless the machine is [`Purity.Strict`](machines.md#options) |
 
 Anything else is [`SALCH0204`](../reference/diagnostics.md#salch0204).
-
-## Help while you type
-
-You do not have to remember the phase names or work out which parameters a phase may take. An empty class-form
-transition gets a hint ([`SALCH0901`](../reference/diagnostics.md#salch0901)) whose quick-fixes write the method
-for you — **Add Guard**, **Add Transform**, **Add Completed**, **Add CompletedAsync** — each with exactly the
-parameters this transition may take: the state it leaves as `in`, the state it enters and any shared parent as
-`ref`, and the value or event that fires it. The same fixes stay available on transitions that already declare some
-phases, and a decision offers **Add Complete for** each outcome it does not cover yet. A misspelt phase name
-([`SALCH0206`](../reference/diagnostics.md#salch0206)) is offered a rename to the phase it was probably meant to be.
-
-Quick-fixes come from Roslyn analyzers, so they work the same in Rider, Visual Studio and VS Code.
 
 ## Naming pitfall
 

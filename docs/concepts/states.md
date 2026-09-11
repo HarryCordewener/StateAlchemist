@@ -3,13 +3,68 @@
 A state is a `public struct`. Its fields are its data. Its parent is named by a marker interface, so the states of
 a machine form a tree the compiler can read.
 
-```csharp
-public struct Connected : IRootState { public bool GmcpEnabled; public int Width; public int Height; }
-[Initial] public struct Idle : IState<Connected> { public int LineLength; }
-public struct SubNegotiation : IState<Connected> { public byte Option; }
-[Initial] public struct AwaitingOption : IState<SubNegotiation> { }
-public struct Naws : IState<SubNegotiation> { public byte[]? Bytes; public int Index; public void Reset() => Index = 0; }
+<!-- snippet: sample-states -->
+<a id='snippet-sample-states'></a>
+```cs
+/// <summary>The root: lives as long as the connection.</summary>
+public struct Connected : IRootState
+{
+    public bool GmcpEnabled;
+    public int Width;
+    public int Height;
+}
+
+/// <summary>Reading ordinary text. Where the machine starts.</summary>
+[Initial]
+public struct Idle : IState<Connected>
+{
+    public int LineLength;
+}
+
+/// <summary>After IAC: a command follows.</summary>
+public struct Command : IState<Connected>
+{
+}
+
+[Initial]
+public struct AwaitingVerb : IState<Command>
+{
+}
+
+/// <summary>After IAC WILL: the option follows.</summary>
+public struct Willing : IState<Command>
+{
+}
+
+/// <summary>After IAC SB: a subnegotiation follows.</summary>
+public struct SubNegotiation : IState<Connected>
+{
+    public byte Option;
+}
+
+[Initial]
+public struct AwaitingOption : IState<SubNegotiation>
+{
+}
+
+/// <summary>Collecting NAWS's four bytes.</summary>
+public struct Naws : IState<SubNegotiation>
+{
+    public byte[]? Bytes;
+    public int Index;
+
+    /// <summary>Rewinds but keeps the buffer, so entering NAWS again allocates nothing.</summary>
+    public void Reset() => Index = 0;
+}
+
+/// <summary>After IAC inside NAWS: SE ends it.</summary>
+public struct NawsEscaping : IState<SubNegotiation>
+{
+    public Naws Captured;
+}
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/States.cs#L3-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-states' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## The tree
 
@@ -44,14 +99,21 @@ sibling states both need — the option a subnegotiation is for — goes in thei
 Clearing assigns `default` — unless the state declares `public void Reset()`, which is called instead. `Naws`
 uses it to keep its buffer:
 
-```csharp
+<!-- snippet: sample-naws-state -->
+<a id='snippet-sample-naws-state'></a>
+```cs
+/// <summary>Collecting NAWS's four bytes.</summary>
 public struct Naws : IState<SubNegotiation>
 {
     public byte[]? Bytes;
     public int Index;
-    public void Reset() => Index = 0;      // rewind; keep the array
+
+    /// <summary>Rewinds but keeps the buffer, so entering NAWS again allocates nothing.</summary>
+    public void Reset() => Index = 0;
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/States.cs#L45-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-naws-state' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 The first transition into `Naws` allocates the array (`to.Bytes ??= new byte[4]`); every later one reuses it. A
 machine instance has one storage slot per state for its whole life, so entering a state never allocates on its
@@ -70,6 +132,13 @@ own.
 Most triggers are *values* — bytes, characters, small enums. A trigger with its own typed payload is an *event*:
 a struct implementing `IEvent`. See [triggers](triggers.md).
 
-```csharp
-public readonly struct Error : IEvent { }
+<!-- snippet: sample-event -->
+<a id='snippet-sample-event'></a>
+```cs
+/// <summary>Something went wrong; recover to <see cref="Idle"/>.</summary>
+public readonly struct Error : IEvent
+{
+}
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/Events.cs#L3-L8' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-event' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

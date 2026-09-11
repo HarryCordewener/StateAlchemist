@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- netstandard2.0 and dependency-free: the source generator links these files into itself. -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>StateAlchemist.Model</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="PolySharp" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

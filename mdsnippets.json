@@ -1,0 +1,6 @@
+{
+  "Convention": "InPlaceOverwrite",
+  "ExcludeMarkdownDirectories": [ "superpowers" ],
+  "LinkFormat": "GitHub",
+  "WriteHeader": false
+}

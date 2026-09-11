@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The reference interpreter: a slow, reflection-based oracle for tests. Never packed. -->
+    <TargetFrameworks>net8.0;net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>StateAlchemist.Reference</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\StateAlchemist\StateAlchemist.csproj" />
+    <ProjectReference Include="..\StateAlchemist.Model\StateAlchemist.Model.csproj" />
+  </ItemGroup>
+</Project>

@@ -6,7 +6,9 @@ A module is a static class marked `[Module]`. It groups transitions, decisions a
 plugin is typically one module. Modules can live in any library and can add transitions out of states that other
 modules declared.
 
-```csharp
+<!-- snippet: sample-gmcp-module -->
+<a id='snippet-sample-gmcp-module'></a>
+```cs
 [Module]
 public static class GmcpModule
 {
@@ -14,10 +16,13 @@ public static class GmcpModule
     public static class Accept
     {
         public static void Transform(ref Connected root) => root.GmcpEnabled = true;
+
         public static ValueTask CompletedAsync(TelnetContext context) => context.SendAsync(Iac, Do, GmcpOption);
     }
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/GmcpModule.cs#L7-L21' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-gmcp-module' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Every method a machine calls must be `public static`, because the generated code lives in the application
 ([`SALCH0002`](../reference/diagnostics.md#salch0002)); analyzers in the declaring library report that where the
@@ -27,11 +32,17 @@ method is written.
 
 An application declares a machine on a `partial class`:
 
-```csharp
+<!-- snippet: sample-machine -->
+<a id='snippet-sample-machine'></a>
+```cs
 [Machine(Root = typeof(Connected), Value = typeof(byte), Context = typeof(TelnetContext))]
 [Include(typeof(TelnetCore)), Include(typeof(GmcpModule)), Include(typeof(NawsModule))]
-public sealed partial class SampleTelnet;
+public sealed partial class SampleTelnet
+{
+}
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/SampleTelnet.cs#L3-L9' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-machine' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 The generator runs in the application and sees every included module, from every library, at once. It emits
 one merged `switch` for exactly that set of modules. That is why conflicts between plugins — two modules claiming

@@ -24,19 +24,23 @@ Your states can live in your own library. The machine includes them because your
 
 `AwaitingOption` belongs to the core. Your module adds a transition out of it, on your option's byte:
 
-```csharp
+<!-- snippet: sample-naws-module -->
+<a id='snippet-sample-naws-module'></a>
+```cs
 [Module]
 public static class NawsModule
 {
     [Transition(From = typeof(AwaitingOption), To = typeof(Naws)), On(NawsOption)]
-    public static void Begin(in AwaitingOption from, ref SubNegotiation parent, ref Naws to) =>
-        parent.Option = NawsOption;
+    public static void Begin(in AwaitingOption from, ref SubNegotiation parent, ref Naws to) => parent.Option = NawsOption;
 
     [Transition(From = typeof(Naws)), OnAny]
     public static void Capture(ref Naws self, byte value)
     {
         self.Bytes ??= new byte[4];
-        if (self.Index < 4) self.Bytes[self.Index++] = value;
+        if (self.Index < 4)
+        {
+            self.Bytes[self.Index++] = value;
+        }
     }
 
     [Transition(From = typeof(Naws), To = typeof(NawsEscaping)), On(Iac)]
@@ -54,11 +58,12 @@ public static class NawsModule
             root.Height = (bytes[2] << 8) | bytes[3];
         }
 
-        public static void Completed(TelnetContext context, Connected root) =>
-            context.Log.Add($"window {root.Width}x{root.Height}");
+        public static void Completed(TelnetContext context, Connected root) => context.Log.Add($"window {root.Width}x{root.Height}");
     }
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L6-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-naws-module' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Nothing in `TelnetCore` changes. The core never needed to know NAWS exists.
 

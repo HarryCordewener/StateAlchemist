@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net8.0;net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>StateAlchemist</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>StateAlchemist</PackageId>
+    <Version>0.1.0-alpha.1</Version>
+    <Description>A source-generated hierarchical state machine library: states own their data, transitions own the transformation, the compiler writes the machine.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible Condition="'$(TargetFramework)' != 'netstandard2.0'">true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="PolySharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" />
+    <PackageReference Include="System.Memory" />
+  </ItemGroup>
+</Project>

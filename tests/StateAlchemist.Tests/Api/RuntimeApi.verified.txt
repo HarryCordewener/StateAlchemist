@@ -1,0 +1,283 @@
+﻿namespace StateAlchemist
+{
+    public enum Concurrency
+    {
+        Checked = 0,
+        Unchecked = 1,
+        Serialized = 2,
+    }
+    public sealed class ConcurrentUseException : System.InvalidOperationException
+    {
+        public ConcurrentUseException() { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=false, Inherited=false)]
+    public sealed class DecisionAttribute : System.Attribute
+    {
+        public DecisionAttribute() { }
+        public System.Type? From { get; set; }
+        public System.Type[] Handle { get; set; }
+        public int Order { get; set; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
+    public sealed class EnteredAttribute : System.Attribute
+    {
+        public EnteredAttribute(System.Type state) { }
+        public int Order { get; set; }
+        public System.Type State { get; }
+    }
+    public enum ExceptionResolution
+    {
+        Rethrow = 0,
+        Skip = 1,
+        Continue = 2,
+    }
+    [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
+    public sealed class ExitedAttribute : System.Attribute
+    {
+        public ExitedAttribute(System.Type state) { }
+        public int Order { get; set; }
+        public System.Type State { get; }
+    }
+    public interface IEvent { }
+    public interface IMachine<TValue> : System.IAsyncDisposable
+        where TValue :  struct
+    {
+        StateAlchemist.MachineDefinition Definition { get; }
+        System.Type StateType { get; }
+        StateAlchemist.MachineStatus Status { get; }
+        void Enqueue<TEvent>(TEvent e)
+            where TEvent :  struct, StateAlchemist.IEvent;
+        System.Threading.Tasks.ValueTask FireAsync(System.ReadOnlyMemory<TValue> values);
+        System.Threading.Tasks.ValueTask FireAsync(TValue value);
+        System.Threading.Tasks.ValueTask FireAsync<TEvent>(TEvent e)
+            where TEvent :  struct, StateAlchemist.IEvent;
+        bool IsIn<TState>()
+            where TState :  struct;
+        StateAlchemist.TransitionPlan Plan(TValue value);
+        StateAlchemist.TransitionPlan Plan<TEvent>(TEvent e)
+            where TEvent :  struct, StateAlchemist.IEvent;
+        System.Threading.Tasks.ValueTask StartAsync();
+        System.Threading.Tasks.ValueTask StopAsync();
+        bool TryGetState<TState>(out TState value)
+            where TState :  struct;
+    }
+    public interface IRootState { }
+    public interface IState<TParent>
+        where TParent :  struct { }
+    [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=true, Inherited=false)]
+    public sealed class IncludeAttribute : System.Attribute
+    {
+        public IncludeAttribute(System.Type module) { }
+        public System.Type Module { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Struct, AllowMultiple=false, Inherited=false)]
+    public sealed class InitialAttribute : System.Attribute
+    {
+        public InitialAttribute() { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=false, Inherited=false)]
+    public sealed class MachineAttribute : System.Attribute
+    {
+        public MachineAttribute() { }
+        public StateAlchemist.Concurrency Concurrency { get; set; }
+        public System.Type? Config { get; set; }
+        public System.Type? Context { get; set; }
+        public int InboxCapacity { get; set; }
+        public StateAlchemist.Purity Purity { get; set; }
+        public System.Type? Root { get; set; }
+        public StateAlchemist.Unhandled Unhandled { get; set; }
+        public System.Type? Value { get; set; }
+    }
+    public sealed class MachineDefinition
+    {
+        public MachineDefinition(System.Type valueType, System.Collections.Generic.IReadOnlyList<StateAlchemist.StateDefinition> states, System.Collections.Generic.IReadOnlyList<StateAlchemist.TransitionDefinition> transitions) { }
+        public StateAlchemist.StateDefinition Root { get; }
+        public System.Collections.Generic.IReadOnlyList<StateAlchemist.StateDefinition> States { get; }
+        public System.Collections.Generic.IReadOnlyList<StateAlchemist.TransitionDefinition> Transitions { get; }
+        public System.Type ValueType { get; }
+        public System.Collections.Generic.IReadOnlyList<StateAlchemist.StateDefinition> ChildrenOf(StateAlchemist.StateDefinition state) { }
+        public int IndexOf(System.Type stateType) { }
+    }
+    public sealed class MachineNotRunningException : System.InvalidOperationException
+    {
+        public MachineNotRunningException(StateAlchemist.MachineStatus status) { }
+        public StateAlchemist.MachineStatus Status { get; }
+    }
+    public enum MachineStatus
+    {
+        NotStarted = 0,
+        Running = 1,
+        Stopped = 2,
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=false, Inherited=false)]
+    public sealed class ModuleAttribute : System.Attribute
+    {
+        public ModuleAttribute() { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
+    public sealed class OnAnyAttribute : System.Attribute
+    {
+        public OnAnyAttribute() { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
+    public sealed class OnAttribute : System.Attribute
+    {
+        public OnAttribute(object value) { }
+        public object Value { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
+    public sealed class OnEventAttribute : System.Attribute
+    {
+        public OnEventAttribute(System.Type eventType) { }
+        public System.Type EventType { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
+    public sealed class OnRangeAttribute : System.Attribute
+    {
+        public OnRangeAttribute(object from, object to) { }
+        public object From { get; }
+        public object To { get; }
+    }
+    public enum Phase
+    {
+        Guard = 0,
+        Transform = 1,
+        Decide = 2,
+        Complete = 3,
+        Exited = 4,
+        Entered = 5,
+        Completed = 6,
+    }
+    public static class PhaseNames
+    {
+        public const string Complete = "Complete";
+        public const string Completed = "Completed";
+        public const string CompletedAsync = "CompletedAsync";
+        public const string Decide = "Decide";
+        public const string DecideAsync = "DecideAsync";
+        public const string Guard = "Guard";
+        public const string Transform = "Transform";
+        public static System.Collections.Generic.IReadOnlyList<string> All { get; }
+    }
+    public enum Purity
+    {
+        Permissive = 0,
+        Strict = 1,
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
+    public sealed class RunAttribute : System.Attribute
+    {
+        public RunAttribute() { }
+    }
+    public sealed class StateDefinition
+    {
+        public StateDefinition(int index, System.Type type, int parent, bool isInitial) { }
+        public int Index { get; }
+        public bool IsInitial { get; }
+        public bool IsRoot { get; }
+        public string Name { get; }
+        public int Parent { get; }
+        public System.Type Type { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
+    public sealed class ToAttribute : System.Attribute
+    {
+        public ToAttribute(System.Type target) { }
+        public System.Type Target { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
+    public sealed class TransitionAttribute : System.Attribute
+    {
+        public TransitionAttribute() { }
+        public System.Type? From { get; set; }
+        public int Order { get; set; }
+        public System.Type? To { get; set; }
+    }
+    public sealed class TransitionDefinition
+    {
+        public TransitionDefinition(int index, string name, int source, int target, StateAlchemist.TransitionKind kind, StateAlchemist.TriggerDefinition trigger, int order, bool hasGuard, bool isRun, bool usesContext, bool isDecision) { }
+        public bool HasGuard { get; }
+        public int Index { get; }
+        public bool IsDecision { get; }
+        public bool IsRun { get; }
+        public StateAlchemist.TransitionKind Kind { get; }
+        public string Name { get; }
+        public int Order { get; }
+        public int Source { get; }
+        public int Target { get; }
+        public StateAlchemist.TriggerDefinition Trigger { get; }
+        public bool UsesContext { get; }
+    }
+    public readonly struct TransitionInfo<TValue>
+        where TValue :  struct
+    {
+        public TransitionInfo(string transition, System.Type source, System.Type leaf, System.Type target, StateAlchemist.TransitionKind kind, StateAlchemist.Phase phase, TValue value, bool hasValue, System.Type? eventType, System.Type? state) { }
+        public System.Type? EventType { get; }
+        public bool HasValue { get; }
+        public StateAlchemist.TransitionKind Kind { get; }
+        public System.Type Leaf { get; }
+        public StateAlchemist.Phase Phase { get; }
+        public System.Type Source { get; }
+        public System.Type? State { get; }
+        public System.Type Target { get; }
+        public string Transition { get; }
+        public TValue Value { get; }
+        public override string ToString() { }
+        public StateAlchemist.TransitionInfo<TValue> With(StateAlchemist.Phase phase, System.Type? state = null) { }
+    }
+    public enum TransitionKind
+    {
+        Stay = 0,
+        Move = 1,
+        Reenter = 2,
+    }
+    public sealed class TransitionPlan
+    {
+        public TransitionPlan(string transition, System.Type leaf, System.Type target, StateAlchemist.TransitionKind kind, System.Collections.Generic.IReadOnlyList<System.Type> exiting, System.Collections.Generic.IReadOnlyList<System.Type> entering, bool isDecision) { }
+        public System.Collections.Generic.IReadOnlyList<System.Type> Entering { get; }
+        public System.Collections.Generic.IReadOnlyList<System.Type> Exiting { get; }
+        public bool Handled { get; }
+        public bool IsDecision { get; }
+        public StateAlchemist.TransitionKind Kind { get; }
+        public System.Type? Leaf { get; }
+        public System.Type? Target { get; }
+        public string? Transition { get; }
+        public static StateAlchemist.TransitionPlan None { get; }
+    }
+    public readonly struct TriggerDefinition : System.IEquatable<StateAlchemist.TriggerDefinition>
+    {
+        public System.Type? EventType { get; }
+        public long High { get; }
+        public StateAlchemist.TriggerKind Kind { get; }
+        public long Low { get; }
+        public bool Equals(StateAlchemist.TriggerDefinition other) { }
+        public override bool Equals(object? obj) { }
+        public override int GetHashCode() { }
+        public bool Matches(long value) { }
+        public override string ToString() { }
+        public static StateAlchemist.TriggerDefinition ForAny() { }
+        public static StateAlchemist.TriggerDefinition ForEvent(System.Type eventType) { }
+        public static StateAlchemist.TriggerDefinition ForRange(long low, long high) { }
+        public static StateAlchemist.TriggerDefinition ForValue(long value) { }
+        public static bool operator !=(StateAlchemist.TriggerDefinition left, StateAlchemist.TriggerDefinition right) { }
+        public static bool operator ==(StateAlchemist.TriggerDefinition left, StateAlchemist.TriggerDefinition right) { }
+    }
+    public enum TriggerKind
+    {
+        Value = 0,
+        Range = 1,
+        Any = 2,
+        Event = 3,
+    }
+    public enum Unhandled
+    {
+        Ignore = 0,
+        Throw = 1,
+    }
+    public sealed class UnhandledTriggerException : System.InvalidOperationException
+    {
+        public UnhandledTriggerException(System.Type state, string trigger) { }
+        public System.Type State { get; }
+        public string Trigger { get; }
+    }
+}
