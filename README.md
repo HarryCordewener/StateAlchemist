@@ -13,8 +13,8 @@
 A source-generated hierarchical state machine library for .NET. Your states own their data, your transitions
 own the transformation, and the compiler writes the machine.
 
-> **Status: documented, implementation starting.** Nothing is on NuGet yet, and the API below is the planned shape,
-> not a shipped one.
+> **Status: under construction, not released.** The generator writes working machines that pass the contract
+> suite; decisions, runs and performance work are next. Nothing is on NuGet yet.
 >
 > - **[Documentation](docs/index.md)** — concepts, guides and reference, written first as the contract the code is
 >   built against.
