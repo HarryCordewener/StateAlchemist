@@ -9,7 +9,7 @@ change it is on.
 | Throws in | The state | Then |
 |---|---|---|
 | `Guard`, `Transform`, `Complete` | has **not** changed: nothing commits, the machine stays in the source | the exception propagates from `FireAsync` |
-| `Exited`, `Entered`, `Completed` | **has** changed | the transition's remaining actions are skipped, the states left are still cleared, queued events are kept, and the exception propagates |
+| `Exited`, `Entered`, `Completed` | **has** changed | the transition's remaining actions are skipped, the states left are still cleared, queued events are kept and run before the next trigger, and the exception propagates |
 | `DecideAsync` | the machine is in the pending state | a generated `DecisionFailed` event carrying the exception fires there |
 
 One consequence to design around: a `Transform` that throws halfway has already made the edits before the throw

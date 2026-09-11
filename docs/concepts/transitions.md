@@ -64,7 +64,8 @@ public static void Capture(ref Naws self, byte value)
 ```
 
 A re-entry clears data, so re-entering a state that has data is warning
-[`SALCH0301`](../reference/diagnostics.md#salch0301): if you meant "keep going", you meant a stay.
+[`SALCH0301`](../reference/diagnostics.md#salch0301): if you meant "keep going", you meant a stay. The root is
+the exception: it is never exited, so re-entering it keeps its data and restarts everything below it.
 
 ### Moving to a state you are already in
 

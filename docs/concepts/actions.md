@@ -83,6 +83,8 @@ completion](#run-to-completion) before the next trigger.
 ## Run to completion
 
 A transition finishes — through every awaited action — before the next trigger is processed. A trigger fired
-*during* a transition, such as an action calling `Enqueue(new Error())`, is queued and processed at step 9. The
+*during* a transition, such as an action calling `Enqueue(new Error())`, is queued and processed at step 9.
+`Enqueue` exists for that: code running inside a transition. Called from outside one, it throws
+`InvalidOperationException` — from outside, use `FireAsync`. The
 queue is a small buffer inside the machine that allocates only if more than four events queue at once. Values are
 never queued this way; see [decisions](decisions.md#deferral-and-backpressure).

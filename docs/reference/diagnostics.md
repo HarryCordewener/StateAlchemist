@@ -209,7 +209,8 @@ See [concurrency](../concepts/concurrency.md#unchecked).
 
 > '{0}' re-enters '{1}', which has data; the data is cleared
 
-`To` equal to `From` exits and re-enters the state. If you meant to keep going, omit `To`: that is a stay.
+`To` equal to `From` exits and re-enters the state. If you meant to keep going, omit `To`: that is a stay. Not
+reported for the root: it is never exited, so its data survives.
 
 ## SALCH0401
 

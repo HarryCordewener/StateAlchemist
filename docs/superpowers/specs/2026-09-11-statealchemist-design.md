@@ -200,7 +200,7 @@ suffix disagrees with its return type is `SALCH0207`, with a code fix that renam
 |---|---|---|
 | omitted | **Stay** (internal) | Nothing exits or enters; `ref Self` persists. |
 | a different state | **Move** | Exit to the LCA, enter to the target. |
-| the source itself | **Re-enter** | Exits and re-enters: the data is cleared. The source is passed as a snapshot. Warning `SALCH0301` when the state has data. |
+| the source itself | **Re-enter** | Exits and re-enters: the data is cleared. The source is passed as a snapshot. Warning `SALCH0301` when the state has data, unless it is the root, which is never exited. |
 
 **Parameter binding.** The generator binds each parameter by type and checks it against the transition's
 roles (§6.3). Allowed parameters:
@@ -325,7 +325,7 @@ after it.
 | Step | Phase | Declared as | |
 |---|---|---|---|
 | 1 | **`Guard`** | the transition's `Guard` | Resolve (§6.1); read-only. |
-| 2 | *reset* | — | Reset the entering slots (target side, LCA exclusive). They are inactive, so nothing can observe it. |
+| 2 | *reset* | — | Reset the entering slots (target side, LCA exclusive). A state being started over is first copied to a snapshot; every other entering slot is inactive, so nothing can observe the reset. |
 | 3 | **`Transform`** | the transition's `Transform` (or `Complete`) | Synchronous; the source intact, the target fresh (§6.3). |
 | 4 | *commit* | — | The active leaf becomes the target. **The state has now changed.** |
 | 5 | **`Exited`** | `[Exited(typeof(S))]` | For each exited state, leaf → LCA; within a state, by `Order`. |
@@ -339,9 +339,10 @@ only one that actually suspends moves the rest to a continuation. Exiting slots 
 clearing them at step 8 instead is invisible to other transitions — and it lets steps 5–7 read what was left.
 A **stay** has no exits or entries: steps 2, 5, 6 and 8 do nothing, and `Completed` runs after the transform.
 
-For a **re-entry**, the source slot is also the target slot: step 2 first copies it to a snapshot, which
-`Transform` receives as `in` and the `Exited` actions receive as their value; step 8 leaves the re-entered slot
-alone.
+For a state that is **started over** — a re-entry's source, or the target of a move to a state on the active path —
+the exiting slot is also the entering slot: step 2 first copies it to a snapshot, which `Transform` receives as `in`
+and the `Exited` actions receive as their value; step 8 leaves the started-over slot alone. If step 3 throws, the
+snapshot is put back, so nothing commits.
 
 ### 6.3 Roles and access
 
@@ -471,11 +472,12 @@ reachable leaves that leave some values unhandled with no `[OnAny]` on their pat
 ### 6.9 Exceptions (D18)
 
 - **Guard or transform throws** (steps 1–3): no commit; the machine stays in the source state. Entering slots
-  were inactive and are reset on the next entry. Edits already made to *staying* slots are **not** rolled back —
+  were inactive and are reset on the next entry; a state being started over gets its snapshot back (§6.2). Edits
+  already made to *staying* slots are **not** rolled back —
   transforms should validate before they mutate. The exception propagates from `FireAsync`.
 - **An `Exited`, `Entered` or `Completed` action throws** (steps 5–7): the transition has committed. Remaining
   actions of that transition are skipped, exiting slots are still cleared (step 8 runs in a `finally`), queued
-  events are kept, and the exception propagates. (TNC's per-byte `catch` keeps working as it does today.)
+  events are kept — they run before the next trigger — and the exception propagates. (TNC's per-byte `catch` keeps working as it does today.)
 - **`DecideAsync` throws**: a generated `DecisionFailed` event (carrying the exception and the transition) fires
   on the pending state. Transitions on that event are the recovery; unhandled, it follows §6.8.
 
@@ -550,12 +552,12 @@ For `[Machine] partial class MudTelnet` the generator emits into that class:
 |---|---|
 | one field per state struct, `StateId _leaf`, pending slot, event queue | Storage. |
 | `MudTelnet(TContext context, in TConfig config)` | Construction: resets every slot and sets the initial leaf (root → `[Initial]` children). Runs no actions. |
-| `ValueTask StartAsync()`, `ValueTask StopAsync()`, `DisposeAsync()` | Lifecycle (D22): `StartAsync` runs the initial path's `[Entered]` actions once; `StopAsync` cancels a pending decision and runs `[Exited]` from the leaf to the root; `DisposeAsync` stops if started. Firing before start or after stop throws. |
+| `ValueTask StartAsync()`, `ValueTask StopAsync()`, `DisposeAsync()` | Lifecycle (D22): `StartAsync` runs the initial path's `[Entered]` actions once; `StopAsync` cancels a pending decision and runs `[Exited]` from the leaf to the root; `DisposeAsync` stops if started. Firing before start or after stop throws `MachineNotRunningException`; starting twice throws `InvalidOperationException`. |
 | `StateId State`, `bool IsIn(StateId)` | Current leaf; ancestry test. |
 | `bool TryGet{State}(out {State} value)` per state | Read a copy of an active state's data. |
 | `ValueTask FireAsync(TValue)`, `ValueTask FireAsync(ReadOnlyMemory<TValue>)`, `FireAsync(in TEvent)` × N | Executor. Each completes when its input has been processed, including waiting for any decision it started (§6.6). |
 | `void Fire(ReadOnlySpan<TValue>)`, `void Fire(TValue)` | Only when no action or decision in the machine is async (`SALCH0601` otherwise). |
-| `void Enqueue(in TEvent)` × N | Queue an event for processing after the current transition (recovery from hooks, §6.9). |
+| `void Enqueue(in TEvent)` × N | Queue an event for processing after the current transition (recovery from hooks, §6.9). Only for code running inside a transition: called from outside, it throws `InvalidOperationException`. |
 | `TransitionPlan Plan(TValue)`, `Plan(in TEvent)` | Pure layer: what would fire, evaluating guards read-only, without firing. |
 | `static MachineDefinition Definition` | States, hierarchy, transitions, guards, actions — as data. |
 | `const string Mermaid`, `const string Dot` | Diagrams. |
@@ -620,7 +622,7 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0207 | Error + fix | declaring lib | A phase's `Async` suffix disagrees with its return type, or `Guard`/`Transform`/`Complete` is written with `Async`. |
 | SALCH0208 | Error | declaring lib | A decision declares both `Decide` and `DecideAsync`. |
 | SALCH0209 | Warning | app | `Unchecked` concurrency on a machine whose actions or decisions are async: continuations run on other threads, so a single caller must still await every `FireAsync` before the next. |
-| SALCH0301 | Warning | app | Re-entry on a state that has data (it will be cleared). |
+| SALCH0301 | Warning | app | Re-entry on a state that has data (it will be cleared). Not reported for the root, which is never exited. |
 | SALCH0401 | Error | app | Decision outcome case with no `Complete`. |
 | SALCH0402 | Error | app | `Complete` for a type that is not a case of the decision's union. |
 | SALCH0501 | Warning | app | Reachable leaf with unhandled values and no `[OnAny]` on its path. |
@@ -629,7 +631,7 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0701 | Error | app | `[Run]` on a transition that is not a stay, or whose stop set cannot be computed. |
 | SALCH0901 | Info | declaring lib | A class-form transition declares no phases; code fixes add them with the right signatures (D24). |
 | SALCH0902 | Hidden | declaring lib | Carries the same code fixes on any transition (D24). |
-| SALCH0801 | Warning | anywhere | `FireAsync` or `Enqueue` on a machine that this method constructed and has not started on every path to that call (control-flow analysis within the method). Machines that cross methods, fields or DI are left to the runtime check. |
+| SALCH0801 | Warning | anywhere | `FireAsync` on a machine that this method constructed and has not started on every path to that call (control-flow analysis within the method). Machines that cross methods, fields or DI are left to the runtime check. |
 
 ## 9. Performance targets (acceptance criteria)
 

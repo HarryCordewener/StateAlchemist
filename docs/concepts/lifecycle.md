@@ -20,7 +20,8 @@ await telnet.StopAsync();                             // [Exited] actions from t
 **Construction runs no actions.** It resets every state's storage and sets the active leaf to the root's initial
 path — nothing more, so it cannot fail and cannot await.
 
-**`StartAsync` runs the initial path's `[Entered]` actions once.** Keeping it separate means the host finishes
+**`StartAsync` runs the initial path's `[Entered]` actions once** — a second call throws
+`InvalidOperationException`. Keeping it separate means the host finishes
 wiring — attaching the machine to a connection, a pipe, a writer — before any action runs. A telnet server that
 speaks first, sending its offers as soon as a client connects, sends them from an `[Entered]` action: under
 `StartAsync`, not in a constructor, and not waiting for input that may never come.
