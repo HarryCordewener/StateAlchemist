@@ -13,6 +13,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TUnit" />
+    <!-- To parse the documentation's code blocks, nothing more. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.9.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />

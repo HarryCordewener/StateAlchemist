@@ -80,3 +80,17 @@ default, `Permissive`, the context is allowed, and the machine's definition reco
 A machine *instance* is its state data — one slot per state — plus a few fields: the active leaf, a pending
 decision, a small event queue. The machine *definition* is generated code and static data, shared by every
 instance. Creating a machine for a new connection builds nothing.
+
+## Diagrams
+
+Every machine carries its own picture, as constants:
+
+```csharp
+Console.WriteLine(MudTelnet.Mermaid);   // a Mermaid stateDiagram-v2
+File.WriteAllText("telnet.dot", MudTelnet.Dot);   // a Graphviz digraph
+```
+
+Both are written at compile time from the same model the machine runs — a composite state for every parent, its
+`[Initial]` child marked, one arrow per transition labelled with its trigger, and `run` or `decide` where that is
+what happens. Because they are `const string`s, a diagram costs nothing to read and cannot drift from the code: a
+README that pastes `Mermaid` is as current as the build.

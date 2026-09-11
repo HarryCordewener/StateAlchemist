@@ -18,7 +18,9 @@ finds the machine idle processes in turn, as [concurrency](../concepts/concurren
 runs each call inline, with no inbox and no lock.
 
 A machine with an error gets no code at all; its diagnostics say why. Warnings about modules that come from other
-assemblies are reported on the `[Machine]` attribute, since that is where the application chose them.
+assemblies are reported on the `[Machine]` attribute, since that is where the application chose them — and the
+problems a module can have on its own are reported where the module is written, by the
+[analyzer](diagnostics.md#where-each-diagnostic-is-reported) that ships alongside the generator.
 
 ## Construction and lifecycle
 
@@ -45,7 +47,7 @@ assemblies are reported on the `[Machine]` attribute, since that is where the ap
 | `ValueTask FireAsync(byte value)` | Fires one value. Every `FireAsync` completes when its input has been processed — including waiting for any [decision](../concepts/decisions.md#deferral-and-backpressure) it started — so awaiting it is the backpressure. |
 | `ValueTask FireAsync(ReadOnlyMemory<byte> values)` | Fires values in order, consuming [runs](../concepts/runs.md) in one call. |
 | `ValueTask FireAsync(in {Event} e)` | One per event type the machine handles. |
-| `void Fire(byte value)`, `void Fire(ReadOnlySpan<byte> values)` | Only when no action or decision in the machine is async ([`SALCH0601`](diagnostics.md#salch0601) otherwise). |
+| `void Fire(byte value)`, `void Fire(ReadOnlyMemory<byte> values)`, `void Fire(in {Event} e)` | The same calls without the `await`, for a machine whose actions and decisions are all synchronous. Using one on a machine that can suspend is [`SALCH0601`](diagnostics.md#salch0601): the call would block the calling thread waiting for the action. The batch takes `ReadOnlyMemory` rather than a span, because it is the same code path as `FireAsync` — and a [run](../concepts/runs.md) that suspends needs a buffer that outlives the call. |
 | `void Enqueue(in {Event} e)` | Queues an event for after the current transition. |
 
 ## The pure layer
@@ -54,7 +56,7 @@ assemblies are reported on the `[Machine]` attribute, since that is where the ap
 |---|---|
 | `TransitionPlan Plan(byte value)`, `TransitionPlan Plan(in {Event} e)` | What a trigger would do now, evaluating guards, without doing it. |
 | `static MachineDefinition Definition` | States, parents, transitions and triggers, as data. |
-| `const string Mermaid`, `const string Dot` | The machine as a diagram. |
+| `const string Mermaid`, `const string Dot` | The machine as a diagram: a Mermaid `stateDiagram-v2` and a Graphviz digraph, with a composite state per parent and one arrow per transition. Written at compile time from the same model the machine runs, so a diagram in a README cannot drift from the code. |
 
 ## Hooks
 

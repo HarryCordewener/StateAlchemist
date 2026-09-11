@@ -37,6 +37,18 @@ jobs:
       - run: dotnet publish samples/StateAlchemist.AotSample -c Release -r linux-x64 -warnaserror
       - run: samples/StateAlchemist.AotSample/bin/Release/net11.0/linux-x64/publish/StateAlchemist.AotSample
 
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x
+      # Packs the library and uses the package: the generator and the analyzers must come with it and work in an
+      # application that only references StateAlchemist. Nothing is published.
+      - run: eng/check-package.sh
+
   docs:
     runs-on: ubuntu-latest
     steps:

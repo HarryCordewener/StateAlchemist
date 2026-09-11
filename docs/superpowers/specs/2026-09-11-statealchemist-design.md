@@ -565,7 +565,7 @@ For `[Machine] partial class MudTelnet` the generator emits into that class:
 | `StateId State`, `bool IsIn(StateId)` | Current leaf; ancestry test. |
 | `bool TryGet{State}(out {State} value)` per state | Read a copy of an active state's data. |
 | `ValueTask FireAsync(TValue)`, `ValueTask FireAsync(ReadOnlyMemory<TValue>)`, `FireAsync(in TEvent)` × N | Executor. Each completes when its input has been processed, including waiting for any decision it started (§6.6). |
-| `void Fire(ReadOnlySpan<TValue>)`, `void Fire(TValue)` | Only when no action or decision in the machine is async (`SALCH0601` otherwise). |
+| `void Fire(TValue)`, `void Fire(ReadOnlyMemory<TValue>)`, `void Fire(in TEvent)` | The same calls without the `await`. Every machine has them — the generator writes one machine at a time and cannot know how a caller means to use it — and using one on a machine that can suspend is `SALCH0601`, reported at the call. The batch takes `ReadOnlyMemory`, not a span: it is the same code path as `FireAsync`, and a run that suspends needs a buffer that outlives the call. |
 | `void Enqueue(in TEvent)` × N | Queue an event for processing after the current transition (recovery from hooks, §6.9). Only for code running inside a transition: called from outside, it throws `InvalidOperationException`. |
 | `TransitionPlan Plan(TValue)`, `Plan(in TEvent)` | Pure layer: what would fire, evaluating guards read-only, without firing. |
 | `static MachineDefinition Definition` | States, hierarchy, transitions, guards, actions — as data. |
@@ -636,9 +636,9 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0402 | Error | app | `Complete` for a type that is not a case of the decision's union. |
 | SALCH0501 | Warning | app | Reachable leaf with unhandled values and no `[OnAny]` on its path. |
 | SALCH0502 | Warning | app | State unreachable from the root's initial leaf. |
-| SALCH0601 | Error | app | Synchronous `Fire` used on a machine with async actions or decisions. |
+| SALCH0601 | Error | app | Synchronous `Fire` used on a machine with async actions or decisions. Reported at the call, by an analyzer. |
 | SALCH0701 | Error | app | `[Run]` on a transition that is not a stay, or whose stop set cannot be computed. |
-| SALCH0901 | Info | declaring lib | A class-form transition declares no phases; code fixes add them with the right signatures (D24). |
+| SALCH0901 | Info | declaring lib | A class-form transition declares no phases; code fixes add them with the right signatures (D24). A decision's `Decide` and `Complete` are not offered: their outcome type is a union the author chooses. |
 | SALCH0902 | Hidden | declaring lib | Carries the same code fixes on any transition (D24). |
 | SALCH0801 | Warning | anywhere | `FireAsync` on a machine that this method constructed and has not started on every path to that call (control-flow analysis within the method). Machines that cross methods, fields or DI are left to the runtime check. |
 

@@ -16,8 +16,8 @@ own the transformation, and the compiler writes the machine.
 > **Status: under construction, not released.** The generator writes working machines — hierarchy, actions,
 > events, decisions, runs, every concurrency mode — that pass the whole contract suite, and they are fast: a stay
 > costs 7.7 ns and a move 20 ns with no allocation at all, a kilobyte of text is captured at 48 GB/s, and a machine
-> publishes into a native binary with no warnings. What is left is the developer experience: declaration-site
-> analyzers, code fixes, diagrams, and a package. Nothing is on NuGet yet.
+> publishes into a native binary with no warnings. The analyzers, the code fixes, the diagrams and the package are
+> in too — the whole design is implemented and tested. Nothing is on NuGet yet; publishing is its own decision.
 >
 > - **[Documentation](docs/index.md)** — concepts, guides and reference, written first as the contract the code is
 >   built against.

@@ -88,7 +88,7 @@ public static class DiagnosticCatalog
         "State '{0}' cannot be reached from the initial state", App);
 
     public static readonly DiagnosticDescriptor SyncFireOnAsyncMachine = new("SALCH0601", Severity.Error, "Synchronous fire on an async machine",
-        "Synchronous Fire is not generated for '{0}': it has async actions or decisions", App);
+        "'{0}' has async actions or decisions: fire it with FireAsync and await that", App);
 
     public static readonly DiagnosticDescriptor InvalidRun = new("SALCH0701", Severity.Error, "Invalid run transition",
         "[Run] on '{0}' is invalid: {1}", App);

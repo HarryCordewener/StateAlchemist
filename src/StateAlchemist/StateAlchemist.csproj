@@ -8,7 +8,26 @@
     <Description>A source-generated hierarchical state machine library: states own their data, transitions own the transformation, the compiler writes the machine.</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IsAotCompatible Condition="'$(TargetFramework)' != 'netstandard2.0'">true</IsAotCompatible>
+    <PackageTags>state-machine;statemachine;source-generator;hierarchical;aot;telnet</PackageTags>
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+    <!-- The logo lives with the documentation, which a source tree built from the plans alone does not have. -->
+    <PackageIcon Condition="Exists('..\..\docs\images\StateAlchemist.png')">StateAlchemist.png</PackageIcon>
   </PropertyGroup>
+
+  <!-- The generator and the code fixes travel in this package, under analyzers/, so referencing StateAlchemist is
+       all an application does. They are built first, and their output is packed rather than referenced: a runtime
+       library must not depend on Roslyn. -->
+  <ItemGroup>
+    <ProjectReference Include="..\StateAlchemist.Generators\StateAlchemist.Generators.csproj" PrivateAssets="all" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\StateAlchemist.CodeFixes\StateAlchemist.CodeFixes.csproj" PrivateAssets="all" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="PACKAGE.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\docs\images\StateAlchemist.png" Condition="Exists('..\..\docs\images\StateAlchemist.png')" Pack="true" PackagePath="\" />
+    <None Include="..\StateAlchemist.Generators\bin\$(Configuration)\netstandard2.0\StateAlchemist.Generators.dll" Pack="true" PackagePath="analyzers\dotnet\cs" Visible="false" />
+    <None Include="..\StateAlchemist.CodeFixes\bin\$(Configuration)\netstandard2.0\StateAlchemist.CodeFixes.dll" Pack="true" PackagePath="analyzers\dotnet\cs" Visible="false" />
+  </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="PolySharp" PrivateAssets="all" />

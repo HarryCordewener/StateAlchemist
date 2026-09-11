@@ -17,6 +17,23 @@ modules it includes.
 | `SALCH08xx` | lifecycle |
 | `SALCH09xx` | authoring assistance: hints whose code fixes write code for you |
 
+## Where each diagnostic is reported
+
+Two components report these, and which one depends on what the problem needs to know.
+
+- **The analyzer** reports a module's own problems, in the project where the module is written: a state that is not
+  a public struct, a member that is not public static, a transition with no trigger, a phase whose name or
+  signature is wrong. It has to, because Roslyn cannot see a referenced assembly's non-public members — a library's
+  mistakes would otherwise be invisible until an application assembled a machine, and then be reported in the wrong
+  place. It also carries the `SALCH09xx` hints whose code fixes write a phase for you.
+- **The generator** reports everything that depends on which modules a machine includes: conflicts, coverage,
+  reachability, roles, and the machine declaration itself. Those answers change with the machine, so they belong to
+  the application that chose it.
+- **Two analyzers read your calls** rather than your declarations: `SALCH0801`, when a method constructs a machine
+  and fires it without starting it, and `SALCH0601`, when a machine that can suspend is fired synchronously.
+
+Both ship in the package, so referencing StateAlchemist is all it takes.
+
 ---
 
 ## SALCH0001
@@ -131,7 +148,8 @@ A `[Machine]` without `Root` or `Value`, or an `[Include]` of a type that is not
 
 A state the transition leaves is cleared when the transition ends, so an edit to it would vanish.
 
-**Fix:** take it as `in`, and write anything that must survive into a state that stays or is entered. See
+**Fix:** take it as `in`, and write anything that must survive into a state that stays or is entered — there is a
+code fix that does the first half. See
 [what a transition may touch](../concepts/transitions.md#what-a-transition-may-touch).
 
 ## SALCH0202
@@ -248,9 +266,12 @@ No sequence of transitions, assuming every guard passes, reaches it.
 
 **Synchronous fire on an async machine** · error · app
 
-> Synchronous Fire is not generated for '{0}': it has async actions or decisions
+> '{0}' has async actions or decisions: fire it with FireAsync and await that
 
-The synchronous `Fire` overloads exist only for machines with no async code, rather than hiding a `.Result`.
+Every machine has the synchronous `Fire`, because the generator writes one machine at a time and cannot know how a
+caller means to use it. On a machine that can suspend the call would block the calling thread until the action came
+back — a deadlock waiting for a synchronization context — so using it there is an error at the call, where the
+choice is made.
 
 ## SALCH0701
 
@@ -277,10 +298,10 @@ See [lifecycle](../concepts/lifecycle.md#why-starting-is-separate).
 > Transition '{0}' declares no phases
 
 A class-form transition with no methods only changes state. That is valid, but usually unfinished. The code fixes
-add **Guard**, **Transform**, **Completed** or **CompletedAsync**, each with the exact parameters this transition
-may take: the source as `in`, the target and any shared parent as `ref`, and the value or event that fires it. For
-a decision, they add **Complete for** each outcome not yet covered. If the transition really is state-only, write it
-as a method instead.
+add **Guard**, **Transform** and **Completed**, each with the parameters this transition's own states give it: the
+source as `in` for a move, the state itself as `ref` for a stay, the target as `ref`. A decision's `Decide` and
+`Complete` are not offered — their outcome type is a union you choose, and a fix cannot invent one. If the
+transition really is state-only, write it as a method instead.
 
 ## SALCH0902
 
