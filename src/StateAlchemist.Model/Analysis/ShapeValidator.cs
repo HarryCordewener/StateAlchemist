@@ -78,14 +78,15 @@ public static class ShapeValidator
 
         foreach (var member in transition.UnknownMembers)
         {
-            var name = transition.Name + "." + member;
-            if (AsyncPhasesThatMayNotBe.Contains(member))
+            var name = transition.Name + "." + member.Name;
+            var at = member.Location ?? transition.Location;
+            if (AsyncPhasesThatMayNotBe.Contains(member.Name))
             {
-                diagnostics.Add(new(DiagnosticCatalog.AsyncSuffix, transition.Location, name, "cannot be async: it runs before the state changes"));
+                diagnostics.Add(new(DiagnosticCatalog.AsyncSuffix, at, name, "cannot be async: it runs before the state changes"));
             }
             else
             {
-                diagnostics.Add(new(DiagnosticCatalog.UnknownPhase, transition.Location, name));
+                diagnostics.Add(new(DiagnosticCatalog.UnknownPhase, at, name));
             }
         }
 

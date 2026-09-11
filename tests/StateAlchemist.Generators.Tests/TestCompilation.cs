@@ -14,7 +14,8 @@ namespace StateAlchemist.Generators.Tests;
 /// </summary>
 internal static class TestCompilation
 {
-    private static readonly ImmutableArray<MetadataReference> References = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
+    /// <summary>Every assembly this test process runs with, as metadata — what a workspace needs too.</summary>
+    public static readonly ImmutableArray<MetadataReference> References = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!)
         .Split(Path.PathSeparator)
         .Where(path => path.Length > 0)
         .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path))

@@ -148,7 +148,9 @@ public static class RoleValidator
 
             if (use == Use.Transform && parameter.Passing == Passing.Ref && roles.Any(role => role == Role.Exiting))
             {
-                diagnostics.Add(new(DiagnosticCatalog.RefOnExitingState, method.Location, parameter.Name, method.FullName, stateName));
+                // At the parameter, where the fix applies, when the front-end knows where it is.
+                var at = parameter.Location ?? method.Location;
+                diagnostics.Add(new(DiagnosticCatalog.RefOnExitingState, at, parameter.Name, method.FullName, stateName));
                 continue;
             }
 

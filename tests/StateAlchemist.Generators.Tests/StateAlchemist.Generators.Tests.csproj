@@ -9,10 +9,13 @@
     <!-- The generator compiles against Roslyn 4.8 so the oldest supported SDK can load it; the tests run it on the
          Roslyn a current SDK ships, as an application build would. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.9.0" />
+    <!-- The code fixes run in an IDE, so testing them means the workspaces layer, at the same version. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" VersionOverride="5.9.0" />
   </ItemGroup>
   <ItemGroup>
     <!-- Aliased: the generator links the model's source, so it carries its own copy of every model type. -->
     <ProjectReference Include="..\..\src\StateAlchemist.Generators\StateAlchemist.Generators.csproj" Aliases="generator" />
+    <ProjectReference Include="..\..\src\StateAlchemist.CodeFixes\StateAlchemist.CodeFixes.csproj" Aliases="codefixes" />
     <ProjectReference Include="..\..\src\StateAlchemist.Reference\StateAlchemist.Reference.csproj" />
     <ProjectReference Include="..\StateAlchemist.Contracts\StateAlchemist.Contracts.csproj" />
     <ProjectReference Include="..\..\samples\StateAlchemist.Samples\StateAlchemist.Samples.csproj" />

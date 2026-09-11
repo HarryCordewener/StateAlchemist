@@ -19,6 +19,14 @@ internal static class SymbolModelBuilder
     /// <summary>Builds the model of <paramref name="machine"/>. Problems become diagnostics; nothing throws for a bad declaration.</summary>
     public static SymbolMachine Build(INamedTypeSymbol machine, Compilation compilation) => new Builder(machine, new KnownTypes(compilation)).Run();
 
+    /// <summary>
+    /// Builds the model of one <c>[Module]</c> on its own, for the analyzer that reports a declaring library's
+    /// problems where the module is written (spec §8). There is no machine, so there is no root, no value type and
+    /// no options: only what a module's own declarations can be wrong about is knowable here, which is exactly the
+    /// diagnostics scoped to the declaring library.
+    /// </summary>
+    public static SymbolMachine BuildModule(INamedTypeSymbol module, Compilation compilation) => new Builder(module, new KnownTypes(compilation)).RunModule();
+
     private sealed class Builder(INamedTypeSymbol machine, KnownTypes known)
     {
         private readonly List<ModelDiagnostic> _diagnostics = [];
@@ -31,6 +39,14 @@ internal static class SymbolModelBuilder
         private ITypeSymbol? _value;
         private ITypeSymbol? _context;
         private ITypeSymbol? _config;
+
+        /// <summary>One module, with no machine around it: its states are the ones its own declarations name.</summary>
+        public SymbolMachine RunModule()
+        {
+            // Every trigger value fits, because no value type is chosen yet: a value out of range is the app's problem.
+            _options = new MachineOptions("System.Int64", new ValueDomain(long.MinValue, long.MaxValue));
+            return Build([machine], SourceSpan.None);
+        }
 
         public SymbolMachine Run()
         {
@@ -88,6 +104,11 @@ internal static class SymbolModelBuilder
                 .OfType<INamedTypeSymbol>()
                 .Where(module => IsModule(module, machineLocation))
                 .ToList();
+            return Build(modules, machineLocation);
+        }
+
+        private SymbolMachine Build(List<INamedTypeSymbol> modules, SourceSpan machineLocation)
+        {
             var declarations = modules.SelectMany(Declarations).ToList();
             CollectStates(declarations);
             var stateIndex = new Dictionary<ITypeSymbol, int>(SymbolEqualityComparer.Default);
@@ -303,7 +324,9 @@ internal static class SymbolModelBuilder
             var knownPhases = declaration.IsDecision ? DecisionPhases : TransitionPhases;
             var unknown = classMethods
                 .Where(m => m.DeclaredAccessibility == Accessibility.Public && !knownPhases.Contains(m.Name))
-                .Select(m => m.Name).Distinct().ToList();
+                .GroupBy(m => m.Name)
+                .Select(group => new UnknownMember(group.Key, Span(group.First().Locations.FirstOrDefault())))
+                .ToList();
 
             DecisionModel? decision = null;
             if (declaration.IsDecision)
@@ -415,7 +438,7 @@ internal static class SymbolModelBuilder
                     Event(eventType);
                 }
 
-                return new ParameterModel(p.Name.Length == 0 ? "_" : p.Name, FriendlyName(p.Type), kind, passing, state);
+                return new ParameterModel(p.Name.Length == 0 ? "_" : p.Name, FriendlyName(p.Type), kind, passing, state, Span(p.Locations.FirstOrDefault()));
             }).ToList();
 
             var model = new MethodModel(declaringType, method.Name, ReturnShapeOf(method.ReturnType), method.IsStatic,

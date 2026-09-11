@@ -77,6 +77,7 @@ internal sealed partial class MachineEmitter
             WriteStorage();
             WriteQueries();
             WriteDefinition();
+            WriteDiagrams();
             WriteLifecycle();
             WriteFiring();
             WriteDispatch();
@@ -366,7 +367,12 @@ internal sealed partial class MachineEmitter
 
     private static string Bool(bool value) => value ? "true" : "false";
 
-    private static string Literal(string text) => "\"" + text.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+    /// <summary>A C# string literal of <paramref name="text"/>, newlines included: a diagram is many lines.</summary>
+    private static string Literal(string text) => "\"" + text
+        .Replace("\\", "\\\\")
+        .Replace("\"", "\\\"")
+        .Replace("\r", string.Empty)
+        .Replace("\n", "\\n") + "\"";
 
     private static IEnumerable<INamedTypeSymbol> Containing(INamedTypeSymbol type)
     {

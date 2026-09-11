@@ -6,4 +6,4 @@ namespace StateAlchemist.Model;
 /// <param name="Kind">What it binds to.</param>
 /// <param name="Passing">How it is passed.</param>
 /// <param name="State">For <see cref="ParameterKind.State"/>, the state's index; otherwise −1.</param>
-public sealed record ParameterModel(string Name, string TypeName, ParameterKind Kind, Passing Passing, int State = -1);
+public sealed record ParameterModel(string Name, string TypeName, ParameterKind Kind, Passing Passing, int State = -1, SourceSpan? Location = null);

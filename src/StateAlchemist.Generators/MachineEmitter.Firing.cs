@@ -89,6 +89,8 @@ internal sealed partial class MachineEmitter
             }
         }
 
+        WriteSyncFiring();
+
         for (var i = 0; i < _events.Count; i++)
         {
             _w.Line();
@@ -353,6 +355,31 @@ internal sealed partial class MachineEmitter
         _w.Line("#if NET6_0_OR_GREATER");
         _w.Line("[global::System.Runtime.CompilerServices.AsyncMethodBuilder(typeof(global::System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder))]");
         _w.Line("#endif");
+    }
+
+    /// <summary>
+    /// The synchronous entry points, for a machine whose actions and decisions are all synchronous: the same call,
+    /// with the <see cref="ValueTaskType"/> consumed here instead of by the caller. Firing one of these on a machine
+    /// that can suspend would block the calling thread, which is what <c>SALCH0601</c> reports.
+    /// </summary>
+    private void WriteSyncFiring()
+    {
+        _w.Line();
+        _w.Line($"/// <summary>Fires <paramref name=\"value\"/> and returns when it has been processed.</summary>");
+        _w.Line($"public void Fire({V} value) {{ Await(FireAsync(value)); }}");
+        _w.Line();
+        _w.Line("/// <summary>Fires every value of <paramref name=\"values\"/>, in order, and returns when they have been processed.</summary>");
+        _w.Line($"public void Fire(global::System.ReadOnlyMemory<{V}> values) {{ Await(FireAsync(values)); }}");
+        for (var i = 0; i < _events.Count; i++)
+        {
+            _w.Line();
+            _w.Line($"/// <summary>Fires a <see cref=\"{Name(_events[i])}\"/> and returns when it has been processed.</summary>");
+            _w.Line($"public void Fire(in {Name(_events[i])} e) {{ Await(FireAsync(in e)); }}");
+        }
+
+        _w.Line();
+        _w.Line("/// <summary>Consumes a call that a synchronous machine has already finished, and throws what it threw.</summary>");
+        _w.Line($"private static void Await({ValueTaskType} fired) {{ fired.GetAwaiter().GetResult(); }}");
     }
 
     /// <summary>

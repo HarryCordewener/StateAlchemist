@@ -32,7 +32,7 @@ public sealed record TransitionModel(
     MethodModel? Transform,
     IReadOnlyList<MethodModel> Completed,
     DecisionModel? Decision,
-    IReadOnlyList<string> UnknownMembers,
+    IReadOnlyList<UnknownMember> UnknownMembers,
     string Module,
     SourceSpan Location)
 {
@@ -81,4 +81,13 @@ public sealed record TransitionModel(
             }
         }
     }
+}
+
+/// <summary>A class-form method whose name is not a phase, and where it is written if the front-end can tell.</summary>
+/// <param name="Name">The member, qualified by its transition: <c>Finish.Complet</c>.</param>
+/// <param name="Location">Where it is declared, for the diagnostic and its rename fix.</param>
+public sealed record UnknownMember(string Name, SourceSpan? Location = null)
+{
+    /// <inheritdoc/>
+    public override string ToString() => Name;
 }

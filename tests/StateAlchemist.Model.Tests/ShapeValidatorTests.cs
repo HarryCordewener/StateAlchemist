@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 using TUnit.Core;
 
@@ -19,7 +20,8 @@ public class ShapeValidatorTests
 
     private static TransitionModel ClassForm(string name, int source, int target, MethodModel? guard = null, MethodModel? transform = null,
         MethodModel[]? completed = null, DecisionModel? decision = null, string[]? unknown = null) =>
-        new(0, name, source, target, TriggerModel.Value(1), 0, false, guard, transform, completed ?? [], decision, unknown ?? [], "T.Module", SourceSpan.None);
+        new(0, name, source, target, TriggerModel.Value(1), 0, false, guard, transform, completed ?? [], decision,
+            (unknown ?? []).Select(member => new UnknownMember(member)).ToList(), "T.Module", SourceSpan.None);
 
     [Test]
     public async Task AStateMustBeAPublicStructWithOneParent()

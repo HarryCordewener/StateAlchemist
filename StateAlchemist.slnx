@@ -7,6 +7,7 @@
     <Project Path="samples/StateAlchemist.Samples/StateAlchemist.Samples.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/StateAlchemist.CodeFixes/StateAlchemist.CodeFixes.csproj" />
     <Project Path="src/StateAlchemist.Generators/StateAlchemist.Generators.csproj" />
     <Project Path="src/StateAlchemist.Model/StateAlchemist.Model.csproj" />
     <Project Path="src/StateAlchemist.Reference/StateAlchemist.Reference.csproj" />

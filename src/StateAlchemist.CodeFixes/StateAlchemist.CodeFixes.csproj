@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The code fixes, in their own assembly: a fix needs the workspaces layer, and the compiler must not have to
+         load it to build. Like the generator, netstandard2.0 against Roslyn 4.8, and it links the diagnostic
+         catalog's source rather than referencing the model. -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>StateAlchemist.CodeFixes</RootNamespace>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
+    <PackageReference Include="PolySharp" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\StateAlchemist.Model\Diagnostics\DiagnosticCatalog.cs" Link="Model\DiagnosticCatalog.cs" />
+    <Compile Include="..\StateAlchemist.Model\Diagnostics\DiagnosticDescriptor.cs" Link="Model\DiagnosticDescriptor.cs" />
+  </ItemGroup>
+</Project>

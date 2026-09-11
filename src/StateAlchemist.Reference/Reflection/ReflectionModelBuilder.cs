@@ -231,7 +231,7 @@ public static class ReflectionModelBuilder
             var known = declaration.IsDecision ? DecisionPhases : TransitionPhases;
             var unknown = declaration.Class?.GetMethods(Declared)
                 .Where(m => !m.IsSpecialName && m.IsPublic && !known.Contains(m.Name) && m.DeclaringType == declaration.Class)
-                .Select(m => m.Name).Distinct().ToList() ?? [];
+                .Select(m => m.Name).Distinct().Select(name => new UnknownMember(name)).ToList() ?? [];
 
             DecisionModel? decision = null;
             if (declaration.IsDecision)
