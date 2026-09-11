@@ -38,7 +38,7 @@ public static class Finish
     public static void Completed(TelnetContext context, Connected root) => context.Log.Add($"window {root.Width}x{root.Height}");
 }
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L30-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-guard' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L31-L46' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-guard' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 | Method | Runs | Shape |
@@ -77,7 +77,7 @@ public static void Capture(ref Naws self, byte value)
     }
 }
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L15-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-capture' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L15-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-capture' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A re-entry clears data, so re-entering a state that has data is warning

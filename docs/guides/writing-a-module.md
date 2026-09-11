@@ -63,7 +63,7 @@ public static class NawsModule
     }
 }
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L6-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-naws-module' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/NawsModule.cs#L6-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-naws-module' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Nothing in `TelnetCore` changes. The core never needed to know NAWS exists.
