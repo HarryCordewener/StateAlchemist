@@ -20,6 +20,10 @@ internal static class GeneratedHarness
             ("Failures", false) => new FailuresMachine((RecordingContext)context) { Hooks = hooks },
             ("Failures", true) => new FailuresHandledMachine((RecordingContext)context) { Hooks = hooks },
             ("SampleTelnet", false) => new TelnetMachine((TelnetContext)context) { Hooks = hooks },
+            ("RecorderSerialized", false) => new RecorderSerializedMachine((RecordingContext)context) { Hooks = hooks },
+            ("Deciding", false) => new DecidingMachine((RecordingContext)context) { Hooks = hooks },
+            ("DecidingSerialized", false) => new DecidingSerializedMachine((RecordingContext)context) { Hooks = hooks },
+            ("Runs", false) => new RunsMachine((RecordingContext)context) { Hooks = hooks },
             _ => throw new NotSupportedException($"No generated machine for shape '{shape.Name}'{(handled ? " with exception hooks" : "")}."),
         };
     }

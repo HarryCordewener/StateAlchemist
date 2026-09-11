@@ -17,7 +17,7 @@ namespace StateAlchemist.Generators.Tests.Agreement;
 
 /// <summary>
 /// The generated machine and the reference interpreter agree on random machines (spec §10): for any tree and any
-/// trigger sequence, the same state, the same data, the same actions in the same order, and the same plans.
+/// batch of triggers, the same state, the same data, the same actions in the same order, and the same plans.
 /// </summary>
 public class RandomMachineTests
 {
@@ -28,6 +28,7 @@ public class RandomMachineTests
     public async Task GeneratedAndInterpretedMachinesAgreeOnRandomTrees()
     {
         var checkedMachines = 0;
+        var withRuns = 0;
         var seed = 0;
         while (checkedMachines < Machines)
         {
@@ -39,11 +40,13 @@ public class RandomMachineTests
             }
 
             checkedMachines++;
+            withRuns += source.Contains(", Run]") ? 1 : 0;
             var disagreement = await Compare(assembly, seed);
             await Assert.That(disagreement).IsEqualTo("").Because($"seed {seed}:\n{source}");
         }
 
         await Assert.That(seed).IsLessThan(Machines * 4).Because("most random machines should be valid");
+        await Assert.That(withRuns).IsGreaterThanOrEqualTo(Machines / 6).Because("runs must be among what agrees");
     }
 
     /// <summary>Compiles <paramref name="source"/> with the generator, or returns <see langword="null"/> if the machine has errors.</summary>
@@ -90,14 +93,15 @@ public class RandomMachineTests
                 return $"after {step} triggers\n generated:   {g}\n interpreted: {i}";
             }
 
-            var value = (byte)random.Next(8);
-            if (generated.Plan(value).Transition != interpreted.Plan(value).Transition)
+            // A batch of one to four values, so runs form; the plan is compared for its first value.
+            var batch = Enumerable.Range(0, random.Next(1, 5)).Select(_ => (byte)random.Next(8)).ToArray();
+            if (generated.Plan(batch[0]).Transition != interpreted.Plan(batch[0]).Transition)
             {
-                return $"step {step}: the plans for {value} differ: {generated.Plan(value).Transition} and {interpreted.Plan(value).Transition}";
+                return $"step {step}: the plans for {batch[0]} differ: {generated.Plan(batch[0]).Transition} and {interpreted.Plan(batch[0]).Transition}";
             }
 
-            await generated.FireAsync(value);
-            await interpreted.FireAsync(value);
+            await generated.FireAsync(batch);
+            await interpreted.FireAsync(batch);
         }
 
         return "";

@@ -8,9 +8,11 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using StateAlchemist.Contracts.Machines;
+using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
 using StateAlchemist.Contracts.Machines.Recording;
+using StateAlchemist.Contracts.Machines.Runs;
 using StateAlchemist.Reference.Tests.FrontEnd;
 using StateAlchemist.Samples.Telnet;
 using TUnit.Core;
@@ -35,6 +37,10 @@ public class GeneratedCodeTests
     [Arguments("Recorder")]
     [Arguments("Guards")]
     [Arguments("FailuresWithHooks")]
+    [Arguments("Deciding")]
+    [Arguments("DecidingSerialized")]
+    [Arguments("RecorderSerialized")]
+    [Arguments("Runs")]
     public async Task TheGeneratedCodeIsCSharp73AndCompilesWithoutAWarning(string machine)
     {
         var source = machine switch
@@ -42,6 +48,12 @@ public class GeneratedCodeTests
             "Telnet" => TestCompilation.Machine("M", typeof(Connected), typeof(byte), typeof(TelnetContext), [typeof(TelnetCore), typeof(GmcpModule), typeof(NawsModule)], body: " { }"),
             "Recorder" => TestCompilation.Machine("M", typeof(Root), typeof(byte), typeof(RecordingContext), [typeof(RecorderModule), typeof(RecorderExtras)], body: " { }"),
             "Guards" => TestCompilation.Machine("M", typeof(GuardRoot), typeof(byte), typeof(RecordingContext), [typeof(GuardModule)], body: " { }"),
+            "Deciding" => TestCompilation.Machine("M", typeof(DecideRoot), typeof(byte), typeof(RecordingContext), [typeof(DecidingModule)], body: " { }"),
+            "DecidingSerialized" => TestCompilation.Machine("M", typeof(DecideRoot), typeof(byte), typeof(RecordingContext), [typeof(DecidingModule)],
+                ", Concurrency = global::StateAlchemist.Concurrency.Serialized", " { }"),
+            "RecorderSerialized" => TestCompilation.Machine("M", typeof(Root), typeof(byte), typeof(RecordingContext), [typeof(RecorderModule), typeof(RecorderExtras)],
+                ", Concurrency = global::StateAlchemist.Concurrency.Serialized", " { }"),
+            "Runs" => TestCompilation.Machine("M", typeof(RunRoot), typeof(byte), typeof(RecordingContext), [typeof(RunModule)], body: " { }"),
             _ => TestCompilation.Machine("M", typeof(FailRoot), typeof(byte), typeof(RecordingContext), [typeof(FailureModule)], body: """
                  {
                      partial void OnGuardException(global::System.Exception e, in global::StateAlchemist.TransitionInfo<byte> t, ref global::StateAlchemist.ExceptionResolution r) { }

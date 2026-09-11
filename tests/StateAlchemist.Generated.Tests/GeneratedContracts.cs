@@ -4,8 +4,7 @@ using TUnit.Core;
 
 namespace StateAlchemist.Generated.Tests;
 
-// Every contract Plan 4's generator supports, run against generated machines. Plan 5 adds decisions, backpressure,
-// runs and the serialized mode.
+// Every contract, run against generated machines.
 
 [InheritsTests]
 public sealed class GeneratedLifecycle : LifecycleContract
@@ -63,6 +62,30 @@ public sealed class GeneratedConcurrency : ConcurrencyContract
 
 [InheritsTests]
 public sealed class GeneratedTelnet : TelnetContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class GeneratedDecisions : DecisionContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class GeneratedBackpressure : BackpressureContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class GeneratedRuns : RunContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class GeneratedSerialized : SerializedContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
 }

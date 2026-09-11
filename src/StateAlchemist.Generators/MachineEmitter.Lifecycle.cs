@@ -27,7 +27,7 @@ internal sealed partial class MachineEmitter
         using (_w.Block($"public {ValueTaskType} StopAsync()"))
         {
             _w.Line($"if (_status != {Rt}MachineStatus.Running) {{ _status = {Rt}MachineStatus.Stopped; return default({ValueTaskType}); }}");
-            _w.Line($"_status = {Rt}MachineStatus.Stopped;");
+            _w.Line(HasInbox ? "Abandon();" : $"_status = {Rt}MachineStatus.Stopped;");
             _w.Line("if (_lifetime != null) _lifetime.Cancel();");
             _w.Line("return Stop();");
         }

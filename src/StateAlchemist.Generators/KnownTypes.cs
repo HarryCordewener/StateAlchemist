@@ -41,6 +41,8 @@ internal sealed class KnownTypes(Compilation compilation)
 
     public INamedTypeSymbol? Event { get; } = compilation.GetTypeByMetadataName("StateAlchemist.IEvent");
 
+    public INamedTypeSymbol? DecisionFailed { get; } = compilation.GetTypeByMetadataName("StateAlchemist.DecisionFailed");
+
     public INamedTypeSymbol? TransitionInfo { get; } = compilation.GetTypeByMetadataName("StateAlchemist.TransitionInfo`1");
 
     public INamedTypeSymbol? ValueTask { get; } = compilation.GetTypeByMetadataName("System.Threading.Tasks.ValueTask");

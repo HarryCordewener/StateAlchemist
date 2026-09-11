@@ -48,8 +48,13 @@ internal sealed partial class MachineEmitter
 
     private bool IsChecked => _model.Options.Concurrency == ConcurrencyMode.Checked;
 
-    /// <summary>What Plan 5 generates. Until then a machine that needs it cannot be constructed.</summary>
-    private bool NeedsPlan5 => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.IsDecision || t.IsRun);
+    /// <summary>
+    /// Whether the machine needs the inbox and the pump (spec §6.6, §6.10): it is <c>Serialized</c>, or has an async
+    /// decision, while which it must accept events from other callers. Every other machine runs each call inline.
+    /// </summary>
+    private bool HasInbox => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.Decision?.DecideAsync is not null);
+
+    private bool HasRuns => _model.Transitions.Any(t => t.IsRun);
 
     private string Write()
     {
@@ -76,7 +81,14 @@ internal sealed partial class MachineEmitter
             WriteFiring();
             WriteDispatch();
             WritePlans();
+            WriteRuns();
+            WriteDecisions();
             WriteTransitions();
+            if (HasInbox)
+            {
+                WriteInbox();
+            }
+
             WriteHooks();
         }
 
@@ -109,11 +121,23 @@ internal sealed partial class MachineEmitter
         _w.Line("private StateId _leaf;");
         _w.Line($"private {Rt}MachineStatus _status;");
         _w.Line("private bool _inside;");
-        _w.Line("private global::System.Collections.Generic.Queue<QueuedEvent> _queue;");
         _w.Line("private global::System.Threading.CancellationTokenSource _lifetime;");
-        if (IsChecked)
+        if (HasInbox)
         {
-            _w.Line("private int _busy;");
+            WriteInboxStorage();
+        }
+        else
+        {
+            _w.Line("private global::System.Collections.Generic.Queue<QueuedEvent> _queue;");
+            if (IsChecked)
+            {
+                _w.Line("private int _busy;");
+            }
+        }
+
+        if (HasRuns)
+        {
+            _w.Line($"private readonly {V}[] _one = new {V}[1];");
         }
 
         if (_machine.Context is { } context)
@@ -141,24 +165,22 @@ internal sealed partial class MachineEmitter
         _w.Line("/// <summary>Creates the machine in its initial state. Runs no actions: call <see cref=\"StartAsync\"/>.</summary>");
         using (_w.Block($"public {_machine.Machine.Name}({string.Join(", ", parameters)})"))
         {
-            if (NeedsPlan5)
+            if (_machine.Context is not null)
             {
-                _w.Line("throw new global::System.NotSupportedException(\"Decisions, runs and Serialized machines are generated from Plan 5 of the StateAlchemist implementation plans.\");");
+                _w.Line("_context = context;");
             }
-            else
+
+            if (_machine.Config is not null)
             {
-                if (_machine.Context is not null)
-                {
-                    _w.Line("_context = context;");
-                }
-
-                if (_machine.Config is not null)
-                {
-                    _w.Line("_config = config;");
-                }
-
-                _w.Line($"_leaf = StateId.{_stateIds[_hierarchy.InitialLeaf(_hierarchy.Root)]};");
+                _w.Line("_config = config;");
             }
+
+            _w.Line($"_leaf = StateId.{_stateIds[_hierarchy.InitialLeaf(_hierarchy.Root)]};");
+        }
+
+        if (HasInbox)
+        {
+            return;
         }
 
         _w.Line();

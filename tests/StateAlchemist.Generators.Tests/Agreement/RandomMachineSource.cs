@@ -8,7 +8,7 @@ namespace StateAlchemist.Generators.Tests.Agreement;
 /// <summary>
 /// Writes a random, usually valid machine as C#: a random tree of states that each carry a value, transitions of
 /// every kind between random states — declared on leaves and on ancestors, exact, ranged and or-else, some guarded,
-/// some with a <c>Completed</c> — and <c>[Exited]</c>/<c>[Entered]</c> actions that log. Every transform names only
+/// some with a <c>Completed</c>, some runs — and <c>[Exited]</c>/<c>[Entered]</c> actions that log. Every transform names only
 /// what it may: the target by <c>ref</c>, the root by <c>ref</c>, and a leaf source by <c>in</c>.
 /// </summary>
 internal static class RandomMachineSource
@@ -31,6 +31,7 @@ internal static class RandomMachineSource
             .ToDictionary(s => s, s => Enumerable.Range(0, count).Where(c => parents[c] == s).OrderBy(_ => random.Next()).First());
 
         var text = new StringBuilder();
+        text.AppendLine("using System;");
         text.AppendLine("using System.Collections.Generic;");
         text.AppendLine("using StateAlchemist;");
         text.AppendLine($"namespace {Namespace};");
@@ -106,6 +107,16 @@ internal static class RandomMachineSource
             }
 
             text.AppendLine("  }");
+        }
+
+        // Runs: stays on or-else or a range, taking the whole run (spec §6.7).
+        for (var i = 0; i < count; i++)
+        {
+            if (random.Next(4) == 0)
+            {
+                var trigger = random.Next(2) == 0 ? "OnAny" : $"OnRange({random.Next(3)}, {random.Next(3, 7)})";
+                text.AppendLine($"  [Transition(From = typeof(S{i})), {trigger}, Run] public static void Run{i}(ref S{i} self, ReadOnlySpan<byte> run) {{ self.Value += run.Length * {random.Next(2, 9)} + run[0]; }}");
+            }
         }
 
         for (var i = 0; i < count; i++)

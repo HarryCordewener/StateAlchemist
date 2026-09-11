@@ -117,6 +117,12 @@ internal static class SymbolModelBuilder
                 }
             }
 
+            // A failed decision fires DecisionFailed whether or not a transition handles it: the machine must know the type.
+            if (transitions.Any(t => t.IsDecision) && known.DecisionFailed is { } failed)
+            {
+                Event(failed);
+            }
+
             var model = new MachineModel(machine.Name, _options, states, transitions, actions, _diagnostics);
             return new SymbolMachine(machine, model, _stateTypes, _methods, _events, _value, _context, _config, _locations, machineLocation,
                 modules.Select(m => MetadataName(m)).ToList());
