@@ -182,13 +182,17 @@ public sealed partial class ReferenceMachine<TValue> : IMachine<TValue>
     private async ValueTask RunLifecycleAsync(ActionPhase phase, IReadOnlyList<int> states)
     {
         // Lifecycle actions run inside the machine, so they may Enqueue; what they queue runs before the first trigger.
+        // Their exception hooks apply as in a transition: Skip skips every remaining lifecycle action.
         _inside.Value = Inside.Transition;
         foreach (var state in states)
         {
             var info = new TransitionInfo<TValue>(
                 "(lifecycle)", _machine.StateTypes[_hierarchy.Root], StateType, StateType, TransitionKind.Stay,
                 phase == ActionPhase.Entered ? Phase.Entered : Phase.Exited, default, false, null, _machine.StateTypes[state]);
-            await RunStateActionsAsync(phase, state, info, snapshots: null);
+            if (!await RunStateActionsAsync(phase, state, info, snapshots: null))
+            {
+                break;
+            }
         }
     }
 

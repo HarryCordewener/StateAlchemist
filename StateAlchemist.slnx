@@ -3,12 +3,15 @@
     <Project Path="samples/StateAlchemist.Samples/StateAlchemist.Samples.csproj" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/StateAlchemist.Generators/StateAlchemist.Generators.csproj" />
     <Project Path="src/StateAlchemist.Model/StateAlchemist.Model.csproj" />
     <Project Path="src/StateAlchemist.Reference/StateAlchemist.Reference.csproj" />
     <Project Path="src/StateAlchemist/StateAlchemist.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/StateAlchemist.Contracts/StateAlchemist.Contracts.csproj" />
+    <Project Path="tests/StateAlchemist.Generated.Tests/StateAlchemist.Generated.Tests.csproj" />
+    <Project Path="tests/StateAlchemist.Generators.Tests/StateAlchemist.Generators.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Model.Tests/StateAlchemist.Model.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Reference.Tests/StateAlchemist.Reference.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Tests/StateAlchemist.Tests.csproj" />

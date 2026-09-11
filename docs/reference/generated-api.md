@@ -10,7 +10,11 @@ public sealed partial class MudTelnet;
 
 the generator adds the members below to `MudTelnet`, which also implements `IMachine<byte>`. Nothing it
 generates uses a dictionary, a hash lookup, or reflection: dispatch is a `switch` on the active state, then on the
-trigger; storage is fields; the definition is static arrays.
+trigger; storage is fields; the definition is static arrays. The generated code is plain C# 7.3, so a
+`netstandard2.0` project compiles it on its default language version.
+
+A machine with an error gets no code at all; its diagnostics say why. Warnings about modules that come from other
+assemblies are reported on the `[Machine]` attribute, since that is where the application chose them.
 
 ## Construction and lifecycle
 

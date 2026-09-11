@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Generated machines, one per contract shape, running the same contract suite as the reference interpreter.
+         The declarations live in other assemblies (the contracts, the samples): the whole-program path is the only
+         path tested. -->
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>StateAlchemist.Generated.Tests</RootNamespace>
+    <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+    <!-- The contract machines exercise what these warn about on purpose: a re-entry that clears data, values left
+         unhandled, an Unchecked machine with async actions. -->
+    <NoWarn>$(NoWarn);SALCH0209;SALCH0301;SALCH0501</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />
+    <ProjectReference Include="..\..\src\StateAlchemist.Generators\StateAlchemist.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\StateAlchemist.Contracts\StateAlchemist.Contracts.csproj" />
+    <ProjectReference Include="..\..\samples\StateAlchemist.Samples\StateAlchemist.Samples.csproj" />
+  </ItemGroup>
+</Project>

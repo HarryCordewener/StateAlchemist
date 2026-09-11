@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>StateAlchemist.Generators.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TUnit" />
+    <!-- The generator compiles against Roslyn 4.8 so the oldest supported SDK can load it; the tests run it on the
+         Roslyn a current SDK ships, as an application build would. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.9.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Aliased: the generator links the model's source, so it carries its own copy of every model type. -->
+    <ProjectReference Include="..\..\src\StateAlchemist.Generators\StateAlchemist.Generators.csproj" Aliases="generator" />
+    <ProjectReference Include="..\..\src\StateAlchemist.Reference\StateAlchemist.Reference.csproj" />
+    <ProjectReference Include="..\StateAlchemist.Contracts\StateAlchemist.Contracts.csproj" />
+    <ProjectReference Include="..\..\samples\StateAlchemist.Samples\StateAlchemist.Samples.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The reference front-end's deliberately bad declarations: compiled here for reflection, and read as source for Roslyn. -->
+    <Compile Include="..\StateAlchemist.Reference.Tests\FrontEnd\BadDeclarations.cs" Link="FrontEnd\BadDeclarations.cs" />
+  </ItemGroup>
+</Project>

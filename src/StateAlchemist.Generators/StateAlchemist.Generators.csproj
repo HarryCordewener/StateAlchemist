@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The source generator. netstandard2.0 against Roslyn 4.8, so apps building with the .NET 8 SDK or later can
+         load it. It links the model's source rather than referencing it: an analyzer cannot bring dependencies. -->
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>StateAlchemist.Generators</RootNamespace>
+    <IsRoslynComponent>true</IsRoslynComponent>
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="PolySharp" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="StateAlchemist.Generators.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\StateAlchemist.Model\**\*.cs" Exclude="..\StateAlchemist.Model\bin\**;..\StateAlchemist.Model\obj\**" Link="Model\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

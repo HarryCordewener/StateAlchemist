@@ -21,7 +21,9 @@ await telnet.StopAsync();                             // [Exited] actions from t
 path — nothing more, so it cannot fail and cannot await.
 
 **`StartAsync` runs the initial path's `[Entered]` actions once** — a second call throws
-`InvalidOperationException`. Those actions may `Enqueue` events; they run before the first trigger. Keeping it separate means the host finishes
+`InvalidOperationException`. Those actions may `Enqueue` events; they run before the first trigger. If one throws,
+the [exception hooks](exceptions.md) apply as they do in a transition, and `Skip` skips the remaining lifecycle
+actions. Keeping it separate means the host finishes
 wiring — attaching the machine to a connection, a pipe, a writer — before any action runs. A telnet server that
 speaks first, sending its offers as soon as a client connects, sends them from an `[Entered]` action: under
 `StartAsync`, not in a constructor, and not waiting for input that may never come.
