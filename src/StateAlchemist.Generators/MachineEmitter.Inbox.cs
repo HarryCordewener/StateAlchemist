@@ -6,22 +6,37 @@ namespace StateAlchemist.Generators;
 // The inbox and the pump, written into machines that are Serialized or have an async decision — the design the
 // reference interpreter runs (Plan 3), in generated C# 7.3. Every FireAsync is an input; whoever finds the machine
 // idle pumps, one trigger per step; a pending decision pauses the input that started it while the machine accepts
-// the events it handles. See ReferenceMachine.Inbox.cs for the rules, stated once. The pending-decision parts are
-// written only into machines that have an async decision.
+// the events it handles. See ReferenceMachine.Inbox.cs for the rules, stated once.
+//
+// For speed (Plan 6): inputs are pooled and are themselves the IValueTaskSource a caller awaits, so a call allocates
+// nothing in steady state; the pump runs synchronously and continues asynchronously only when a step suspends; and
+// the AsyncLocal that catches self-firing is set only while a decision is pending, which is rare. The
+// pending-decision parts are written only into machines that have an async decision.
 internal sealed partial class MachineEmitter
 {
     private const string Task = "global::System.Threading.Tasks.Task";
+    private const string Sources = "global::System.Threading.Tasks.Sources.";
 
     /// <summary>Whether the machine has an async decision: only then does its inbox carry a pending state.</summary>
     private bool Deciding => _model.Transitions.Any(t => t.Decision?.DecideAsync is not null);
+
+    /// <summary>A Serialized machine's bounded inbox (spec §6.10): callers wait for room instead of growing the queue.</summary>
+    private bool Bounded => _model.Options.Concurrency == ConcurrencyMode.Serialized && _model.Options.InboxCapacity > 0;
 
     private void WriteInboxStorage()
     {
         _w.Line("private readonly object _sync = new object();");
         _w.Line("private readonly global::System.Collections.Generic.List<Input> _inbox = new global::System.Collections.Generic.List<Input>();");
         _w.Line("private readonly global::System.Collections.Generic.List<Input> _queued = new global::System.Collections.Generic.List<Input>();");
+        _w.Line("private readonly global::System.Collections.Generic.Stack<Input> _pool = new global::System.Collections.Generic.Stack<Input>();");
+        _w.Line("private Input _spare;");
         _w.Line("private Input _current;");
         _w.Line("private bool _pumping;");
+        if (Bounded)
+        {
+            _w.Line($"private readonly global::System.Threading.SemaphoreSlim _room = new global::System.Threading.SemaphoreSlim({_model.Options.InboxCapacity}, {_model.Options.InboxCapacity});");
+        }
+
         if (IsChecked)
         {
             _w.Line("private bool _busy;");
@@ -41,6 +56,7 @@ internal sealed partial class MachineEmitter
     private void WriteInbox()
     {
         WriteInboxTypes();
+        WritePool();
         WriteSubmit();
         WritePump();
         WritePumpSteps();
@@ -49,10 +65,13 @@ internal sealed partial class MachineEmitter
 
     private void WriteInboxTypes()
     {
+        var machine = _machine.Machine.Name;
         _w.Line();
-        _w.Line("/// <summary>One caller's input — a batch of values, or one event — or an event queued inside the machine.</summary>");
-        using (_w.Block("private sealed class Input"))
+        _w.Line("/// <summary>One caller's input — a batch of values, or one event — or an event queued inside the machine. Pooled; the caller awaits it directly.</summary>");
+        using (_w.Block($"private sealed class Input : {Sources}IValueTaskSource"))
         {
+            _w.Line($"public readonly {machine} Machine;");
+            _w.Line($"public readonly {V}[] Single = new {V}[1];");
             _w.Line($"public global::System.ReadOnlyMemory<{V}> Values;");
             _w.Line("public int Next;");
             _w.Line("public int Tag = -2;");
@@ -62,13 +81,24 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line($"public {TypeType} Unknown;");
-            _w.Line($"public {Task}CompletionSource<bool> Done;");
+            _w.Line("public bool HasCaller;");
+            _w.Line("public int Settled;");
+            if (IsChecked)
+            {
+                _w.Line("public bool HoldsBusy;");
+            }
+
             if (Deciding)
             {
                 _w.Line("public bool ArrivedWhilePending;");
             }
 
+            _w.Line($"public {Sources}ManualResetValueTaskSourceCore<bool> Core;");
+            _w.Line($"public Input({machine} machine) {{ Machine = machine; Core.RunContinuationsAsynchronously = true; }}");
             _w.Line("public bool IsEvent { get { return Tag != -2; } }");
+            _w.Line($"public {Sources}ValueTaskSourceStatus GetStatus(short token) {{ return Core.GetStatus(token); }}");
+            _w.Line($"public void OnCompleted(global::System.Action<object> continuation, object state, short token, {Sources}ValueTaskSourceOnCompletedFlags flags) {{ Core.OnCompleted(continuation, state, token, flags); }}");
+            _w.Line("public void GetResult(short token) { try { Core.GetResult(token); } finally { Machine.Return(this); } }");
         }
 
         _w.Line();
@@ -103,22 +133,102 @@ internal sealed partial class MachineEmitter
         }
     }
 
+    private void WritePool()
+    {
+        _w.Line();
+        using (_w.Block("private Input Rent()"))
+        {
+            _w.Line("var spare = global::System.Threading.Interlocked.Exchange(ref _spare, null);");
+            _w.Line("if (spare != null) return spare;");
+            _w.Line("lock (_sync) { if (_pool.Count > 0) return _pool.Pop(); }");
+            _w.Line("return new Input(this);");
+        }
+
+        _w.Line();
+        using (_w.Block("private void Return(Input input)"))
+        {
+            _w.Line("input.Values = default(global::System.ReadOnlyMemory<" + V + ">);");
+            _w.Line("input.Next = 0;");
+            _w.Line("input.Tag = -2;");
+            for (var i = 0; i < _events.Count; i++)
+            {
+                _w.Line($"input.E{i} = default({Name(_events[i])});");
+            }
+
+            _w.Line("input.Unknown = null;");
+            _w.Line("input.HasCaller = false;");
+            _w.Line("input.Settled = 0;");
+            if (IsChecked)
+            {
+                _w.Line("input.HoldsBusy = false;");
+            }
+
+            if (Deciding)
+            {
+                _w.Line("input.ArrivedWhilePending = false;");
+            }
+
+            _w.Line("input.Core.Reset();");
+            _w.Line("if (global::System.Threading.Interlocked.CompareExchange(ref _spare, input, null) == null) return;");
+            _w.Line("lock (_sync) { if (_pool.Count < 16) _pool.Push(input); }");
+        }
+
+        // Settling an input releases the busy flag it holds, then completes its caller's ValueTask — or, for an event
+        // queued inside the machine, which has no caller, returns it to the pool. Exactly once: the pump and Abandon may race.
+        _w.Line();
+        using (_w.Block("private void Succeed(Input input)"))
+        {
+            _w.Line("if (global::System.Threading.Interlocked.Exchange(ref input.Settled, 1) != 0) return;");
+            if (IsChecked)
+            {
+                _w.Line("if (input.HoldsBusy) { lock (_sync) { _busy = false; } }");
+            }
+
+            _w.Line("if (input.HasCaller) input.Core.SetResult(true); else Return(input);");
+        }
+
+        _w.Line();
+        using (_w.Block($"private void Fault(Input input, {Exception} exception)"))
+        {
+            _w.Line("if (global::System.Threading.Interlocked.Exchange(ref input.Settled, 1) != 0) return;");
+            if (IsChecked)
+            {
+                _w.Line("if (input.HoldsBusy) { lock (_sync) { _busy = false; } }");
+            }
+
+            _w.Line("if (input.HasCaller) input.Core.SetException(exception); else Return(input);");
+        }
+    }
+
     private void WriteSubmit()
     {
         _w.Line();
         using (_w.Block($"private {ValueTaskType} Submit(Input input)"))
         {
-            _w.Line($"if (_status != {Rt}MachineStatus.Running) return Faulted(new {Rt}MachineNotRunningException(_status));");
+            _w.Line($"if (_status != {Rt}MachineStatus.Running) {{ Return(input); return Faulted(new {Rt}MachineNotRunningException(_status)); }}");
             if (Deciding)
             {
                 // Code inside the machine that fires it would wait for itself: caught in a decision, and in any transition while one is pending.
                 _w.Line("var flow = _flow.Value;");
-                _w.Line($"if (flow != null && (flow is Pending || _pending != null)) return Faulted(new {Rt}ConcurrentUseException());");
+                _w.Line($"if (flow != null && (flow is Pending || _pending != null)) {{ Return(input); return Faulted(new {Rt}ConcurrentUseException()); }}");
             }
 
+            _w.Line("input.HasCaller = true;");
+            _w.Line("var token = input.Core.Version;");
+            if (Bounded)
+            {
+                _w.Line("if (!_room.Wait(0)) return SubmitWhenRoom(input, token);");
+            }
             if (IsChecked)
             {
-                _w.Line("var holdsBusy = false;");
+                _w.Line("var refused = false;");
+            }
+
+            // A caller that finds the machine idle runs its input at once, inline; otherwise it joins the inbox.
+            var idle = "!_pumping && _current == null && _inbox.Count == 0 && _queued.Count == 0" + (Deciding ? " && _pending == null" : "");
+            if (!Bounded)
+            {
+                _w.Line("var inline = false;");
             }
 
             using (_w.Block("lock (_sync)"))
@@ -131,29 +241,42 @@ internal sealed partial class MachineEmitter
                 if (IsChecked)
                 {
                     // One caller at a time — except events, which anyone may fire while a decision is pending.
-                    var refuse = $"if (_busy) return Faulted(new {Rt}ConcurrentUseException()); _busy = holdsBusy = true;";
-                    _w.Line(Deciding ? $"if (!(input.IsEvent && input.ArrivedWhilePending)) {{ {refuse} }}" : refuse);
+                    var claim = "if (_busy) refused = true; else { _busy = true; input.HoldsBusy = true; }";
+                    _w.Line(Deciding ? $"if (!(input.IsEvent && input.ArrivedWhilePending)) {{ {claim} }}" : claim);
                 }
 
-                _w.Line($"input.Done = new {Task}CompletionSource<bool>(global::System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);");
-                _w.Line("_inbox.Add(input);");
+                // A bounded inbox releases room as inputs leave it, so its callers always go through it.
+                var join = Bounded ? "_inbox.Add(input);" : $"if ({idle}) {{ _pumping = true; _current = input; inline = true; }} else _inbox.Add(input);";
+                _w.Line(IsChecked ? $"if (!refused) {{ {join} }}" : join);
             }
 
-            _w.Line(IsChecked ? "return Await(input, holdsBusy);" : "return Await(input);");
-        }
-
-        _w.Line();
-        using (_w.Block($"private async {ValueTaskType} Await(Input input{(IsChecked ? ", bool holdsBusy" : "")})"))
-        {
             if (IsChecked)
             {
-                _w.Line("try { await Pump(); await input.Done.Task; }");
-                _w.Line("finally { if (holdsBusy) { lock (_sync) { _busy = false; } } }");
+                _w.Line($"if (refused) {{ Return(input); return Faulted(new {Rt}ConcurrentUseException()); }}");
             }
-            else
+
+            _w.Line(Bounded ? "PumpNow();" : "if (inline) RunInline(input); else PumpNow();");
+            _w.Line($"var result = new {ValueTaskType}(input, token);");
+            _w.Line("if (!result.IsCompletedSuccessfully) return result;");
+            _w.Line("result.GetAwaiter().GetResult();");
+            _w.Line($"return default({ValueTaskType});");
+        }
+
+        if (!Bounded)
+        {
+            WriteRunInline();
+        }
+        else
+        {
+            _w.Line();
+            AsyncMethod();
+            using (_w.Block($"private async {ValueTaskType} SubmitWhenRoom(Input input, short token)"))
             {
-                _w.Line("await Pump();");
-                _w.Line("await input.Done.Task;");
+                _w.Line("await _room.WaitAsync();");
+                _w.Line($"if (_status != {Rt}MachineStatus.Running) {{ _room.Release(); Return(input); throw new {Rt}MachineNotRunningException(_status); }}");
+                _w.Line("lock (_sync) { _inbox.Add(input); }");
+                _w.Line("PumpNow();");
+                _w.Line($"await new {ValueTaskType}(input, token);");
             }
         }
 
@@ -165,44 +288,108 @@ internal sealed partial class MachineEmitter
                 _w.Line("var decision = _flow.Value as Pending;");
                 using (_w.Block("if (decision != null)"))
                 {
-                    _w.Line("lock (_sync) { if (decision != _pending) return; _queued.Add(queued); }");
+                    _w.Line("var stale = false;");
+                    _w.Line("lock (_sync) { if (decision != _pending) stale = true; else _queued.Add(queued); }");
+                    _w.Line("if (stale) { Return(queued); return; }");
                     _w.Line("// The machine is idle while a decision runs: start a pump, off the decision's stack.");
-                    _w.Line($"using (global::System.Threading.ExecutionContext.SuppressFlow()) {{ {Task}.Run(new global::System.Func<{Task}>(Pump)); }}");
+                    _w.Line("global::System.Threading.ThreadPool.UnsafeQueueUserWorkItem(s_pump, this);");
                     _w.Line("return;");
                 }
             }
 
-            _w.Line("RefuseOutside();");
+            _w.Line("if (!_inside) { Return(queued); RefuseOutside(); }");
             _w.Line("lock (_sync) { _queued.Add(queued); }");
+        }
+
+        if (Deciding)
+        {
+            _w.Line();
+            _w.Line($"private static readonly global::System.Threading.WaitCallback s_pump = state => (({_machine.Machine.Name})state).PumpNow();");
+        }
+    }
+
+    // The idle caller's input, trigger by trigger, holding the pump; the general pump takes over as soon as there
+    // is anything else to consider — an event queued by an action, or a decision that started — or a step suspends.
+    private void WriteRunInline()
+    {
+        _w.Line();
+        using (_w.Block("private void RunInline(Input input)"))
+        {
+            using (_w.Block("while (true)"))
+            {
+                _w.Line($"if (_queued.Count != 0{(Deciding ? " || _pending != null" : "")}) {{ PumpSteps(); return; }}");
+                _w.Line("var done = input.IsEvent ? input.Next != 0 : input.Next >= input.Values.Length;");
+                using (_w.Block("if (done)"))
+                {
+                    _w.Line("var more = false;");
+                    using (_w.Block("lock (_sync)"))
+                    {
+                        _w.Line("_current = null;");
+                        if (IsChecked)
+                        {
+                            _w.Line("if (input.HoldsBusy) { input.HoldsBusy = false; _busy = false; }");
+                        }
+
+                        _w.Line("if (_inbox.Count == 0 && _queued.Count == 0) _pumping = false; else more = true;");
+                    }
+
+                    _w.Line("Succeed(input);");
+                    _w.Line("if (more) PumpSteps();");
+                    _w.Line("return;");
+                }
+
+                _w.Line($"{ValueTaskType} stepped;");
+                _w.Line("try { stepped = ContinueStep(input); }");
+                _w.Line("catch { lock (_sync) { _pumping = false; } throw; }");
+                _w.Line("if (!stepped.IsCompletedSuccessfully) { _ = PumpAfter(stepped); return; }");
+                _w.Line("if (_current != input) { PumpSteps(); return; }");
+            }
         }
     }
 
     private void WritePump()
     {
+        // Runs steps inline until nothing is runnable — or until one suspends, when the rest continues after it.
         _w.Line();
-        using (_w.Block($"private async {Task} Pump()"))
+        using (_w.Block("private void PumpNow()"))
         {
             _w.Line("lock (_sync) { if (_pumping) return; _pumping = true; }");
-            using (_w.Block("try"))
+            _w.Line("PumpSteps();");
+        }
+
+        _w.Line();
+        using (_w.Block("private void PumpSteps()"))
+        {
+            using (_w.Block("while (true)"))
             {
-                using (_w.Block("while (true)"))
+                _w.Line(Deciding ? "Step step; Input item; Input owner; Pending pending;" : "Step step; Input item; Input owner;");
+                _w.Line($"lock (_sync) {{ step = NextStep(out item, out owner{(Deciding ? ", out pending" : "")}); if (step == Step.None) {{ _pumping = false; return; }} }}");
+                _w.Line($"{ValueTaskType} stepped;");
+                using (_w.Block("try"))
                 {
-                    _w.Line(Deciding ? "Step step; Input item; Input owner; Pending pending;" : "Step step; Input item; Input owner;");
-                    _w.Line($"lock (_sync) {{ step = NextStep(out item, out owner{(Deciding ? ", out pending" : "")}); if (step == Step.None) {{ _pumping = false; return; }} }}");
-                    _w.Line("if (step == Step.Continue) await ContinueStep(item);");
+                    _w.Line("if (step == Step.Continue) stepped = ContinueStep(item);");
                     if (Deciding)
                     {
-                        _w.Line("else if (step == Step.Event) await EventStep(item, owner);");
-                        _w.Line("else await ApplyStep(pending);");
+                        _w.Line("else if (step == Step.Event) stepped = EventStep(item, owner);");
+                        _w.Line("else stepped = ApplyStep(pending);");
                     }
                     else
                     {
-                        _w.Line("else await EventStep(item, owner);");
+                        _w.Line("else stepped = EventStep(item, owner);");
                     }
                 }
-            }
 
-            _w.Line("catch { lock (_sync) { _pumping = false; } throw; }");
+                _w.Line("catch { lock (_sync) { _pumping = false; } throw; }");
+                _w.Line("if (!stepped.IsCompletedSuccessfully) { _ = PumpAfter(stepped); return; }");
+            }
+        }
+
+        _w.Line();
+        AsyncMethod();
+        using (_w.Block($"private async {ValueTaskType} PumpAfter({ValueTaskType} stepped)"))
+        {
+            _w.Line("try { await stepped; } catch { lock (_sync) { _pumping = false; } throw; }");
+            _w.Line("PumpSteps();");
         }
 
         _w.Line();
@@ -218,7 +405,7 @@ internal sealed partial class MachineEmitter
                     _w.Line("if (_pending.HasResult) { pending = _pending; return Step.Apply; }");
                     using (_w.Block("for (var i = 0; i < _queued.Count; i++)"))
                     {
-                        _w.Line("if (_queued[i].IsEvent && Handles(_pending.Decision, _queued[i].Tag)) { item = _queued[i]; _queued.RemoveAt(i); owner = item.Done == null ? _pending.Owner : item; return Step.Event; }");
+                        _w.Line("if (_queued[i].IsEvent && Handles(_pending.Decision, _queued[i].Tag)) { item = _queued[i]; _queued.RemoveAt(i); owner = item.HasCaller ? item : _pending.Owner; return Step.Event; }");
                     }
 
                     using (_w.Block("for (var i = 0; i < _inbox.Count; i++)"))
@@ -230,10 +417,10 @@ internal sealed partial class MachineEmitter
                 }
             }
 
-            _w.Line("if (_queued.Count > 0 && _queued[0].Done != null) { item = _queued[0]; _queued.RemoveAt(0); owner = item; return Step.Event; }");
-            _w.Line("if (_current == null && _inbox.Count > 0) { _current = _inbox[0]; _inbox.RemoveAt(0); }");
+            _w.Line("if (_queued.Count > 0 && _queued[0].HasCaller) { item = _queued[0]; _queued.RemoveAt(0); owner = item; return Step.Event; }");
+            _w.Line($"if (_current == null && _inbox.Count > 0) {{ _current = _inbox[0]; _inbox.RemoveAt(0);{(Bounded ? " _room.Release();" : "")} }}");
             _w.Line("if (_current == null) return Step.None;");
-            _w.Line("if (_queued.Count > 0) { item = _queued[0]; _queued.RemoveAt(0); owner = item.Done == null ? _current : item; return Step.Event; }");
+            _w.Line("if (_queued.Count > 0) { item = _queued[0]; _queued.RemoveAt(0); owner = item.HasCaller ? item : _current; return Step.Event; }");
             _w.Line("item = _current;");
             _w.Line("return Step.Continue;");
         }
@@ -241,42 +428,81 @@ internal sealed partial class MachineEmitter
 
     private void WritePumpSteps()
     {
-        var enter = Deciding ? "_flow.Value = s_step; _started = null; " : string.Empty;
+        // The current input's next trigger — inline, continuing asynchronously only if its transition suspends.
         _w.Line();
-        using (_w.Block($"private async {Task} ContinueStep(Input input)"))
+        using (_w.Block($"private {ValueTaskType} ContinueStep(Input input)"))
         {
-            _w.Line($"{enter}{(Deciding ? "_owner = input; " : "")}_inside = true;");
+            if (Deciding)
+            {
+                _w.Line("_owner = input; _started = null;");
+            }
+
+            _w.Line("_inside = true;");
+            _w.Line($"{ValueTaskType} dispatched;");
             using (_w.Block("try"))
             {
-                using (_w.Block("if (input.IsEvent)"))
-                {
-                    _w.Line("if (input.Next == 0) { input.Next = 1; await DispatchInput(input); return; }");
-                }
-
-                using (_w.Block("else if (input.Next < input.Values.Length)"))
+                _w.Line("if (input.IsEvent && input.Next == 0) { input.Next = 1; dispatched = DispatchInput(input); }");
+                using (_w.Block("else if (!input.IsEvent && input.Next < input.Values.Length)"))
                 {
                     _w.Line("var start = input.Next;");
                     _w.Line(HasRuns ? "var count = RunLength(input.Values.Slice(start));" : "var count = 1;");
                     _w.Line("input.Next += count;");
-                    _w.Line("await DispatchAt(input.Values, start, count);");
-                    _w.Line("return;");
+                    _w.Line("dispatched = DispatchAt(input.Values, start, count);");
                 }
 
-                _w.Line("lock (_sync) { _current = null; }");
-                _w.Line("input.Done.TrySetResult(true);");
+                using (_w.Block("else"))
+                {
+                    _w.Line("_inside = false;");
+                    _w.Line("lock (_sync) { _current = null; }");
+                    _w.Line("Succeed(input);");
+                    _w.Line($"return default({ValueTaskType});");
+                }
             }
 
-            _w.Line($"catch ({Exception} exception) {{ Fail(input, exception); }}");
-            _w.Line("finally { _inside = false; }");
+            _w.Line($"catch ({Exception} exception) {{ _inside = false; Fail(input, exception); return default({ValueTaskType}); }}");
+            _w.Line("if (!dispatched.IsCompletedSuccessfully) return FinishContinue(dispatched, input);");
+            _w.Line("_inside = false;");
+            _w.Line($"return default({ValueTaskType});");
         }
 
         _w.Line();
-        using (_w.Block($"private async {Task} EventStep(Input item, Input owner)"))
+        AsyncMethod();
+        using (_w.Block($"private async {ValueTaskType} FinishContinue({ValueTaskType} dispatched, Input input)"))
         {
-            _w.Line($"{enter}{(Deciding ? "_owner = owner; " : "")}_inside = true;");
-            _w.Line(Deciding
-                ? "try { await DispatchInput(item); if (_started == null && item.Done != null) item.Done.TrySetResult(true); }"
-                : "try { await DispatchInput(item); if (item.Done != null) item.Done.TrySetResult(true); }");
+            _w.Line($"try {{ await dispatched; }} catch ({Exception} exception) {{ Fail(input, exception); }} finally {{ _inside = false; }}");
+        }
+
+        // An event that is not the current input's own: queued inside the machine, or handled while a decision is
+        // pending. Only then — rarely — is the transition marked for self-fire detection, which needs an async method.
+        _w.Line();
+        using (_w.Block($"private {ValueTaskType} EventStep(Input item, Input owner)"))
+        {
+            if (Deciding)
+            {
+                _w.Line("if (_pending != null) return EventStepWhilePending(item, owner);");
+                _w.Line("_owner = owner; _started = null;");
+            }
+
+            _w.Line("_inside = true;");
+            _w.Line($"{ValueTaskType} dispatched;");
+            _w.Line($"try {{ dispatched = DispatchInput(item); }}");
+            _w.Line($"catch ({Exception} exception) {{ _inside = false; Fail(owner, exception); {(Deciding ? "ReleaseEnded(); " : "")}return default({ValueTaskType}); }}");
+            _w.Line("if (!dispatched.IsCompletedSuccessfully) return FinishEvent(dispatched, item, owner);");
+            _w.Line("_inside = false;");
+            _w.Line(Deciding ? "if (_started == null || !item.HasCaller) Succeed(item);" : "Succeed(item);");
+            if (Deciding)
+            {
+                _w.Line("ReleaseEnded();");
+            }
+
+            _w.Line($"return default({ValueTaskType});");
+        }
+
+        _w.Line();
+        AsyncMethod();
+        using (_w.Block($"private async {ValueTaskType} FinishEvent({ValueTaskType} dispatched, Input item, Input owner)"))
+        {
+            _w.Line($"try {{ await dispatched; {(Deciding ? "if (_started == null || !item.HasCaller) " : "")}Succeed(item); }}");
             _w.Line($"catch ({Exception} exception) {{ Fail(owner, exception); }}");
             _w.Line(Deciding ? "finally { _inside = false; ReleaseEnded(); }" : "finally { _inside = false; }");
         }
@@ -284,9 +510,20 @@ internal sealed partial class MachineEmitter
         if (Deciding)
         {
             _w.Line();
-            using (_w.Block($"private async {Task} ApplyStep(Pending pending)"))
+            AsyncMethod();
+            using (_w.Block($"private async {ValueTaskType} EventStepWhilePending(Input item, Input owner)"))
             {
-                _w.Line($"{enter}_owner = pending.Owner; _inside = true;");
+                _w.Line("_flow.Value = s_step; _owner = owner; _started = null; _inside = true;");
+                _w.Line("try { await DispatchInput(item); if (_started == null || !item.HasCaller) Succeed(item); }");
+                _w.Line($"catch ({Exception} exception) {{ Fail(owner, exception); }}");
+                _w.Line("finally { _inside = false; ReleaseEnded(); }");
+            }
+
+            _w.Line();
+            AsyncMethod();
+            using (_w.Block($"private async {ValueTaskType} ApplyStep(Pending pending)"))
+            {
+                _w.Line("_flow.Value = s_step; _owner = pending.Owner; _started = null; _inside = true;");
                 _w.Line("lock (_sync) { EndPending(pending); }");
                 _w.Line("try { await ApplyDecision(pending); }");
                 _w.Line($"catch ({Exception} exception) {{ Fail(pending.Owner, exception); }}");
@@ -325,13 +562,13 @@ internal sealed partial class MachineEmitter
                 }
 
                 _w.Line("if (abandoned != null) abandoned.Cancellation.Cancel();");
-                _w.Line("if (input.Done != null) input.Done.TrySetException(exception);");
+                _w.Line("Fault(input, exception);");
                 _w.Line("ReleaseEnded();");
             }
             else
             {
                 _w.Line("lock (_sync) { if (input == _current) _current = null; }");
-                _w.Line("if (input.Done != null) input.Done.TrySetException(exception);");
+                _w.Line("Fault(input, exception);");
             }
         }
 
@@ -356,6 +593,11 @@ internal sealed partial class MachineEmitter
                 }
 
                 _w.Line("waiting.AddRange(_inbox);");
+                if (Bounded)
+                {
+                    _w.Line("if (_inbox.Count > 0) _room.Release(_inbox.Count);");
+                }
+
                 _w.Line("waiting.AddRange(_queued);");
                 _w.Line("if (_current != null) waiting.Add(_current);");
                 _w.Line("_inbox.Clear();");
@@ -368,7 +610,7 @@ internal sealed partial class MachineEmitter
                 _w.Line("if (abandoned != null) abandoned.Cancellation.Cancel();");
             }
 
-            _w.Line($"foreach (var input in waiting) if (input.Done != null) input.Done.TrySetException(new {Rt}MachineNotRunningException({Rt}MachineStatus.Stopped));");
+            _w.Line($"foreach (var input in waiting) Fault(input, new {Rt}MachineNotRunningException({Rt}MachineStatus.Stopped));");
         }
 
         if (!Deciding)
@@ -388,7 +630,7 @@ internal sealed partial class MachineEmitter
         using (_w.Block("private void ReleaseEnded()"))
         {
             _w.Line("Pending[] ended;");
-            _w.Line("var finished = new global::System.Collections.Generic.List<Input>();");
+            _w.Line("global::System.Collections.Generic.List<Input> finished = null;");
             using (_w.Block("lock (_sync)"))
             {
                 _w.Line("if (_ended.Count == 0) return;");
@@ -400,11 +642,15 @@ internal sealed partial class MachineEmitter
                     _w.Line("if (waited.IsEvent && waited.ArrivedWhilePending) { _inbox.RemoveAt(i); waited.ArrivedWhilePending = false; _queued.Add(waited); } else i++;");
                 }
 
-                _w.Line("foreach (var pending in ended) if (pending.Owner != _current && (_pending == null || _pending.Owner != pending.Owner)) finished.Add(pending.Owner);");
+                using (_w.Block("foreach (var pending in ended)"))
+                {
+                    _w.Line("if (pending.Owner != null && pending.Owner != _current && (_pending == null || _pending.Owner != pending.Owner))");
+                    _w.Line("{ if (finished == null) finished = new global::System.Collections.Generic.List<Input>(); finished.Add(pending.Owner); }");
+                }
             }
 
             _w.Line("foreach (var pending in ended) pending.Cancellation.Cancel();");
-            _w.Line("foreach (var owner in finished) if (owner != null && owner.Done != null) owner.Done.TrySetResult(true);");
+            _w.Line("if (finished != null) foreach (var owner in finished) Succeed(owner);");
         }
     }
 }

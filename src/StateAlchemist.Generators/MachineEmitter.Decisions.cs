@@ -135,7 +135,7 @@ internal sealed partial class MachineEmitter
                 _w.Line("pending.HasResult = true;");
             }
 
-            _w.Line("await Pump();");
+            _w.Line("PumpNow();");
         }
     }
 

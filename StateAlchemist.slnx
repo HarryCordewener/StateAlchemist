@@ -1,5 +1,9 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/StateAlchemist.Benchmarks/StateAlchemist.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/StateAlchemist.AotSample/StateAlchemist.AotSample.csproj" />
     <Project Path="samples/StateAlchemist.Samples/StateAlchemist.Samples.csproj" />
   </Folder>
   <Folder Name="/src/">

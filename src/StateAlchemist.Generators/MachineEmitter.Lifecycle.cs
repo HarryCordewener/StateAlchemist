@@ -63,6 +63,11 @@ internal sealed partial class MachineEmitter
         var isAsync = all.Any(a => a.Method.IsAsync);
         var skip = all.Any(a => Implements($"On{a.Phase}Exception"));
         _w.Line();
+        if (isAsync)
+        {
+            AsyncMethod();
+        }
+
         using (_w.Block($"private {(isAsync ? "async " : "")}{ValueTaskType} {name}()"))
         {
             if (all.Count > 0)

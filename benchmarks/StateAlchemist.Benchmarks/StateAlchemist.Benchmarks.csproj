@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Spec §9: the generated machine against a hand-written switch of the same shape, and against Stateless.
+         Run it in Release, passing BenchmarkDotNet a filter; see Program.cs. -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <RootNamespace>StateAlchemist.Benchmarks</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- The unchecked machine has the sample's suspending action; the benchmarks await every call, as SALCH0209 asks. -->
+    <NoWarn>$(NoWarn);SALCH0209</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Stateless" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />
+    <ProjectReference Include="..\..\src\StateAlchemist.Generators\StateAlchemist.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\samples\StateAlchemist.Samples\StateAlchemist.Samples.csproj" />
+  </ItemGroup>
+</Project>

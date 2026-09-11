@@ -33,8 +33,9 @@ Forgetting to start is caught twice:
 - **At compile time**, where it can be seen: [`SALCH0801`](../reference/diagnostics.md#salch0801) warns when a
   method creates a machine and fires it without starting it on every path. A machine that crosses methods, fields
   or dependency injection is left to the runtime check.
-- **At runtime**, at no cost: "not started" and "stopped" are states in the generated dispatch `switch`, so firing
-  a machine that is not running throws a clear exception without an extra check on the hot path.
+- **At runtime**, for one comparison: the first thing any `FireAsync` does is check the machine's status, and a
+  machine that is not running throws a clear exception instead of dispatching. That check is a field read and a
+  branch the processor predicts — it does not show up in the [measured cost](concurrency.md) of a call.
 
 ## Stopping and disposal
 

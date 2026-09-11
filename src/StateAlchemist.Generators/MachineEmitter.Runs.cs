@@ -45,6 +45,29 @@ internal sealed partial class MachineEmitter
             }
         }
 
+        // On .NET 8 and later, a byte or char run ends at the first value of its stop set, found by a vectorised
+        // search; elsewhere, by asking RunOf value by value. Both give the same answer: the stop set is exactly the
+        // values RunOf does not give to this run in this leaf.
+        var element = _model.Options.ValueType switch
+        {
+            "System.Byte" => "byte",
+            "System.Char" => "char",
+            _ => null,
+        };
+        if (element is not null)
+        {
+            _w.Line();
+            _w.Line("#if NET8_0_OR_GREATER");
+            foreach (var (leaf, transition) in runs)
+            {
+                var stops = _model.Options.Domain.Values.Where(value => _resolver.ForValue(leaf, value) is var c && (c.Count == 0 || c[0].Index != transition)).ToList();
+                var literal = string.Join(", ", stops.Select(v => element == "char" ? $"(char){v}" : v.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+                _w.Line($"private static readonly global::System.Buffers.SearchValues<{element}> s_stop{transition}_{_stateIds[leaf]} = global::System.Buffers.SearchValues.Create(new {element}[] {{ {literal} }});");
+            }
+
+            _w.Line("#endif");
+        }
+
         _w.Line();
         _w.Line("/// <summary>How many values from the start of <paramref name=\"values\"/> go to one call: a whole run, or one value.</summary>");
         using (_w.Block($"private int RunLength(global::System.ReadOnlyMemory<{V}> values)"))
@@ -52,6 +75,21 @@ internal sealed partial class MachineEmitter
             _w.Line("var span = values.Span;");
             _w.Line("var run = RunOf(span[0]);");
             _w.Line("if (run < 0) return 1;");
+            if (element is not null)
+            {
+                _w.Line("#if NET8_0_OR_GREATER");
+                _w.Line("int stop;");
+                using (_w.Block("switch (_leaf)"))
+                {
+                    foreach (var (leaf, transition) in runs)
+                    {
+                        _w.Line($"case StateId.{_stateIds[leaf]} when run == {transition}: stop = global::System.MemoryExtensions.IndexOfAny(span.Slice(1), s_stop{transition}_{_stateIds[leaf]}); return stop < 0 ? span.Length : stop + 1;");
+                    }
+                }
+
+                _w.Line("#endif");
+            }
+
             _w.Line("var count = 1;");
             _w.Line("while (count < span.Length && RunOf(span[count]) == run) count++;");
             _w.Line("return count;");
@@ -84,7 +122,7 @@ internal sealed partial class MachineEmitter
         }
 
         _w.Line();
-        _w.Line("/// <summary>A single value as a run of one. The buffer is reused: one trigger runs at a time.</summary>");
-        _w.Line($"private global::System.ReadOnlyMemory<{V}> One({V} value) {{ _one[0] = value; return _one; }}");
+        _w.Line("/// <summary>A single value as a run of one. The buffer is made the first time and reused: one trigger runs at a time.</summary>");
+        _w.Line($"private global::System.ReadOnlyMemory<{V}> One({V} value) {{ var one = _one ?? (_one = new {V}[1]); one[0] = value; return one; }}");
     }
 }

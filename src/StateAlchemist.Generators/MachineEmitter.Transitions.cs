@@ -73,6 +73,11 @@ internal sealed partial class MachineEmitter
 
         _w.Line();
         _w.Line($"// {transition.Name}: {_model.States[path.Leaf].Name} --[{transition.Trigger}]--> {_model.States[path.TargetLeaf].Name}");
+        if (isAsync)
+        {
+            AsyncMethod();
+        }
+
         using (_w.Block($"private {(isAsync ? "async " : "")}{ValueTaskType} {name}({parameters})"))
         {
             if (transition.IsRun)

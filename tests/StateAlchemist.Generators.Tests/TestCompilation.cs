@@ -22,9 +22,14 @@ internal static class TestCompilation
 
     public static CSharpCompilation Create(params string[] sources) => Create(LanguageVersion.Latest, sources);
 
-    public static CSharpCompilation Create(LanguageVersion language, params string[] sources) => CSharpCompilation.Create(
+    /// <summary>What a modern application defines: generated code's .NET 8 paths — the pooling builder, vectorised runs — compile in.</summary>
+    public static readonly string[] Net8Symbols = ["NET6_0_OR_GREATER", "NET8_0_OR_GREATER"];
+
+    public static CSharpCompilation Create(LanguageVersion language, params string[] sources) => Create(language, [], sources);
+
+    public static CSharpCompilation Create(LanguageVersion language, string[] symbols, params string[] sources) => CSharpCompilation.Create(
         "App",
-        sources.Select((source, i) => CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(language), path: $"App{i}.cs")),
+        sources.Select((source, i) => CSharpSyntaxTree.ParseText(source, new CSharpParseOptions(language, preprocessorSymbols: symbols), path: $"App{i}.cs")),
         References,
         new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: language >= LanguageVersion.CSharp8 ? NullableContextOptions.Enable : NullableContextOptions.Disable));
 

@@ -75,9 +75,10 @@ An async action cannot take `ref` or `in` parameters — C# forbids it — which
 ## Async without the cost
 
 An action returning `ValueTask` that completes synchronously costs nothing extra: the generated code checks
-`IsCompletedSuccessfully` and carries straight on. Only an action that actually suspends moves the rest of the
-transition into a continuation, and on `net8.0` and later that continuation is pooled, so even suspending does not
-allocate in steady state.
+`IsCompletedSuccessfully` and carries straight on — no state machine is entered, and nothing is allocated. Only an
+action that actually suspends moves the rest of the call into a continuation, and then the whole of the rest of the
+call — the transition, the events it queued, the release — finishes in a single async method, whose state machine
+is pooled on `net6.0` and later. A suspending action costs what the action itself costs, plus that one continuation.
 
 While a transition's actions are awaited, the transition is still running: it [runs to
 completion](#run-to-completion) before the next trigger.

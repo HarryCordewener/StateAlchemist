@@ -25,6 +25,18 @@ jobs:
       - run: dotnet build --no-restore
       - run: dotnet test --solution StateAlchemist.slnx --no-build --framework ${{ matrix.framework }}
 
+  aot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      # Spec §9: a machine in a native binary. The publish must warn about nothing — no reflection, no dictionaries,
+      # nothing the trimmer has to guess at — and the binary must negotiate the same way the sample does.
+      - run: dotnet publish samples/StateAlchemist.AotSample -c Release -r linux-x64 -warnaserror
+      - run: samples/StateAlchemist.AotSample/bin/Release/net11.0/linux-x64/publish/StateAlchemist.AotSample
+
   docs:
     runs-on: ubuntu-latest
     steps:

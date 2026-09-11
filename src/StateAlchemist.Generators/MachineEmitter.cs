@@ -137,7 +137,7 @@ internal sealed partial class MachineEmitter
 
         if (HasRuns)
         {
-            _w.Line($"private readonly {V}[] _one = new {V}[1];");
+            _w.Line($"private {V}[] _one;");
         }
 
         if (_machine.Context is { } context)

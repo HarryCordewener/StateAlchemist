@@ -94,7 +94,7 @@ Every decision below was taken or approved during design review on 2026-09-11.
 | D19 | Concurrency is a compile-time choice per machine: `Checked` (default; concurrent use throws), `Unchecked` (no guard), or `Serialized` (any thread may fire; a `Channel` inbox, drained inline, processes calls in turn; an optional capacity makes it bounded, for backpressure on event producers). The deferring path uses the same inbox in every mode. | Decided |
 | D20 | The library is named **StateAlchemist**; diagnostics use the prefix `SALCH` (StyleCop owns `SA`). | Decided |
 | D21 | A state with children always enters an `[Initial]` child; the machine rests only in leaves. | Decided |
-| D22 | Construction runs no actions; `StartAsync()` runs the initial path's `[Entered]` actions once, and `StopAsync()` runs `[Exited]` from the leaf to the root. "Not started" and "stopped" are states in the dispatch `switch`, so checking them costs nothing. An analyzer flags firing a machine that is not started on every path (`SALCH0801`). | Decided |
+| D22 | Construction runs no actions; `StartAsync()` runs the initial path's `[Entered]` actions once, and `StopAsync()` runs `[Exited]` from the leaf to the root. Every `FireAsync` begins by comparing the machine's status, which is one predicted branch — not free, but below what the benchmarks can measure. An analyzer flags firing a machine that is not started on every path (`SALCH0801`). | Decided |
 
 ## 5. The model
 
@@ -647,15 +647,19 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 Measured with BenchmarkDotNet on x64, `net11.0`, against Stateless 5.20 on the same machine shape and against a
 hand-written `switch` baseline.
 
-| Scenario | Target |
-|---|---|
-| Stay transition, sync transform, one value | **0 B**, ≤ 10 ns |
-| Move across two levels with sync `[Exited]`/`[Entered]` actions | **0 B**, ≤ 25 ns |
-| Run capture of a 1 KB payload | **0 B**, ≥ 1 GB/s |
-| Action that suspends (steady state, `net8.0`+) | **0 B** amortised (pooled builder) |
-| Within the hand-written `switch` baseline | ≤ 2× on every scenario above |
-| Machine construction (TNC-sized, ~80 states) | ≤ 10 µs; allocations = the instance only |
-| Generator, TNC-sized machine (~80 states, ~1,000 transitions) | Full generation ≤ 1 s; incremental — no regeneration on unrelated edits |
+| Scenario | Target | Measured (Plan 6) |
+|---|---|---|
+| Stay transition, sync transform, one value | **0 B**, ≤ 10 ns | 0 B, 7.7 ns |
+| Move across two levels with sync `[Exited]`/`[Entered]` actions | **0 B**, ≤ 25 ns | 0 B, 20.0 ns |
+| Run capture of a 1 KB payload | **0 B**, ≥ 1 GB/s | 0 B, 21 ns — 48 GB/s |
+| Action that suspends (steady state, `net8.0`+) | the action's own cost, plus one pooled continuation | +150 ns, 216 B over awaiting the action alone |
+| Within the hand-written `switch` baseline | ≤ 2× where the baseline is measurable | 1.7× on the run; a hand-written stay or move inlines to a field increment the JIT and BenchmarkDotNet cannot separate from nothing, so the ratio there is not a number |
+| Machine construction (TNC-sized, ~80 states) | ≤ 10 µs; allocations = the instance only | 0.07 µs; the instance only |
+| Generator, TNC-sized machine (81 states, 993 transitions) | Full generation ≤ 1 s; incremental — no regeneration on unrelated edits | 0.4 s; an unrelated edit regenerates nothing |
+
+The comparison against Stateless 5.20 on the same shape, for scale: a stay 246 ns and 1,344 B, a move 614 ns and
+3,440 B, a 1 KB read 259 µs and 1.4 MB — the last because Stateless has no runs and no "any value" trigger, so a
+byte of text is a dictionary lookup and a delegate call like any other trigger.
 
 Every sync-path target is also an allocation test in the test suite (`GC.GetAllocatedBytesForCurrentThread`),
 so a regression fails the build, not only the benchmark.

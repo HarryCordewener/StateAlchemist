@@ -20,11 +20,14 @@ internal sealed partial class MachineEmitter
         {
             if (HasInbox)
             {
-                _w.Line($"return Submit(new Input {{ Values = new {V}[] {{ value }} }});");
+                _w.Line("var input = Rent();");
+                _w.Line("input.Single[0] = value;");
+                _w.Line("input.Values = input.Single;");
+                _w.Line("return Submit(input);");
             }
             else
             {
-                Entry("ProcessValue(value)");
+                FastEntry("DispatchValue(value)", "ProcessValueQueued(value)");
             }
         }
 
@@ -34,7 +37,9 @@ internal sealed partial class MachineEmitter
         {
             if (HasInbox)
             {
-                _w.Line("return Submit(new Input { Values = values });");
+                _w.Line("var input = Rent();");
+                _w.Line("input.Values = values;");
+                _w.Line("return Submit(input);");
             }
             else
             {
@@ -50,13 +55,14 @@ internal sealed partial class MachineEmitter
             {
                 if (HasInbox)
                 {
-                    _w.Line($"var input = new Input {{ Tag = {i} }};");
+                    _w.Line("var input = Rent();");
+                    _w.Line($"input.Tag = {i};");
                     _w.Line($"input.E{i} = e;");
                     _w.Line("return Submit(input);");
                 }
                 else
                 {
-                    Entry($"ProcessEvent{i}(e)");
+                    FastEntry($"DispatchEvent{i}(e)", $"ProcessEventQueued{i}(e)");
                 }
             }
         }
@@ -72,7 +78,10 @@ internal sealed partial class MachineEmitter
 
             if (HasInbox)
             {
-                _w.Line("return Submit(new Input { Tag = -1, Unknown = typeof(TEvent) });");
+                _w.Line("var input = Rent();");
+                _w.Line("input.Tag = -1;");
+                _w.Line("input.Unknown = typeof(TEvent);");
+                _w.Line("return Submit(input);");
             }
             else
             {
@@ -88,7 +97,8 @@ internal sealed partial class MachineEmitter
             {
                 if (HasInbox)
                 {
-                    _w.Line($"var queued = new Input {{ Tag = {i} }};");
+                    _w.Line("var queued = Rent();");
+                    _w.Line($"queued.Tag = {i};");
                     _w.Line($"queued.E{i} = e;");
                     _w.Line("EnqueueInput(queued);");
                 }
@@ -113,7 +123,10 @@ internal sealed partial class MachineEmitter
 
             if (HasInbox)
             {
-                _w.Line("EnqueueInput(new Input { Tag = -1, Unknown = typeof(TEvent) });");
+                _w.Line("var queued = Rent();");
+                _w.Line("queued.Tag = -1;");
+                _w.Line("queued.Unknown = typeof(TEvent);");
+                _w.Line("EnqueueInput(queued);");
             }
             else
             {
@@ -183,14 +196,18 @@ internal sealed partial class MachineEmitter
         }
 
         _w.Line();
+        AsyncMethod();
         using (_w.Block($"private async {ValueTaskType} FinishAsync({ValueTaskType} pending)"))
         {
             _w.Line("try { await pending; } finally { Release(); }");
         }
 
-        // One trigger: events kept from a transition that threw run first, then the trigger, then step 9.
+        // One trigger: events kept from a transition that threw run first, then the trigger, then step 9. The fast path
+        // calls no async method: an async method allocates even when it completes synchronously in a Debug build, and
+        // costs a state machine in any. Only a step that really suspends continues in one.
         _w.Line();
-        using (_w.Block($"private async {ValueTaskType} ProcessValue({V} value)"))
+        AsyncMethod();
+        using (_w.Block($"private async {ValueTaskType} ProcessValueQueued({V} value)"))
         {
             _w.Line("await DrainQueue();");
             _w.Line("_inside = true;");
@@ -198,24 +215,70 @@ internal sealed partial class MachineEmitter
             _w.Line("await DrainQueue();");
         }
 
+        // A trigger that suspended: one async method finishes the whole call — the transition, the events it queued,
+        // and the release — so a suspended call costs one state machine, not one per step of the way back.
         _w.Line();
-        using (_w.Block($"private async {ValueTaskType} ProcessValues(global::System.ReadOnlyMemory<{V}> values)"))
+        AsyncMethod();
+        using (_w.Block($"private async {ValueTaskType} FinishAfterDispatch({ValueTaskType} dispatched)"))
+        {
+            using (_w.Block("try"))
+            {
+                _w.Line("try { await dispatched; } finally { _inside = false; }");
+                _w.Line("await DrainQueue();");
+            }
+
+            _w.Line("finally { Release(); }");
+        }
+
+        // A batch: one call per run or value, inline while each completes synchronously.
+        _w.Line();
+        using (_w.Block($"private {ValueTaskType} ProcessValues(global::System.ReadOnlyMemory<{V}> values)"))
         {
             using (_w.Block("for (var i = 0; i < values.Length;)"))
+            {
+                _w.Line("if (_queue != null && _queue.Count != 0) return ProcessValuesFrom(values, i);");
+                _w.Line(HasRuns ? "var count = RunLength(values.Slice(i));" : "var count = 1;");
+                _w.Line("_inside = true;");
+                _w.Line($"{ValueTaskType} dispatched;");
+                _w.Line("try { dispatched = DispatchAt(values, i, count); }");
+                _w.Line("catch { _inside = false; throw; }");
+                _w.Line("i += count;");
+                _w.Line("if (!dispatched.IsCompletedSuccessfully) return ContinueValues(dispatched, values, i);");
+                _w.Line("_inside = false;");
+            }
+
+            _w.Line("return DrainQueue();");
+        }
+
+        _w.Line();
+        AsyncMethod();
+        using (_w.Block($"private async {ValueTaskType} ContinueValues({ValueTaskType} dispatched, global::System.ReadOnlyMemory<{V}> values, int next)"))
+        {
+            _w.Line("try { await dispatched; } finally { _inside = false; }");
+            _w.Line("await ProcessValuesFrom(values, next);");
+        }
+
+        _w.Line();
+        AsyncMethod();
+        using (_w.Block($"private async {ValueTaskType} ProcessValuesFrom(global::System.ReadOnlyMemory<{V}> values, int start)"))
+        {
+            using (_w.Block("for (var i = start; i < values.Length;)"))
             {
                 _w.Line("await DrainQueue();");
                 _w.Line(HasRuns ? "var count = RunLength(values.Slice(i));" : "var count = 1;");
                 _w.Line("_inside = true;");
                 _w.Line("try { await DispatchAt(values, i, count); } finally { _inside = false; }");
                 _w.Line("i += count;");
-                _w.Line("await DrainQueue();");
             }
+
+            _w.Line("await DrainQueue();");
         }
 
         for (var i = 0; i < _events.Count; i++)
         {
             _w.Line();
-            using (_w.Block($"private async {ValueTaskType} ProcessEvent{i}({Name(_events[i])} e)"))
+            AsyncMethod();
+            using (_w.Block($"private async {ValueTaskType} ProcessEventQueued{i}({Name(_events[i])} e)"))
             {
                 _w.Line("await DrainQueue();");
                 _w.Line("_inside = true;");
@@ -225,40 +288,97 @@ internal sealed partial class MachineEmitter
         }
 
         _w.Line();
-        using (_w.Block($"private async {ValueTaskType} ProcessUnknown({TypeType} type)"))
+        using (_w.Block($"private {ValueTaskType} ProcessUnknown({TypeType} type)"))
+        {
+            _w.Line("if (_queue != null && _queue.Count != 0) return ProcessUnknownQueued(type);");
+            _w.Line("UnhandledUnknown(type);");
+            _w.Line($"return default({ValueTaskType});");
+        }
+
+        _w.Line();
+        AsyncMethod();
+        using (_w.Block($"private async {ValueTaskType} ProcessUnknownQueued({TypeType} type)"))
         {
             _w.Line("await DrainQueue();");
             _w.Line("UnhandledUnknown(type);");
         }
 
+        // Step 9: the events a transition queued. Nothing queued is the common case, and costs one check.
         _w.Line();
-        using (_w.Block($"private {(_events.Count > 0 ? "async " : "")}{ValueTaskType} DrainQueue()"))
+        using (_w.Block($"private {ValueTaskType} DrainQueue()"))
         {
-            using (_w.Block("while (_queue != null && _queue.Count != 0)"))
-            {
-                _w.Line("var queued = _queue.Dequeue();");
-                _w.Line("_inside = true;");
-                using (_w.Block("try"))
-                {
-                    using (_w.Block("switch (queued.Tag)"))
-                    {
-                        for (var i = 0; i < _events.Count; i++)
-                        {
-                            _w.Line($"case {i}: await DispatchEvent{i}(queued.E{i}); break;");
-                        }
-
-                        _w.Line("default: UnhandledUnknown(queued.Unknown); break;");
-                    }
-                }
-
-                _w.Line("finally { _inside = false; }");
-            }
-
+            _w.Line($"if (_queue == null || _queue.Count == 0) return default({ValueTaskType});");
+            _w.Line(_events.Count > 0 ? "return DrainQueueAsync();" : "while (_queue.Count != 0) UnhandledUnknown(_queue.Dequeue().Unknown);");
             if (_events.Count == 0)
             {
                 _w.Line($"return default({ValueTaskType});");
             }
         }
+
+        if (_events.Count > 0)
+        {
+            _w.Line();
+            AsyncMethod();
+            using (_w.Block($"private async {ValueTaskType} DrainQueueAsync()"))
+            {
+                using (_w.Block("while (_queue.Count != 0)"))
+                {
+                    _w.Line("var queued = _queue.Dequeue();");
+                    _w.Line("_inside = true;");
+                    using (_w.Block("try"))
+                    {
+                        using (_w.Block("switch (queued.Tag)"))
+                        {
+                            for (var i = 0; i < _events.Count; i++)
+                            {
+                                _w.Line($"case {i}: await DispatchEvent{i}(queued.E{i}); break;");
+                            }
+
+                            _w.Line("default: UnhandledUnknown(queued.Unknown); break;");
+                        }
+                    }
+
+                    _w.Line("finally { _inside = false; }");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Marks the next async method to use the pooling builder where the runtime has one (.NET 6 and later), so an
+    /// action that suspends allocates nothing in steady state.
+    /// </summary>
+    private void AsyncMethod()
+    {
+        _w.Line("#if NET6_0_OR_GREATER");
+        _w.Line("[global::System.Runtime.CompilerServices.AsyncMethodBuilder(typeof(global::System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder))]");
+        _w.Line("#endif");
+    }
+
+    /// <summary>
+    /// A single trigger's entry point, flattened: refuse, dispatch, and — when nothing was queued and the transition
+    /// completed synchronously, the common case — release and return, with no further call.
+    /// </summary>
+    private void FastEntry(string dispatch, string queued)
+    {
+        _w.Line("var refused = Refuse();");
+        _w.Line("if (refused != null) return Faulted(refused);");
+        using (_w.Block("if (_queue == null || _queue.Count == 0)"))
+        {
+            _w.Line("_inside = true;");
+            _w.Line($"{ValueTaskType} dispatched;");
+            _w.Line($"try {{ dispatched = {dispatch}; }}");
+            _w.Line($"catch ({Exception} exception) {{ _inside = false; Release(); return Faulted(exception); }}");
+            _w.Line("if (!dispatched.IsCompletedSuccessfully) return FinishAfterDispatch(dispatched);");
+            _w.Line("_inside = false;");
+            _w.Line($"if (_queue == null || _queue.Count == 0) {{ Release(); return default({ValueTaskType}); }}");
+            _w.Line("return Finish(DrainQueue());");
+        }
+
+        _w.Line($"{ValueTaskType} pending;");
+        _w.Line($"try {{ pending = {queued}; }}");
+        _w.Line($"catch ({Exception} exception) {{ Release(); return Faulted(exception); }}");
+        _w.Line("return Finish(pending);");
     }
 
     /// <summary>The body of a public entry point: refuse, start, and release when done.</summary>

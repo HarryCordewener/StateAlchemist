@@ -52,8 +52,9 @@ public class RandomMachineTests
     /// <summary>Compiles <paramref name="source"/> with the generator, or returns <see langword="null"/> if the machine has errors.</summary>
     private static Assembly? Compile(string source)
     {
-        var compilation = TestCompilation.Create(source);
-        CSharpGeneratorDriver.Create(new MachineGenerator()).RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
+        var compilation = TestCompilation.Create(LanguageVersion.Latest, TestCompilation.Net8Symbols, source);
+        CSharpGeneratorDriver.Create([new MachineGenerator().AsSourceGenerator()], parseOptions: (CSharpParseOptions)compilation.SyntaxTrees.First().Options)
+            .RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
         if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
         {
             return null;
