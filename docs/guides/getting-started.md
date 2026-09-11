@@ -121,8 +121,9 @@ await telnet.FireAsync(new byte[] { Iac, Will, GmcpOption });
 // context.Sent now holds IAC DO GMCP, and telnet.TryGetConnected(out var root) shows root.GmcpEnabled == true.
 ```
 
-On a socket, feed the machine whole reads: `FireAsync(ReadOnlyMemory<byte>)` returns how many bytes it consumed,
-which matters once [decisions](../concepts/decisions.md) can make it pause.
+On a socket, feed the machine whole reads and await each one: `FireAsync` completes when the bytes have been
+processed, waiting through any [decision](../concepts/decisions.md) they start, so the ordinary read loop gets
+backpressure without doing anything about it.
 
 ## Next
 

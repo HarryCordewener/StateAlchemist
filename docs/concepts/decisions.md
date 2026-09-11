@@ -54,12 +54,14 @@ the machine's own data, [guards](triggers.md#guards) are simpler.
 ## What an async decision does
 
 1. The trigger resolves to the decision. The machine moves into a **pending state** — a generated child of the
-   decision's source — and `FireAsync` returns. `IsDeferring` is now `true`.
+   decision's source. Your `FireAsync` keeps waiting.
 2. `DecideAsync` runs with **values**: copies of the states it takes, the context, and a `CancellationToken` tied to
    the pending state.
 3. When it completes, its outcome arrives as a generated event. The outcome picks its `Complete`, which runs as an
    ordinary transition from the pending state — reset, transform, commit, actions — with `ref`s to the data **as it
    is then**.
+4. The machine carries on with the rest of your input, and your `FireAsync` completes when all of it has been
+   processed.
 
 The pending state is a child of the source, so the source stays active and its data intact while the decision
 runs.
@@ -79,51 +81,58 @@ nothing handles it, the machine's [unhandled-trigger](triggers.md#unhandled-trig
 
 ## Deferral and backpressure
 
-While a decision is pending, the machine **defers**:
-
-- **Values are not accepted.** `FireAsync(value)` throws `MachineDeferringException`. The batch overload stops
-  instead: `FireAsync(ReadOnlyMemory<TValue>)` returns how many values it consumed, stopping at the one that
-  started the decision.
-- **Events are queued** until the pending state resolves — except those the decision lists in `Handle`, which are
-  handled immediately:
-
-  ```csharp
-  [Decision(From = typeof(AuthRequested), Handle = new[] { typeof(Disconnect), typeof(Timeout) }), On(Se)]
-  ```
-
-  Those resolve from the pending state like any trigger; a transition out of it cancels the decision.
-
-On a socket, this is backpressure for free. The read loop advances its `PipeReader` by the consumed count and
-waits:
+You do not have to do anything about a pending decision. **`FireAsync` completes when your input has been
+processed** — every value in the batch, including waiting for any decision one of them started. While you await
+it, you are not reading more input, and that is the backpressure:
 
 ```csharp
 while (true)
 {
     var read = await reader.ReadAsync(ct);
-    var buffer = read.Buffer;
-    var consumed = 0L;
-    foreach (var segment in buffer)
+    foreach (var segment in read.Buffer)
     {
-        var used = await machine.FireAsync(segment);
-        consumed += used;
-        if (used < segment.Length) break;           // a decision started deferring
+        await machine.FireAsync(segment);        // waits through any decision
     }
 
-    var position = buffer.GetPosition(consumed);
-    if (machine.IsDeferring)
-    {
-        reader.AdvanceTo(position);                 // unread bytes stay unexamined, so the next read returns them at once
-        await machine.WhenReady();
-    }
-    else
-    {
-        reader.AdvanceTo(position, buffer.End);
-        if (read.IsCompleted) break;
-    }
+    reader.AdvanceTo(read.Buffer.End);
+    if (read.IsCompleted) break;
 }
 ```
 
-While the machine defers, the pipe's buffer holds the unread bytes; once it passes its pause threshold, the pipe
-stops reading from the socket, which pushes back on the sender. Nothing is copied and nothing grows without
-bound. Marking only the consumed bytes as examined matters: marking the whole buffer examined would make the next
-`ReadAsync` wait for new data from the socket instead of returning the bytes already waiting.
+This is the ordinary `PipeReader` loop, with nothing added. While a decision is pending, the loop is waiting on
+`FireAsync`; bytes that arrive meanwhile collect in the pipe; once the pipe passes its pause threshold it stops
+reading the socket, which pushes back on the sender. Nothing is copied — the machine keeps its place in your
+segment until the `ValueTask` completes — and nothing grows without bound.
+
+### Interrupting a pending decision
+
+Your read loop is waiting, but other code is not: a timer, or the transport noticing the connection has closed.
+While a decision is pending, the machine accepts **events** from any caller, whatever its
+[concurrency mode](concurrency.md#while-a-decision-is-pending).
+
+- Events the decision lists in `Handle` are handled at once, from the pending state. A transition out of it
+  cancels the decision:
+
+  ```csharp
+  [Decision(From = typeof(AuthRequested), Handle = new[] { typeof(Disconnect), typeof(Timeout) }), On(Se)]
+  ```
+
+- Other events wait until the decision resolves; their callers' `FireAsync` completes once they have run.
+
+```csharp
+// In whatever notices the connection closing — not the read loop, which is waiting:
+await machine.FireAsync(new Disconnect());
+```
+
+If the machine is stopped while your `FireAsync` is waiting on a decision, the decision is cancelled, the rest of
+your input is discarded, and your `FireAsync` throws `MachineNotRunningException`.
+
+### Two rules
+
+- **Values come from one stream.** A second caller firing values while your batch waits on a decision is misuse:
+  a `Checked` machine throws `ConcurrentUseException`; a `Serialized` machine queues them behind your batch.
+- **Inside the machine, use `Enqueue`.** An action or decision that awaited `FireAsync` on its own machine would be
+  waiting for itself to finish. `Enqueue(new Error())` queues the event and returns at once. The machine catches
+  the mistake where it can do so for free — during a `Checked` machine's actions, which run while it is busy, and
+  in any running decision, which it marks — and throws `ConcurrentUseException` instead of hanging. In the actions
+  of a `Serialized` or `Unchecked` machine it cannot, and the call would hang.

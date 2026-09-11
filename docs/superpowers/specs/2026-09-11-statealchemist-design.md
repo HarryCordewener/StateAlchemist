@@ -81,6 +81,7 @@ Every decision below was taken or approved during design review on 2026-09-11.
 | D8 | A transition's access to each state follows its role relative to the lowest common ancestor: exiting `in`, staying `ref`, entering `ref`. The parameter list declares what it touches. | Decided |
 | D9 | Async work that decides an outcome is split: an async decision over values, then a synchronous `Complete` per outcome over `ref`s, via a generated pending state that owns its cancellation. | Decided |
 | D10 | While a decision is pending, other triggers are **deferred** by default. | Decided |
+| D23 | Deferral is invisible to the host: `FireAsync` completes when its input has been processed, including waiting for any decision it started, so awaiting it *is* the backpressure. There is no `IsDeferring`, `WhenReady()`, consumed count or `MachineDeferringException`. | Decided |
 | D11 | The generator runs in the consuming app over the whole program; plugins are chosen at compile time. | Decided |
 | D12 | Two kinds of trigger: *values* (a `switch`, ranges, `OrElse`) and typed *events*. | Decided |
 | D13 | Transforms and guards may take the context; the signature shows it and the definition records it. `[Machine(Purity = Purity.Strict)]` forbids it, for machines that want the pure layer guaranteed. | Decided |
@@ -88,7 +89,7 @@ Every decision below was taken or approved during design review on 2026-09-11.
 | D15 | Run transitions: a vectorised scan over values a state handles identically (§6.7). | Decided |
 | D16 | Hooks (`OnTransitioned`, `OnUnhandled`, the exception hooks) are generated `partial` methods, free when not implemented. | Decided |
 | D17 | Sync and async decisions, named by the .NET convention: `Decide` returns the union, `DecideAsync` returns `ValueTask<TUnion>`. The same holds for `Completed`/`CompletedAsync`. The suffix must match the shape. Guards cover the simple "pick a target" case. | Decided |
-| D18 | Exception semantics and the deferral API (§6.6, §6.9), with optional per-phase exception hooks that receive the exception and the transition and choose the recovery. | Decided |
+| D18 | Exception semantics (§6.9), with optional per-phase exception hooks that receive the exception and the transition and choose the recovery. | Decided |
 | D19 | Concurrency is a compile-time choice per machine: `Checked` (default; concurrent use throws), `Unchecked` (no guard), or `Serialized` (any thread may fire; a `Channel` inbox, drained inline, processes calls in turn; an optional capacity makes it bounded, for backpressure on event producers). The deferring path uses the same inbox in every mode. | Decided |
 | D20 | The library is named **StateAlchemist**; diagnostics use the prefix `SALCH` (StyleCop owns `SA`). | Decided |
 | D21 | A state with children always enters an `[Initial]` child; the machine rests only in leaves. | Decided |
@@ -99,7 +100,7 @@ Every decision below was taken or approved during design review on 2026-09-11.
 ### 5.1 Three kinds of assembly
 
 ```
-StateAlchemist package      runtime types (attributes, IState<T>, plan/definition types, deferral)
+StateAlchemist package      runtime types (attributes, IState<T>, IMachine<T>, plan/definition types)
                             + analyzers/: the source generator and diagnostics. No dependencies on
                             net8.0+; System.Threading.Channels on netstandard2.0.
       ▲
@@ -387,8 +388,9 @@ queue at once. Value triggers are never queued by the machine (§6.6).
 An async decision generates a **pending state**, a child of the decision's source, so the source stays active
 and its data intact while the decision runs.
 
-1. The trigger resolves to the decision; the machine moves into the pending state, and `FireAsync` returns
-   there — with `IsDeferring` now true — rather than awaiting the decision.
+1. The trigger resolves to the decision, and the machine moves into the pending state. The caller's `FireAsync`
+   does not complete yet: it completes once the decision has been completed and the rest of the caller's input
+   processed (§6.6).
 2. The decision starts with **values**: a snapshot of the states it takes, the context, and a
    `CancellationToken` linked to the pending state's slot.
 3. When it completes, its result is processed as a generated completion event: the case selects its
@@ -400,25 +402,46 @@ and its data intact while the decision runs.
 5. A decision that throws produces a generated `DecisionFailed` event on the pending state; unhandled, it
    follows §6.8.
 
-### 6.6 Deferral and backpressure (D10)
+### 6.6 Deferral and backpressure (D10, D23)
 
-While a decision is pending — and while a transition's actions are awaiting — the machine is **deferring**:
+Deferral is invisible to the host. **`FireAsync` completes when its input has been processed** — every value of a
+batch, including waiting for any decision one of them started. The rest of the batch stays in the caller's
+`ReadOnlyMemory<TValue>`, which the machine holds until the returned `ValueTask` completes; nothing is copied.
 
-- **Values are not accepted.** `FireAsync(TValue)` while deferring throws `InvalidOperationException`; the caller
-  must stop feeding. The batch API does this for it:
+Awaiting `FireAsync` is therefore the backpressure. A read loop that awaits it before reading again stops reading
+while a decision is pending; the `Pipe`'s buffer holds what has arrived, and once it passes its pause threshold
+the pipe stops reading the socket, which pushes back on the sender. The host writes the ordinary loop and gets
+this for free:
 
-  ```csharp
-  ValueTask<int> FireAsync(ReadOnlyMemory<TValue> values);   // returns how many were consumed
-  bool IsDeferring { get; }
-  ValueTask WhenReady();                                      // completes when deferral ends
-  ```
+```csharp
+var read = await reader.ReadAsync(ct);
+foreach (var segment in read.Buffer)
+{
+    await machine.FireAsync(segment);            // waits through any decision
+}
+reader.AdvanceTo(read.Buffer.End);
+```
 
-  On a `Pipe`, the read loop advances the reader by the consumed count and awaits `WhenReady()` before
-  reading on. The pipe's buffer is the queue, and its pause threshold pushes back on the socket: nothing is
-  copied, nothing grows without bound.
-- **Events are queued**, except those the pending state opts into handling immediately:
-  `[Decision(..., Handle = new[] { typeof(Disconnect), typeof(Timeout) })]`. Those resolve normally from the
-  pending state (whose transitions out cancel the decision, §6.5).
+While a decision is pending:
+
+- **Events from other callers are accepted in every concurrency mode.** The caller whose input started the
+  decision is awaiting, not running, so the machine is idle; events go through the inbox (§6.10). Events the
+  pending state handles (`[Decision(..., Handle = new[] { typeof(Disconnect), typeof(Timeout) })]`) resolve at
+  once from the pending state, and a transition out of it cancels the decision (§6.5); the rest queue until the
+  decision resolves, and their callers' `FireAsync` completes when they have been processed.
+- **Values from another caller are misuse**, as at any other time: a `Checked` machine throws
+  `ConcurrentUseException`, a `Serialized` machine queues them behind the waiting batch. Values come from one
+  stream, in order.
+- **Code inside the machine must not fire it.** An action or decision that awaited `FireAsync` on its own machine
+  would be waiting for itself; use `Enqueue`, which queues the event and returns at once. The machine detects the
+  mistake where detection is free: a `Checked` machine is busy during actions, so the call throws
+  `ConcurrentUseException`; and every machine marks a running `DecideAsync` with an `AsyncLocal` (decisions are
+  rare, so the cost is negligible), so a call from inside one throws the same. Detecting it in the actions of a
+  `Serialized` or `Unchecked` machine would cost an `AsyncLocal` per transition, so there it is documented, not
+  checked.
+
+If the machine is stopped while a caller is waiting on a decision, the decision is cancelled, the rest of that
+caller's input is discarded, and its `FireAsync` throws `MachineNotRunningException`.
 
 ### 6.7 Run transitions (D15)
 
@@ -508,9 +531,10 @@ that mode's code.
     exception if it throws. Nothing is allocated per call in steady state.
 - **Guards are paid per call, not per value.** The batch `FireAsync(ReadOnlyMemory<TValue>)` takes the guard once
   for the whole batch, so a 4 KB read pays its +6.5 ns or +18 ns once, not 4,096 times.
-- **The deferring path is serialised in every mode.** While a decision is pending, its completion arrives on
-  another thread, so events fired meanwhile go through the same `Channel` inbox even in `Checked` and
-  `Unchecked` machines. The cost exists only while deferring.
+- **The deferring path is serialised in every mode.** While a decision is pending, the caller that started it is
+  awaiting and the decision's completion arrives on another thread, so events fired meanwhile go through the same
+  `Channel` inbox even in `Checked` and `Unchecked` machines — which is what lets a disconnect or timeout reach a
+  pending decision (§6.6). The cost exists only while a decision is pending.
 
 For comparison on the same machine: a raw `ConcurrentQueue` inbox +18.3 ns, `System.Threading.Lock` +13 ns,
 `Monitor` +15 ns, `SemaphoreSlim.WaitAsync` +32 ns — and a lock alone is not correct once actions are async.
@@ -528,9 +552,8 @@ For `[Machine] partial class MudTelnet` the generator emits into that class:
 | `ValueTask StartAsync()`, `ValueTask StopAsync()`, `DisposeAsync()` | Lifecycle (D22): `StartAsync` runs the initial path's `[Entered]` actions once; `StopAsync` cancels a pending decision and runs `[Exited]` from the leaf to the root; `DisposeAsync` stops if started. Firing before start or after stop throws. |
 | `StateId State`, `bool IsIn(StateId)` | Current leaf; ancestry test. |
 | `bool TryGet{State}(out {State} value)` per state | Read a copy of an active state's data. |
-| `ValueTask FireAsync(TValue)`, `ValueTask<int> FireAsync(ReadOnlyMemory<TValue>)`, `FireAsync(in TEvent)` × N | Executor. |
-| `int Fire(ReadOnlySpan<TValue>)`, `void Fire(TValue)` | Only when no action or decision in the machine is async (`SALCH0601` otherwise). |
-| `IsDeferring`, `WhenReady()` | Backpressure. |
+| `ValueTask FireAsync(TValue)`, `ValueTask FireAsync(ReadOnlyMemory<TValue>)`, `FireAsync(in TEvent)` × N | Executor. Each completes when its input has been processed, including waiting for any decision it started (§6.6). |
+| `void Fire(ReadOnlySpan<TValue>)`, `void Fire(TValue)` | Only when no action or decision in the machine is async (`SALCH0601` otherwise). |
 | `void Enqueue(in TEvent)` × N | Queue an event for processing after the current transition (recovery from hooks, §6.9). |
 | `TransitionPlan Plan(TValue)`, `Plan(in TEvent)` | Pure layer: what would fire, evaluating guards read-only, without firing. |
 | `static MachineDefinition Definition` | States, hierarchy, transitions, guards, actions — as data. |
@@ -544,7 +567,6 @@ transform, commit, actions and clear written out in order. Sketch of the output:
 ```csharp
 public ValueTask FireAsync(byte value)
 {
-    if (_deferring) ThrowDeferring();
     switch (_leaf)
     {
         case StateId.Naws:
@@ -686,7 +708,7 @@ Each milestone ends with its exit criteria green in CI.
 | **M1** Flat machines, cross-assembly | States without hierarchy; value triggers (`On`, `OnAny`); stay/move; sync transforms; `switch` dispatch; `StateId`; `Definition`; SALCH0001–0002, SALCH0101, SALCH0203–0204. Declarations in a separate library from the start. | A flat telnet-negotiation sample; 0 B per fire; first benchmark against Stateless recorded. |
 | **M2** Hierarchy and data lifetimes | `IState<T>`; LCA and roles; generated exit/entry sequences; `Reset`; per-level precedence; ranges; re-entry snapshots; guards and `Order`; `[Initial]` children; SALCH0003–0004, SALCH0102, SALCH0201–0202, SALCH0301, SALCH0502. | Property tests against the reference interpreter pass on random trees. |
 | **M3** Actions and events | `void`/`ValueTask` actions with the sync fast path and continuations; class-form transitions and phase names; `Completed`, `[Exited]`, `[Entered]` with `Order`; `StartAsync`; typed events; the event queue; hooks; exception semantics; exception hooks and `Enqueue`; `StopAsync`/`DisposeAsync`; SALCH0801; SALCH0103, SALCH0205–0207, SALCH0501, SALCH0601. | Order-of-operations and exception-hook tests; 0 B when actions complete synchronously. |
-| **M4** Decisions and deferral | Sync and async decisions; pending states; union outcomes; cancellation on exit; `Handle`; `IsDeferring`/`WhenReady`; batch `FireAsync`; the three concurrency modes and the `Channel` inbox (bounded and unbounded); SALCH0208–0209, SALCH0401–0402. | The `Pipe` backpressure sample stops and resumes at the right byte; cancellation tests. |
+| **M4** Decisions and deferral | Sync and async decisions; pending states; union outcomes; cancellation on exit; `Handle`; `FireAsync` waiting through a decision, and events from other callers while it waits; the three concurrency modes and the `Channel` inbox (bounded and unbounded); SALCH0208–0209, SALCH0401–0402. | A `Pipe` sample with the ordinary read loop stops reading while a decision is pending and resumes at the right byte; a disconnect event cancels a pending decision; cancellation tests. |
 | **M5** Runs and performance | `[Run]` with `SearchValues`/scalar fallback; pooled continuations; full benchmark suite; AOT sample; SALCH0701. | Every §9 target met. |
 | **M6** Preview release | Diagrams; `Plan`; docs for every diagnostic; `1.0.0-preview.1` package. | Published preview; the TNC migration spec written against it. |
 

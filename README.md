@@ -49,10 +49,10 @@ lives in a state that isn't being left.
 - **External code is kept separate from state changes.** Transforms are synchronous and pure. Actions (network
   writes, callbacks, logging) run after the state commits, and may be async. One that completes synchronously
   allocates nothing.
-- **Async decisions defer.** When outside code has to choose the outcome (an auth check, an API lookup), the
-  machine parks in a generated pending state and defers further input until it has an answer. On a `Pipe`, the
-  pipe's own buffer holds the deferred bytes, and the pipe pushes back on the sender. Leaving the pending state
-  cancels the decision.
+- **Async decisions defer, and you don't have to care.** When outside code has to choose the outcome (an auth
+  check, an API lookup), the machine parks in a generated pending state until it has an answer. `FireAsync` simply
+  completes once your input has been processed, so the ordinary `Pipe` read loop stops reading while it waits and
+  the pipe pushes back on the sender. Leaving the pending state cancels the decision.
 
 ```csharp
 // Planned API, per the approved design.

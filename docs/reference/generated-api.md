@@ -34,12 +34,11 @@ trigger; storage is fields; the definition is static arrays.
 
 | Member | |
 |---|---|
-| `ValueTask FireAsync(byte value)` | Fires one value. |
-| `ValueTask<int> FireAsync(ReadOnlyMemory<byte> values)` | Fires values in order, consuming [runs](../concepts/runs.md) in one call; returns how many were consumed, stopping early when a [decision](../concepts/decisions.md) starts deferring. |
+| `ValueTask FireAsync(byte value)` | Fires one value. Every `FireAsync` completes when its input has been processed — including waiting for any [decision](../concepts/decisions.md#deferral-and-backpressure) it started — so awaiting it is the backpressure. |
+| `ValueTask FireAsync(ReadOnlyMemory<byte> values)` | Fires values in order, consuming [runs](../concepts/runs.md) in one call. |
 | `ValueTask FireAsync(in {Event} e)` | One per event type the machine handles. |
-| `void Fire(byte value)`, `int Fire(ReadOnlySpan<byte> values)` | Only when no action or decision in the machine is async ([`SALCH0601`](diagnostics.md#salch0601) otherwise). |
+| `void Fire(byte value)`, `void Fire(ReadOnlySpan<byte> values)` | Only when no action or decision in the machine is async ([`SALCH0601`](diagnostics.md#salch0601) otherwise). |
 | `void Enqueue(in {Event} e)` | Queues an event for after the current transition. |
-| `bool IsDeferring`, `ValueTask WhenReady()` | Backpressure while a decision is pending. |
 
 ## The pure layer
 

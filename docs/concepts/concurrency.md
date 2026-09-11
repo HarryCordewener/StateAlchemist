@@ -45,9 +45,13 @@ which is why it is opt-in.
 
 ## While a decision is pending
 
-A pending [decision](decisions.md) completes on another thread, so while one is pending, events fired at the
-machine go through the same `Channel` inbox **in every mode** — `Checked` and `Unchecked` included. The cost
-exists only while deferring.
+While a [decision](decisions.md) is pending, the caller whose input started it is awaiting its `FireAsync`, and
+the decision completes on another thread. So the machine accepts **events** from other callers in every mode —
+`Checked` and `Unchecked` included — through the same `Channel` inbox. That is what lets a disconnect or a timeout
+reach a pending decision. The cost exists only while a decision is pending.
+
+Values are different: they come from one stream, so a second caller firing values while a decision is pending is
+misuse in every mode — `Checked` throws, `Serialized` queues them behind the waiting batch.
 
 ## Measured alternatives
 
