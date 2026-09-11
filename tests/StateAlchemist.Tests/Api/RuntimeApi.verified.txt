@@ -18,6 +18,13 @@
         public System.Type[] Handle { get; set; }
         public int Order { get; set; }
     }
+    public readonly struct DecisionFailed : StateAlchemist.IEvent
+    {
+        public DecisionFailed(string decision, System.Exception exception) { }
+        public string Decision { get; }
+        public System.Exception Exception { get; }
+        public override string ToString() { }
+    }
     [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
     public sealed class EnteredAttribute : System.Attribute
     {

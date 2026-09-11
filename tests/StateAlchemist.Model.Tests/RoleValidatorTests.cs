@@ -80,6 +80,35 @@ public class RoleValidatorTests
     }
 
     [Test]
+    public async Task ADecisionReadsThePathAndEachOutcomeMovesToItsOwnTarget()
+    {
+        _model.Decision("Check", _awaiting, _naws, _idle,
+            decide: [_model.Copy(_sub)],
+            accept: [_model.In(_awaiting), _model.Ref(_sub), _model.Ref(_naws)],
+            reject: [_model.In(_awaiting), _model.In(_sub)],
+            TestModel.Method("Check", "Completed", ReturnShape.Void, _model.Copy(_naws), TestModel.Outcome("T.Accept")),
+            TestModel.Method("Check", "Completed", ReturnShape.Void, _model.Copy(_root)));
+        await Assert.That(Problems()).IsEqualTo("");
+    }
+
+    [Test]
+    public async Task ACompletedWithoutAnOutcomeMustBindAfterEveryOutcome()
+    {
+        _model.Decision("Check", _awaiting, _naws, _idle, [], [], [],
+            TestModel.Method("Check", "Completed", ReturnShape.Void, _model.Copy(_naws)));
+        await Assert.That(Problems()).IsEqualTo(
+            "SALCH0202: Parameter 'naws' of 'Check.Completed' names 'Naws', which is not touched from every leaf this transition fires from");
+    }
+
+    [Test]
+    public async Task ADecisionOnlyReadsStates()
+    {
+        _model.Decision("Check", _awaiting, _naws, _idle, [_model.Ref(_sub)], [], []);
+        await Assert.That(Problems()).IsEqualTo(
+            "SALCH0204: Parameter 'sub' of 'Check.DecideAsync' cannot be bound: a decision reads states: take it by value or as in");
+    }
+
+    [Test]
     public async Task AGuardOnlyReads()
     {
         var guarded = _model.Add("Maybe", _naws, _idle, TriggerModel.Value(2), guarded: true, order: 0);

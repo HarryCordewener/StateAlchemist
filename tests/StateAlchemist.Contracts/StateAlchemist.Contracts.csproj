@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="TUnit.Core" />
     <PackageReference Include="TUnit.Assertions" />
+    <PackageReference Include="System.IO.Pipelines" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />

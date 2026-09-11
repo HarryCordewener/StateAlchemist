@@ -24,7 +24,11 @@ internal sealed class TestModel
 
     public ParameterModel In(int state) => new(_states[state].Name.ToLowerInvariant(), _states[state].TypeName, ParameterKind.State, Passing.In, state);
 
+    public ParameterModel Copy(int state) => new(_states[state].Name.ToLowerInvariant(), _states[state].TypeName, ParameterKind.State, Passing.Value, state);
+
     public ParameterModel Ref(int state) => new(_states[state].Name.ToLowerInvariant(), _states[state].TypeName, ParameterKind.State, Passing.Ref, state);
+
+    public static ParameterModel Outcome(string typeName) => new("outcome", typeName, ParameterKind.Outcome, Passing.Value);
 
     public static ParameterModel Value() => new("value", "System.Byte", ParameterKind.Value, Passing.Value);
 
@@ -44,6 +48,24 @@ internal sealed class TestModel
             [], null, [], "T.Module", SourceSpan.None);
         _transitions.Add(transition);
         return transition;
+    }
+
+    /// <summary>
+    /// An async decision from <paramref name="from"/> on value 5 with outcomes <c>T.Accept</c> and <c>T.Reject</c>,
+    /// completed to <paramref name="acceptTo"/> and <paramref name="rejectTo"/>.
+    /// </summary>
+    public TransitionModel Decision(string name, int from, int acceptTo, int rejectTo, ParameterModel[] decide, ParameterModel[] accept, ParameterModel[] reject, params MethodModel[] completed)
+    {
+        var decision = new DecisionModel(
+            null,
+            Method(name, "DecideAsync", ReturnShape.ValueTaskOfResult, decide),
+            ["T.Accept", "T.Reject"],
+            [
+                new OutcomeCompletion("T.Accept", acceptTo, Method(name, "Complete", ReturnShape.Void, [.. accept, Outcome("T.Accept")])),
+                new OutcomeCompletion("T.Reject", rejectTo, Method(name, "Complete", ReturnShape.Void, [.. reject, Outcome("T.Reject")])),
+            ],
+            []);
+        return Add(new TransitionModel(0, name, from, -1, TriggerModel.Value(5), 0, IsRun: false, null, null, completed, decision, [], "T.Module", SourceSpan.None));
     }
 
     /// <summary>Adds a transition built by the caller, renumbered to its position.</summary>

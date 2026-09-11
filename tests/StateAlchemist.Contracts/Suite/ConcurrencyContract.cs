@@ -4,7 +4,7 @@ using TUnit.Core;
 
 namespace StateAlchemist.Contracts.Suite;
 
-/// <summary>docs/concepts/concurrency.md: a Checked machine refuses a second caller and never corrupts state.</summary>
+/// <summary>docs/concepts/concurrency.md: a Checked machine refuses a second caller and never corrupts state; an Unchecked one trusts its single caller.</summary>
 public abstract class ConcurrencyContract : MachineContract
 {
     [Test]
@@ -26,5 +26,15 @@ public abstract class ConcurrencyContract : MachineContract
     {
         var machine = await StartAsync(Shapes.Recorder, new RecordingContext());
         await Assert.That(async () => await machine.FireAsync((byte)10)).Throws<ConcurrentUseException>();
+    }
+
+    [Test]
+    public async Task AnUncheckedMachineWithOneCallerBehavesLikeAnyOther()
+    {
+        var context = new RecordingContext();
+        var machine = await StartAsync(Shapes.RecorderUnchecked, context);
+        context.Log.Clear();
+        await machine.FireAsync(new byte[] { 3, 1 });
+        await Assert.That(context.Trace).IsEqualTo("exited A1 (1) | exited A1 (extra) | entered A2 | completed Sibling");
     }
 }

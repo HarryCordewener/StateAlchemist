@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace StateAlchemist.Contracts.Machines;
@@ -21,6 +22,15 @@ public sealed class RecordingContext
 
     /// <summary>What an action awaits, when a test needs a transition held open.</summary>
     public TaskCompletionSource Gate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// What an async decision awaits: a test completes it with an outcome union, or faults it. Its continuations run
+    /// inline, so when <c>SetResult</c> returns, the machine has already dealt with the outcome.
+    /// </summary>
+    public TaskCompletionSource<object> Answer { get; } = new();
+
+    /// <summary>Completed when an async decision starts, with the token it was given.</summary>
+    public TaskCompletionSource<CancellationToken> Deciding { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>The machine, for actions that enqueue or fire.</summary>
     public IMachine<byte>? Machine { get; set; }

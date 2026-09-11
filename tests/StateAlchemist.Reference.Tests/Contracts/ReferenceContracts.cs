@@ -65,3 +65,27 @@ public sealed class ReferenceTelnet : TelnetContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class ReferenceDecisions : DecisionContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceBackpressure : BackpressureContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceRuns : RunContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceSerialized : SerializedContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}

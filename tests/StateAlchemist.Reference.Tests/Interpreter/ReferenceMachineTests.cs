@@ -29,6 +29,18 @@ public class ReferenceMachineTests
     }
 
     [Test]
+    public async Task ARunTransformMayTakeTheConfigurationAndTheContext()
+    {
+        var spec = new MachineSpec("Configured", typeof(Stream), typeof(byte), [typeof(ConfiguredRuns)], typeof(RunLog), typeof(RunConfig));
+        var log = new RunLog();
+        var machine = ReferenceMachine<byte>.Create(ReflectionModelBuilder.Build(spec), log, new RunConfig(2));
+        await machine.StartAsync();
+        await machine.FireAsync(new byte[] { 1, 2, 3, 200, 201 });
+        await Assert.That(machine.TryGetState(out Stream stream) ? stream.Total : -1).IsEqualTo(3 * 2 + 2 * 2 * 100);
+        await Assert.That(string.Join(",", log.Entries)).IsEqualTo("high 2");
+    }
+
+    [Test]
     public async Task AValidMachineStartsInItsInitialLeaf()
     {
         var machine = ReferenceMachine<byte>.Create(Telnet(), new TelnetContext());

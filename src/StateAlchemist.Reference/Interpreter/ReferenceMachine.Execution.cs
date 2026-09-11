@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
+using System.Threading;
 using System.Threading.Tasks;
 using StateAlchemist.Model;
 
@@ -15,34 +16,35 @@ public sealed partial class ReferenceMachine<TValue>
     {
         Guard,
         Transform,
+        Decide,
         Completed,
         Exited,
         Entered,
     }
 
-    private async ValueTask RunOneAsync(IReadOnlyList<TransitionModel> candidates, Trigger trigger)
+    /// <summary>One trigger, resolved and run. True when it started an async decision, which pauses its input.</summary>
+    private async ValueTask<bool> RunTriggerAsync(Trigger trigger, Work owner)
     {
-        _inTransition = true;
-        try
+        var chosen = Choose(Candidates(trigger), trigger, hooks: true);
+        if (chosen is null)
         {
-            var chosen = Choose(candidates, trigger, hooks: true);
-            if (chosen is null)
+            Unhandled(trigger);
+            return false;
+        }
+
+        if (chosen.Decision is { } decision)
+        {
+            if (decision.DecideAsync is null)
             {
-                Unhandled(trigger);
-                return;
+                return await DecideInlineAsync(chosen, trigger, owner);
             }
 
-            if (chosen.IsDecision)
-            {
-                throw new NotSupportedException("Decisions are interpreted from Plan 3.");
-            }
+            StartDecision(chosen, trigger, owner);
+            return true;
+        }
 
-            await ExecuteAsync(chosen, trigger);
-        }
-        finally
-        {
-            _inTransition = false;
-        }
+        await ExecuteAsync(chosen, chosen.Transform, chosen.Completed, PathPlanner.Plan(_hierarchy, chosen, _leaf), (TransitionKind)chosen.Kind, trigger, outcome: null);
+        return false;
     }
 
     /// <summary>Step 1: the first candidate whose guard passes.</summary>
@@ -56,7 +58,7 @@ public sealed partial class ReferenceMachine<TValue>
             }
 
             var path = PathPlanner.Plan(_hierarchy, candidate, _leaf);
-            var info = Info(candidate, path, trigger, Phase.Guard);
+            var info = Info(candidate, path, (TransitionKind)candidate.Kind, trigger, Phase.Guard);
             try
             {
                 if ((bool)Invoke(guard, Bind(guard, Use.Guard, path, trigger, info, snapshots: null))!)
@@ -76,10 +78,19 @@ public sealed partial class ReferenceMachine<TValue>
         return null;
     }
 
-    /// <summary>Steps 2–8 of spec §6.2.</summary>
-    private async ValueTask ExecuteAsync(TransitionModel transition, Trigger trigger)
+    /// <summary>
+    /// Steps 2–8 of spec §6.2, for a transition or — with <paramref name="outcome"/> — a decision outcome, whose
+    /// <c>Complete</c> is the transform.
+    /// </summary>
+    private async ValueTask ExecuteAsync(
+        TransitionModel transition,
+        MethodModel? transform,
+        IReadOnlyList<MethodModel> completed,
+        TransitionPath path,
+        TransitionKind kind,
+        Trigger trigger,
+        object? outcome)
     {
-        var path = PathPlanner.Plan(_hierarchy, transition, _leaf);
         var startedOver = new HashSet<int>(path.Exiting.Intersect(path.Entering));
         var snapshots = startedOver.ToDictionary(state => state, state => RuntimeHelpers.GetObjectValue(_slots[state]));
 
@@ -90,13 +101,20 @@ public sealed partial class ReferenceMachine<TValue>
         }
 
         // 3. transform
-        var info = Info(transition, path, trigger, Phase.Transform);
-        if (transition.Transform is { } transform)
+        var info = Info(transition, path, kind, trigger, outcome is null ? Phase.Transform : Phase.Complete);
+        if (transform is not null)
         {
-            var arguments = Bind(transform, Use.Transform, path, trigger, info, snapshots);
+            var arguments = Bind(transform, Use.Transform, path, trigger, info, snapshots, outcome);
             try
             {
-                Invoke(transform, arguments);
+                if (transition.IsRun)
+                {
+                    InvokeRun(transform, arguments, trigger.Run);
+                }
+                else
+                {
+                    Invoke(transform, arguments);
+                }
             }
             catch (Exception exception)
             {
@@ -117,8 +135,19 @@ public sealed partial class ReferenceMachine<TValue>
             WriteBack(transform, arguments);
         }
 
-        // 4. commit
+        // 4. commit. A move leaves the pending state below the leaf, if there is one, which ends its decision.
         _leaf = path.TargetLeaf;
+        if (path.Exiting.Count > 0)
+        {
+            lock (_sync)
+            {
+                if (_pending is { } pending)
+                {
+                    EndPending(pending);
+                }
+            }
+        }
+
         try
         {
             // 5. exited, leaf first; 6. entered, outermost first; 7. completed
@@ -133,9 +162,9 @@ public sealed partial class ReferenceMachine<TValue>
                 go = go && await RunStateActionsAsync(ActionPhase.Entered, state, info.With(Phase.Entered, _machine.StateTypes[state]), snapshots);
             }
 
-            foreach (var completed in transition.Completed)
+            foreach (var method in completed)
             {
-                go = go && await RunActionAsync(completed, Use.Completed, path, trigger, info.With(Phase.Completed), snapshots);
+                go = go && await RunActionAsync(method, Use.Completed, path, trigger, info.With(Phase.Completed), snapshots, outcome);
             }
         }
         finally
@@ -160,7 +189,7 @@ public sealed partial class ReferenceMachine<TValue>
         foreach (var action in actions)
         {
             var use = phase == ActionPhase.Exited ? Use.Exited : Use.Entered;
-            if (!await RunActionAsync(action.Method, use, PathPlanner.Stay(_leaf), default, info, snapshots))
+            if (!await RunActionAsync(action.Method, use, PathPlanner.Stay(_leaf), default, info, snapshots, outcome: null))
             {
                 return false;
             }
@@ -170,12 +199,11 @@ public sealed partial class ReferenceMachine<TValue>
     }
 
     /// <summary>Runs one action; false means "skip the rest" (<see cref="ExceptionResolution.Skip"/>).</summary>
-    private async ValueTask<bool> RunActionAsync(MethodModel method, Use use, TransitionPath path, Trigger trigger, TransitionInfo<TValue> info, IReadOnlyDictionary<int, object?>? snapshots)
+    private async ValueTask<bool> RunActionAsync(MethodModel method, Use use, TransitionPath path, Trigger trigger, TransitionInfo<TValue> info, IReadOnlyDictionary<int, object?>? snapshots, object? outcome)
     {
         try
         {
-            var result = Invoke(method, Bind(method, use, path, trigger, info, snapshots));
-            switch (result)
+            switch (Invoke(method, Bind(method, use, path, trigger, info, snapshots, outcome)))
             {
                 case ValueTask pending:
                     await pending;
@@ -202,7 +230,15 @@ public sealed partial class ReferenceMachine<TValue>
         }
     }
 
-    private object?[] Bind(MethodModel method, Use use, TransitionPath path, Trigger trigger, TransitionInfo<TValue> info, IReadOnlyDictionary<int, object?>? snapshots)
+    private object?[] Bind(
+        MethodModel method,
+        Use use,
+        TransitionPath path,
+        Trigger trigger,
+        TransitionInfo<TValue> info,
+        IReadOnlyDictionary<int, object?>? snapshots,
+        object? outcome = null,
+        CancellationToken token = default)
     {
         var arguments = new object?[method.Parameters.Count];
         for (var i = 0; i < arguments.Length; i++)
@@ -212,12 +248,15 @@ public sealed partial class ReferenceMachine<TValue>
             {
                 ParameterKind.State => StateArgument(parameter, use, snapshots),
                 ParameterKind.Value => trigger.Value,
+                ParameterKind.Run => null, // passed as a span by InvokeRun
+                ParameterKind.RunMemory => trigger.Run,
                 ParameterKind.Event => trigger.Event,
+                ParameterKind.Outcome => outcome,
                 ParameterKind.Config => _config,
                 ParameterKind.Context => _context,
-                ParameterKind.CancellationToken => _lifetime.Token,
+                ParameterKind.CancellationToken => use == Use.Decide ? token : _lifetime.Token,
                 ParameterKind.TransitionInfo => info,
-                _ => throw new NotSupportedException($"Parameter kind {parameter.Kind} is interpreted from Plan 3."),
+                _ => throw new NotSupportedException($"Parameter '{parameter.Name}' of '{method.FullName}' cannot be bound."),
             };
         }
 
@@ -226,15 +265,19 @@ public sealed partial class ReferenceMachine<TValue>
 
     /// <summary>
     /// Which copy of a state a parameter sees: a state being started over is read, before the change, from its
-    /// snapshot — by a transform's <c>in</c> parameter, and by that state's own <c>[Exited]</c> actions. Everything
-    /// else reads the live slot.
+    /// snapshot — by a transform's <c>in</c> parameter, and by that state's own <c>[Exited]</c> actions. A decision
+    /// gets a copy of the live slot, since it may still be running after the machine has moved on. Everything else
+    /// reads the live slot.
     /// </summary>
     private object? StateArgument(ParameterModel parameter, Use use, IReadOnlyDictionary<int, object?>? snapshots)
     {
         var oldData = (use == Use.Transform && parameter.Passing == Passing.In) || use == Use.Exited;
-        return oldData && snapshots is not null && snapshots.TryGetValue(parameter.State, out var snapshot)
-            ? RuntimeHelpers.GetObjectValue(snapshot)
-            : _slots[parameter.State];
+        if (oldData && snapshots is not null && snapshots.TryGetValue(parameter.State, out var snapshot))
+        {
+            return RuntimeHelpers.GetObjectValue(snapshot);
+        }
+
+        return use == Use.Decide ? RuntimeHelpers.GetObjectValue(_slots[parameter.State]) : _slots[parameter.State];
     }
 
     private void WriteBack(MethodModel method, object?[] arguments)
@@ -308,12 +351,12 @@ public sealed partial class ReferenceMachine<TValue>
             chosen.IsDecision);
     }
 
-    private TransitionInfo<TValue> Info(TransitionModel transition, TransitionPath path, Trigger trigger, Phase phase) =>
+    private TransitionInfo<TValue> Info(TransitionModel transition, TransitionPath path, TransitionKind kind, Trigger trigger, Phase phase) =>
         new(transition.Name,
             _machine.StateTypes[transition.Source],
             _machine.StateTypes[path.Leaf],
             _machine.StateTypes[path.TargetLeaf],
-            (TransitionKind)transition.Kind,
+            kind,
             phase,
             trigger.Value,
             trigger.HasValue,

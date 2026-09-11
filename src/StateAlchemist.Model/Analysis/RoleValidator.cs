@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -7,7 +6,9 @@ namespace StateAlchemist.Model;
 /// <summary>
 /// Checks every state parameter against its role in its transition, for every leaf the transition can fire from:
 /// a parameter must bind the same way from every leaf (spec §6.3) (SALCH0201, SALCH0202, SALCH0204 for state
-/// passing, SALCH0301).
+/// passing, SALCH0301). A decision is checked the way it runs: its <c>Decide</c> reads the active path, which stays;
+/// each <c>Complete</c> is the transform of a move to its own target; and a <c>Completed</c> runs after the move of
+/// the outcome it takes — or, taking none, after every outcome's move, so it must bind the same way after each.
 /// </summary>
 public static class RoleValidator
 {
@@ -15,6 +16,7 @@ public static class RoleValidator
     {
         Guard,
         Transform,
+        Decide,
         Action,
     }
 
@@ -34,26 +36,43 @@ public static class RoleValidator
         foreach (var transition in model.Transitions)
         {
             var leaves = hierarchy.LeavesUnder(transition.Source).ToList();
-            Func<int, TransitionPath> plan = leaf => PathPlanner.Plan(hierarchy, transition, leaf);
+            var paths = leaves.Select(leaf => PathPlanner.Plan(hierarchy, transition, leaf)).ToList();
+            IReadOnlyList<TransitionPath> MovesTo(IEnumerable<OutcomeCompletion> completions) =>
+                completions.SelectMany(c => leaves.Select(leaf => PathPlanner.Move(hierarchy, leaf, c.Target))).ToList();
 
             if (transition.Guard is not null)
             {
-                Check(model, hierarchy, transition.Guard, Use.Guard, leaves, plan, diagnostics);
+                Check(model, hierarchy, transition.Guard, Use.Guard, paths, diagnostics);
             }
 
             if (transition.Transform is not null)
             {
-                Check(model, hierarchy, transition.Transform, Use.Transform, leaves, plan, diagnostics);
+                Check(model, hierarchy, transition.Transform, Use.Transform, paths, diagnostics);
+            }
+
+            if (transition.Decision is { } decision)
+            {
+                if (decision.Decider is { } decider)
+                {
+                    Check(model, hierarchy, decider, Use.Decide, paths, diagnostics);
+                }
+
+                foreach (var completion in decision.Completions)
+                {
+                    Check(model, hierarchy, completion.Complete, Use.Transform, MovesTo([completion]), diagnostics);
+                }
             }
 
             foreach (var completed in transition.Completed)
             {
-                Check(model, hierarchy, completed, Use.Action, leaves, plan, diagnostics);
-            }
-
-            foreach (var completion in transition.Decision?.Completions ?? [])
-            {
-                Check(model, hierarchy, completion.Complete, Use.Transform, leaves, leaf => PathPlanner.Move(hierarchy, leaf, completion.Target), diagnostics);
+                var outcome = completed.Parameters.FirstOrDefault(p => p.Kind == ParameterKind.Outcome)?.TypeName;
+                var after = transition.Decision is { } made
+                    ? MovesTo(made.Completions.Where(c => outcome is null || c.OutcomeType == outcome))
+                    : paths;
+                if (after.Count > 0)
+                {
+                    Check(model, hierarchy, completed, Use.Action, after, diagnostics);
+                }
             }
 
             // A re-entry of the root is a move to the root, which never exits it: nothing is cleared.
@@ -88,15 +107,14 @@ public static class RoleValidator
         Hierarchy hierarchy,
         MethodModel method,
         Use use,
-        IReadOnlyList<int> leaves,
-        Func<int, TransitionPath> plan,
+        IReadOnlyList<TransitionPath> paths,
         List<ModelDiagnostic> diagnostics)
     {
         var parameters = method.Parameters.Where(p => p.Kind == ParameterKind.State).ToList();
         foreach (var group in parameters.GroupBy(p => p.State).Where(g => g.Count() > 1))
         {
             var passings = group.Select(p => p.Passing).OrderBy(p => p).ToList();
-            var startedOver = leaves.All(leaf => Roles.Of(hierarchy, plan(leaf), group.Key).HasFlag(Role.Exiting | Role.Entering));
+            var startedOver = paths.All(path => Roles.Of(hierarchy, path, group.Key).HasFlag(Role.Exiting | Role.Entering));
             if (!(use == Use.Transform && passings.SequenceEqual([Passing.In, Passing.Ref]) && startedOver))
             {
                 diagnostics.Add(new(DiagnosticCatalog.UnbindableParameter, method.Location, group.Last().Name, method.FullName,
@@ -107,7 +125,7 @@ public static class RoleValidator
         foreach (var parameter in parameters)
         {
             var stateName = model.States[parameter.State].Name;
-            var roles = leaves.Select(leaf => Roles.Of(hierarchy, plan(leaf), parameter.State)).ToList();
+            var roles = paths.Select(path => Roles.Of(hierarchy, path, parameter.State)).ToList();
             if (roles.All(role => role == Role.None))
             {
                 diagnostics.Add(new(DiagnosticCatalog.StateNotAvailable, method.Location, parameter.Name, method.FullName, stateName, "has no role in this transition"));
@@ -117,6 +135,7 @@ public static class RoleValidator
             var passingProblem = (use, parameter.Passing) switch
             {
                 (Use.Guard, not Passing.In) => "a guard only reads states: take it as in",
+                (Use.Decide, Passing.Ref or Passing.Out) => "a decision reads states: take it by value or as in",
                 (Use.Transform, Passing.Value or Passing.Out) => "take a state as in or ref",
                 (Use.Action, Passing.Ref or Passing.Out) => "an action reads states: take it by value or as in",
                 _ => null,

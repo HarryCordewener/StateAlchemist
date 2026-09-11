@@ -68,7 +68,8 @@ public interface IMachine<TValue> : IAsyncDisposable
     /// <typeparam name="TEvent">The event type.</typeparam>
     /// <param name="e">The event.</param>
     /// <exception cref="InvalidOperationException">
-    /// Called from outside a transition. From outside the machine, use <see cref="FireAsync{TEvent}(TEvent)"/>.
+    /// Called from code not running inside the machine — an action, a hook or a decision. From outside the machine,
+    /// use <see cref="FireAsync{TEvent}(TEvent)"/>.
     /// </exception>
     void Enqueue<TEvent>(TEvent e)
         where TEvent : struct, IEvent;

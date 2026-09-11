@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using StateAlchemist.Model;
@@ -32,12 +30,9 @@ public sealed partial class ReferenceMachine<TValue> : IMachine<TValue>
     private readonly object? _context;
     private readonly object? _config;
     private readonly ReferenceHooks<TValue> _hooks;
-    private readonly Queue<object> _queue = new();
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Lazy<MachineDefinition> _definition;
     private int _leaf;
-    private int _busy;
-    private bool _inTransition;
 
     private ReferenceMachine(ReflectedMachine machine, object? context, object? config, ReferenceHooks<TValue>? hooks)
     {
@@ -107,11 +102,7 @@ public sealed partial class ReferenceMachine<TValue> : IMachine<TValue>
             throw new InvalidOperationException("The machine has already been started.");
         }
 
-        foreach (var state in _hierarchy.PathFromRoot(_leaf))
-        {
-            await RunStateActionsAsync(ActionPhase.Entered, state, Lifecycle(Phase.Entered, state), snapshots: null);
-        }
-
+        await RunLifecycleAsync(ActionPhase.Entered, _hierarchy.PathFromRoot(_leaf));
         Status = MachineStatus.Running;
     }
 
@@ -124,45 +115,60 @@ public sealed partial class ReferenceMachine<TValue> : IMachine<TValue>
             return;
         }
 
-        Status = MachineStatus.Stopped;
+        Abandon();
         _lifetime.Cancel();
-        var path = _hierarchy.PathFromRoot(_leaf);
-        for (var i = path.Count - 1; i >= 0; i--)
-        {
-            await RunStateActionsAsync(ActionPhase.Exited, path[i], Lifecycle(Phase.Exited, path[i]), snapshots: null);
-        }
+        await RunLifecycleAsync(ActionPhase.Exited, _hierarchy.PathFromRoot(_leaf).Reverse().ToList());
     }
 
     /// <inheritdoc/>
     public ValueTask DisposeAsync() => StopAsync();
 
     /// <inheritdoc/>
-    public ValueTask FireAsync(TValue value) => GuardedAsync(() => FireValueAsync(value));
+    public ValueTask FireAsync(TValue value) => SubmitAsync(Work.ForValues(new[] { value }));
 
     /// <inheritdoc/>
-    public ValueTask FireAsync(ReadOnlyMemory<TValue> values) => GuardedAsync(async () =>
-    {
-        for (var i = 0; i < values.Length; i++)
-        {
-            await FireValueAsync(values.Span[i]);
-        }
-    });
+    public ValueTask FireAsync(ReadOnlyMemory<TValue> values) => SubmitAsync(Work.ForValues(values));
 
     /// <inheritdoc/>
     public ValueTask FireAsync<TEvent>(TEvent e)
         where TEvent : struct, IEvent =>
-        GuardedAsync(() => FireEventAsync(e));
+        SubmitAsync(Work.ForEvent(e));
 
     /// <inheritdoc/>
     public void Enqueue<TEvent>(TEvent e)
         where TEvent : struct, IEvent
     {
-        if (!_inTransition)
+        switch (_inside.Value)
         {
-            throw new InvalidOperationException("Enqueue is for code running inside a transition, such as an action or a hook. From outside, use FireAsync.");
-        }
+            case null:
+                throw new InvalidOperationException("Enqueue is for code running inside the machine, such as an action, a hook or a decision. From outside, use FireAsync.");
+            case { Decision: { } decision }:
+                lock (_sync)
+                {
+                    if (!ReferenceEquals(decision, _pending))
+                    {
+                        return; // from a decision that is no longer pending: it can no longer affect the machine
+                    }
 
-        _queue.Enqueue(e);
+                    _queue.Enqueue(Work.Queued(e));
+                }
+
+                // The machine is idle while a decision runs, so nothing else will look at the queue. Start a pump —
+                // off the decision's stack, since Enqueue returns at once.
+                using (ExecutionContext.SuppressFlow())
+                {
+                    _ = Task.Run(PumpAsync);
+                }
+
+                return;
+            default:
+                lock (_sync)
+                {
+                    _queue.Enqueue(Work.Queued(e));
+                }
+
+                return;
+        }
     }
 
     /// <inheritdoc/>
@@ -173,53 +179,16 @@ public sealed partial class ReferenceMachine<TValue> : IMachine<TValue>
         where TEvent : struct, IEvent =>
         PlanFor(_resolver.ForEvent(_leaf, typeof(TEvent).FullName!), Trigger.OfEvent(e));
 
-    private async ValueTask GuardedAsync(Func<ValueTask> fire)
+    private async ValueTask RunLifecycleAsync(ActionPhase phase, IReadOnlyList<int> states)
     {
-        if (Status != MachineStatus.Running)
+        // Lifecycle actions run inside the machine, so they may Enqueue; what they queue runs before the first trigger.
+        _inside.Value = Inside.Transition;
+        foreach (var state in states)
         {
-            throw new MachineNotRunningException(Status);
-        }
-
-        var checkedMode = _model.Options.Concurrency == ConcurrencyMode.Checked;
-        if (checkedMode && Interlocked.Exchange(ref _busy, 1) != 0)
-        {
-            throw new ConcurrentUseException();
-        }
-
-        try
-        {
-            await fire();
-        }
-        finally
-        {
-            if (checkedMode)
-            {
-                Volatile.Write(ref _busy, 0);
-            }
-        }
-    }
-
-    private ValueTask FireValueAsync(TValue value) => ProcessAsync(Trigger.OfValue(value));
-
-    private ValueTask FireEventAsync(object e) => ProcessAsync(Trigger.OfEvent(e));
-
-    /// <summary>
-    /// One trigger, then step 9: the events its transition queued. Events kept from a transition that threw run first,
-    /// so queued events always run in the order they were queued.
-    /// </summary>
-    private async ValueTask ProcessAsync(Trigger trigger)
-    {
-        await DrainAsync();
-        await RunOneAsync(Candidates(trigger), trigger);
-        await DrainAsync();
-    }
-
-    private async ValueTask DrainAsync()
-    {
-        while (_queue.Count > 0)
-        {
-            var queued = Trigger.OfEvent(_queue.Dequeue());
-            await RunOneAsync(Candidates(queued), queued);
+            var info = new TransitionInfo<TValue>(
+                "(lifecycle)", _machine.StateTypes[_hierarchy.Root], StateType, StateType, TransitionKind.Stay,
+                phase == ActionPhase.Entered ? Phase.Entered : Phase.Exited, default, false, null, _machine.StateTypes[state]);
+            await RunStateActionsAsync(phase, state, info, snapshots: null);
         }
     }
 
@@ -242,15 +211,14 @@ public sealed partial class ReferenceMachine<TValue> : IMachine<TValue>
 
     private static long ToInt64(TValue value) => Convert.ToInt64(value);
 
-    private TransitionInfo<TValue> Lifecycle(Phase phase, int state) =>
-        new("(lifecycle)", _machine.StateTypes[_hierarchy.Root], StateType, StateType, TransitionKind.Stay, phase, default, false, null, _machine.StateTypes[state]);
-
-    /// <summary>What fired: a value or an event.</summary>
-    private readonly record struct Trigger(TValue Value, bool HasValue, object? Event)
+    /// <summary>What fired: a value (with the run it starts, one value long unless a run transition takes more) or an event.</summary>
+    private readonly record struct Trigger(TValue Value, bool HasValue, ReadOnlyMemory<TValue> Run, object? Event)
     {
-        public static Trigger OfValue(TValue value) => new(value, true, null);
+        public static Trigger OfValue(TValue value) => new(value, true, new[] { value }, null);
 
-        public static Trigger OfEvent(object e) => new(default, false, e);
+        public static Trigger OfRun(ReadOnlyMemory<TValue> run) => new(run.Span[0], true, run, null);
+
+        public static Trigger OfEvent(object e) => new(default, false, default, e);
 
         public override string ToString() => HasValue ? Value.ToString()! : "event " + Event!.GetType().Name;
     }
