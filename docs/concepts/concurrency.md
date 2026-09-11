@@ -50,6 +50,9 @@ the decision completes on another thread. So the machine accepts **events** from
 `Checked` and `Unchecked` included — through the same `Channel` inbox. That is what lets a disconnect or a timeout
 reach a pending decision. The cost exists only while a decision is pending.
 
+Events that waited run as soon as the decision resolves, in the order they arrived, before the rest of the paused
+input.
+
 Values are different: they come from one stream, so a second caller firing values while a decision is pending is
 misuse in every mode — `Checked` throws, `Serialized` queues them behind the waiting batch.
 

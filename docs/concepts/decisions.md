@@ -53,8 +53,8 @@ the machine's own data, [guards](triggers.md#guards) are simpler.
 
 ## What an async decision does
 
-1. The trigger resolves to the decision. The machine moves into a **pending state** — a generated child of the
-   decision's source. Your `FireAsync` keeps waiting.
+1. The trigger resolves to the decision. The machine moves into a **pending state**, generated below the active
+   leaf: nothing is exited to enter it. Your `FireAsync` keeps waiting.
 2. `DecideAsync` runs with **values**: copies of the states it takes, the context, and a `CancellationToken` tied to
    the pending state.
 3. When it completes, its outcome arrives as a generated event. The outcome picks its `Complete`, which runs as an
@@ -63,8 +63,8 @@ the machine's own data, [guards](triggers.md#guards) are simpler.
 4. The machine carries on with the rest of your input, and your `FireAsync` completes when all of it has been
    processed.
 
-The pending state is a child of the source, so the source stays active and its data intact while the decision
-runs.
+Because the pending state sits below the active leaf, every state on the active path — the source included — stays
+active, with its data intact, while the decision runs.
 
 ### Leaving the pending state cancels the decision
 
@@ -75,9 +75,14 @@ apply to a state that is no longer active.
 
 ### When the decision throws
 
-A `DecideAsync` that throws produces a generated `DecisionFailed` event on the pending state, carrying the
-exception. Handle it like any event — a transition out of the source on `DecisionFailed` is the recovery. If
-nothing handles it, the machine's [unhandled-trigger](triggers.md#unhandled-triggers) behaviour applies.
+A `Decide` or `DecideAsync` that throws ends the decision: the pending state is left, and a `DecisionFailed` event
+fires from the active leaf, carrying the decision's name and the exception. `DecisionFailed` is a runtime type, so a
+module can name it: a transition on it from the source, or any ancestor, is the recovery, and a guard on
+`Decision` tells two decisions apart. If nothing handles it, the machine's
+[unhandled-trigger](triggers.md#unhandled-triggers) behaviour applies.
+
+A `Complete` or `Completed` that throws is an ordinary [transform or action exception](exceptions.md): the
+decision is already over.
 
 ## Deferral and backpressure
 
@@ -117,7 +122,8 @@ While a decision is pending, the machine accepts **events** from any caller, wha
   [Decision(From = typeof(AuthRequested), Handle = new[] { typeof(Disconnect), typeof(Timeout) }), On(Se)]
   ```
 
-- Other events wait until the decision resolves; their callers' `FireAsync` completes once they have run.
+- Other events wait until the decision resolves. Then they run first, in the order they arrived, before the rest of
+  your input; their callers' `FireAsync` completes once they have run.
 
 ```csharp
 // In whatever notices the connection closing — not the read loop, which is waiting:
@@ -127,12 +133,16 @@ await machine.FireAsync(new Disconnect());
 If the machine is stopped while your `FireAsync` is waiting on a decision, the decision is cancelled, the rest of
 your input is discarded, and your `FireAsync` throws `MachineNotRunningException`.
 
-### Two rules
+### Three rules
 
 - **Values come from one stream.** A second caller firing values while your batch waits on a decision is misuse:
   a `Checked` machine throws `ConcurrentUseException`; a `Serialized` machine queues them behind your batch.
 - **Inside the machine, use `Enqueue`.** An action or decision that awaited `FireAsync` on its own machine would be
   waiting for itself to finish. `Enqueue(new Error())` queues the event and returns at once. The machine catches
-  the mistake where it can do so for free — during a `Checked` machine's actions, which run while it is busy, and
-  in any running decision, which it marks — and throws `ConcurrentUseException` instead of hanging. In the actions
-  of a `Serialized` or `Unchecked` machine it cannot, and the call would hang.
+  the mistake where it can do so for free — during a `Checked` machine's actions, which run while it is busy; in
+  any running decision; and in any transition while a decision is pending — and throws `ConcurrentUseException`
+  instead of hanging. In the actions of a `Serialized` or `Unchecked` machine otherwise, it cannot, and the call
+  would hang. An event a decision enqueues waits for that decision like any other, unless the decision handles it;
+  once the decision is no longer pending, what it enqueues is dropped.
+- **One decision at a time.** An event handled while a decision is pending cannot start another decision: the
+  machine throws `InvalidOperationException`.

@@ -387,8 +387,9 @@ queue at once. Value triggers are never queued by the machine (§6.6).
 
 ### 6.5 Async decisions and pending states
 
-An async decision generates a **pending state**, a child of the decision's source, so the source stays active
-and its data intact while the decision runs.
+An async decision generates a **pending state** below the active leaf — a decision plans as a stay, so nothing is
+exited to enter it — and every state on the active path, the source included, stays active with its data while
+the decision runs.
 
 1. The trigger resolves to the decision, and the machine moves into the pending state. The caller's `FireAsync`
    does not complete yet: it completes once the decision has been completed and the rest of the caller's input
@@ -401,8 +402,12 @@ and its data intact while the decision runs.
 4. **Leaving the pending state cancels the decision.** The pending slot holds the `CancellationTokenSource`;
    clearing the slot (disconnect, timeout, any transition out) cancels it. A completion that arrives after the
    pending state was left is dropped — it cannot apply to a state that is no longer active.
-5. A decision that throws produces a generated `DecisionFailed` event on the pending state; unhandled, it
-   follows §6.8.
+5. A decision that throws — `Decide` or `DecideAsync` — ends: the pending state is left, and a `DecisionFailed`
+   event fires from the active leaf; unhandled, it follows §6.8. `DecisionFailed` is a runtime type carrying the
+   decision's name and the exception, so modules can declare transitions on it.
+6. The pending state ends when its decision does — with an outcome, a failure, or a transition out of it. Events
+   that waited then run, in arrival order, before the rest of the paused input. One decision is pending at a time:
+   an event handled while one is pending cannot start another (`InvalidOperationException`).
 
 ### 6.6 Deferral and backpressure (D10, D23)
 
@@ -437,8 +442,9 @@ While a decision is pending:
 - **Code inside the machine must not fire it.** An action or decision that awaited `FireAsync` on its own machine
   would be waiting for itself; use `Enqueue`, which queues the event and returns at once. The machine detects the
   mistake where detection is free: a `Checked` machine is busy during actions, so the call throws
-  `ConcurrentUseException`; and every machine marks a running `DecideAsync` with an `AsyncLocal` (decisions are
-  rare, so the cost is negligible), so a call from inside one throws the same. Detecting it in the actions of a
+  `ConcurrentUseException`; and every machine marks a running `DecideAsync`, and every transition run while a
+  decision is pending, with an `AsyncLocal` (both are rare, so the cost is negligible), so a call from inside one
+  throws the same. Detecting it in the actions of a
   `Serialized` or `Unchecked` machine would cost an `AsyncLocal` per transition, so there it is documented, not
   checked.
 
@@ -478,8 +484,11 @@ reachable leaves that leave some values unhandled with no `[OnAny]` on their pat
 - **An `Exited`, `Entered` or `Completed` action throws** (steps 5–7): the transition has committed. Remaining
   actions of that transition are skipped, exiting slots are still cleared (step 8 runs in a `finally`), queued
   events are kept — they run before the next trigger — and the exception propagates. (TNC's per-byte `catch` keeps working as it does today.)
-- **`DecideAsync` throws**: a generated `DecisionFailed` event (carrying the exception and the transition) fires
-  on the pending state. Transitions on that event are the recovery; unhandled, it follows §6.8.
+- **`Decide` or `DecideAsync` throws**: the decision ends, and a `DecisionFailed` event (carrying the decision's
+  name and the exception) fires from the active leaf. Transitions on that event are the recovery; unhandled, it
+  follows §6.8.
+- **A batch whose transition throws** stops there: the rest of the batch is discarded, a decision it started is
+  cancelled, and queued events are kept.
 
 **Exception hooks (D18).** Each phase has an optional hook — a generated `partial` method, so it costs nothing
 unless the app implements it (D16). A hook receives the exception and the transition, and chooses the recovery:
@@ -512,7 +521,7 @@ that mode's code.
 
 | Mode | Who may fire | Misuse | Cost per call (measured, uncontended) |
 |---|---|---|---|
-| `Checked` (default) | One caller at a time | Detected: throws `InvalidOperationException`, never corrupts state | +6.5 ns (one `Interlocked.Exchange`) |
+| `Checked` (default) | One caller at a time | Detected: throws `ConcurrentUseException`, never corrupts state | +6.5 ns (one `Interlocked.Exchange`) |
 | `Unchecked` | One caller at a time | Undefined: state can corrupt | none |
 | `Serialized` | Any thread | None: calls are queued and processed one at a time, in turn | +20.7 ns (unbounded `Channel` inbox, drained inline); +47.7 ns bounded |
 

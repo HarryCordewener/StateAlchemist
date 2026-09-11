@@ -10,11 +10,17 @@ change it is on.
 |---|---|---|
 | `Guard`, `Transform`, `Complete` | has **not** changed: nothing commits, the machine stays in the source | the exception propagates from `FireAsync` |
 | `Exited`, `Entered`, `Completed` | **has** changed | the transition's remaining actions are skipped, the states left are still cleared, queued events are kept and run before the next trigger, and the exception propagates |
-| `DecideAsync` | the machine is in the pending state | a generated `DecisionFailed` event carrying the exception fires there |
+| `Decide`, `DecideAsync` | has **not** changed; the decision is over | a [`DecisionFailed`](decisions.md#when-the-decision-throws) event carrying the exception fires from the active leaf |
 
 One consequence to design around: a `Transform` that throws halfway has already made the edits before the throw
 to states that stay. Those are **not** rolled back — rolling back would mean copying every staying state before
 every transition. Check what you need before you mutate.
+
+### A batch that throws
+
+When a transition throws out of `FireAsync(ReadOnlyMemory<TValue>)`, the rest of that batch is not processed — as if
+your loop had stopped at that value — and a decision the batch started is cancelled. Events already queued are
+kept, and run before the next trigger.
 
 ## Choosing the recovery
 
@@ -47,5 +53,5 @@ trigger, the phase, and — for `Exited` and `Entered` — which state's action 
 A hook can also queue recovery, whatever it resolves: `Enqueue(new Error())` runs an `Error` transition when the
 current one finishes.
 
-A failed `DecideAsync` has no hook of its own: its `DecisionFailed` event already carries the exception and the
-transition, and ordinary transitions on that event are the recovery.
+A failed decision has no hook of its own: its `DecisionFailed` event already carries the exception and the
+decision's name, and ordinary transitions on that event are the recovery.
