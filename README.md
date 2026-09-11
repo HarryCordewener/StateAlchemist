@@ -1,7 +1,7 @@
 <h1 align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/StateAlchemist300dpi-dark.svg">
-    <img src="docs/images/StateAlchemist300dpi.svg" alt="StateAlchemist — .NET state machine library" width="320">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/StateAlchemist-dark.svg">
+    <img src="docs/images/StateAlchemist.svg" alt="StateAlchemist — .NET state machine library" width="320">
   </picture>
 </h1>
 
