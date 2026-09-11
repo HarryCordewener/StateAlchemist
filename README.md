@@ -75,7 +75,7 @@ public struct Naws : IState<SubNegotiation> { public byte[]? Bytes; public int I
 
     [Transition(From = typeof(Naws)), OnAny]                       // stay in Naws, capture the byte
     public static void Capture(ref Naws self, byte value)
-    { self.Bytes ??= new byte[4]; if (self.Index < 4) self.Bytes[self.Index++] = value; }
+    { self.Bytes ??= new byte[4]; if (self.Index < 4) { self.Bytes[self.Index] = value; self.Index++; } }
 }
 
 // In the application: pick the modules; the generator writes the machine.

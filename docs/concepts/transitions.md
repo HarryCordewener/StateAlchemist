@@ -72,7 +72,8 @@ public static void Capture(ref Naws self, byte value)
     self.Bytes ??= new byte[4];
     if (self.Index < 4)
     {
-        self.Bytes[self.Index++] = value;
+        self.Bytes[self.Index] = value;
+        self.Index++;
     }
 }
 ```

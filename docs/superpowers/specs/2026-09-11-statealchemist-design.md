@@ -179,7 +179,7 @@ suffix disagrees with its return type is `SALCH0207`, with a code fix that renam
 
     [Transition(From = typeof(Naws)), OnAny]                                                   // stay
     public static void Capture(ref Naws self, byte value)
-    { self.Bytes ??= new byte[4]; if (self.Index < 4) self.Bytes[self.Index++] = value; }
+    { self.Bytes ??= new byte[4]; if (self.Index < 4) { self.Bytes[self.Index] = value; self.Index++; } }
 
     [Transition(From = typeof(Naws), To = typeof(NawsEscaping)), On(255)]
     public static void Escape(in Naws from, ref NawsEscaping to) => to.Captured = from;

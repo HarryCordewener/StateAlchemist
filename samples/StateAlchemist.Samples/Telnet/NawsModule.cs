@@ -19,7 +19,8 @@ public static class NawsModule
         self.Bytes ??= new byte[4];
         if (self.Index < 4)
         {
-            self.Bytes[self.Index++] = value;
+            self.Bytes[self.Index] = value;
+            self.Index++;
         }
     }
     // end-snippet
