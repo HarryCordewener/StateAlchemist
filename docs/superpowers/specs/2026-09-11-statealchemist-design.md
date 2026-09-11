@@ -359,9 +359,18 @@ For a **stay**, everything on the active path is staying.
 Transitions declared **from an ancestor** apply to every leaf in its subtree (e.g. `Error` recovery from the
 root). The generator emits them per leaf, so exits and entries always use the *real* LCA of the actual leaf and
 the target — states the two share are never exited. A parameter, though, is declared once for all those leaves,
-so it may name only a state whose role is **the same for every leaf** the transition can fire from; a state that
-is staying for some leaves and entering for others is `SALCH0202`. Descendants below the declared source are
-exited and cleared without being nameable.
+so it may name a state only if it **binds the same way from every leaf**: `in` must read the state as it was
+(exiting or staying), `ref` must write the state as it will be (entering or staying). `ref Naws` on a transition
+from `SubNegotiation` to `Naws` binds the fresh `Naws` whether the leaf was `AwaitingOption` (entering) or `Naws`
+itself (started over), so it is allowed; `in AwaitingOption` on the same transition reads a state that exists for
+one leaf and not the other, so it is `SALCH0202`. Descendants below the declared source are exited and cleared
+without being nameable.
+
+**Moving to a state on the active path starts it over.** When the target is the active leaf or one of its
+ancestors, the lowest common ancestor is taken as the target's parent, so the target is exited and entered again
+with fresh data; a re-entry is this case. A move to the root is the exception: the root is never exited, so
+everything below it is exited and the root's initial path entered. A state both exited and entered by one move is
+*started over*: `in` reads its old data (from the snapshot of §6.2), `ref` writes its new.
 
 Where data sits in the tree **is** its lifetime: data that must outlive a state belongs in an ancestor common to
 both sides of the transitions that need it.
@@ -425,7 +434,8 @@ level (§6.1). In the batch API, when the active leaf has a run transition, the 
 with `SearchValues<TValue>` (`net8.0`+; a scalar loop on `netstandard2.0`) to the next stop value, and hands
 the whole run to the transform in one call. TNC's 2.17 plain-text shortcut is a run with the stop set
 `{IAC, LF}`; GMCP/MSDP payloads are runs with the stop set `{IAC}`. A run transition's `Completed` receives the
-run as `ReadOnlyMemory<TValue>`.
+run as `ReadOnlyMemory<TValue>`. A single value fired with `FireAsync(TValue)` reaches a run transition as a run of
+length one: runs change how fast a batch is consumed, never what it does.
 
 ### 6.8 Unhandled triggers
 
@@ -573,9 +583,13 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0004 | Error | app | A state with children in the machine has no `[Initial]` child, or more than one. |
 | SALCH0101 | Error | app | Two unguarded transitions for one source and trigger (including across modules). |
 | SALCH0102 | Error | app | Several guarded transitions for one source and trigger without distinct `Order`s. |
+| SALCH0104 | Error | app | A trigger value outside the value type. |
+| SALCH0105 | Error | app | A value type that is not integral or an enum of 16 bits or fewer. |
+| SALCH0106 | Error | declaring lib | A transition with no trigger, mixed value and event triggers, an empty range, or a non-constant value. |
+| SALCH0107 | Error | app | A machine without `Root` or `Value`, or an `[Include]` of a type that is not a `[Module]`. |
 | SALCH0103 | Error | app | Several actions in one phase for the same state or transition, from different modules, without distinct `Order`s. |
 | SALCH0201 | Error + fix | app | `ref` on a state the transition exits. |
-| SALCH0202 | Error | app | Parameter names a state with no role in the transition, or whose role differs between the leaves an ancestor-declared transition fires from. |
+| SALCH0202 | Error | app | Parameter names a state with no role in the transition, or that binds differently from different leaves of an ancestor-declared transition. |
 | SALCH0203 | Error | app | `Transform` or `Complete` is not synchronous `void`; `Guard` is not synchronous `bool`. |
 | SALCH0204 | Error | app | Parameter type not bindable. |
 | SALCH0205 | Error | app | The context taken by `Guard`, `Transform` or `Complete` in a machine declared `Purity.Strict`. |

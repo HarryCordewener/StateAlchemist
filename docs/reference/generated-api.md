@@ -1,0 +1,68 @@
+# Generated API
+
+For a machine declared as
+
+```csharp
+[Machine(Root = typeof(Connected), Value = typeof(byte), Context = typeof(TelnetContext), Config = typeof(TelnetConfig))]
+[Include(typeof(TelnetCore)), Include(typeof(NawsModule))]
+public sealed partial class MudTelnet;
+```
+
+the generator adds the members below to `MudTelnet`, which also implements `IMachine<byte>`. Nothing it
+generates uses a dictionary, a hash lookup, or reflection: dispatch is a `switch` on the active state, then on the
+trigger; storage is fields; the definition is static arrays.
+
+## Construction and lifecycle
+
+| Member | |
+|---|---|
+| `MudTelnet(TelnetContext context, in TelnetConfig config)` | Resets every state and sets the initial leaf. Runs no actions. Without `Config`, the constructor takes only the context; without `Context`, nothing. |
+| `ValueTask StartAsync()` | Runs the initial path's `[Entered]` actions once. See [lifecycle](../concepts/lifecycle.md). |
+| `ValueTask StopAsync()` | Cancels a pending decision; runs `[Exited]` actions from the leaf to the root. |
+| `ValueTask DisposeAsync()` | Stops the machine if it was started. |
+| `MachineStatus Status` | `NotStarted`, `Running` or `Stopped`. |
+
+## State
+
+| Member | |
+|---|---|
+| `StateId State` | The active leaf, as a generated enum with one member per state. |
+| `bool IsIn(StateId state)` | Whether the state is the active leaf or one of its ancestors. |
+| `bool TryGet{State}(out {State} value)` | One per state: a copy of the state's data, if it is active. |
+
+## Firing
+
+| Member | |
+|---|---|
+| `ValueTask FireAsync(byte value)` | Fires one value. |
+| `ValueTask<int> FireAsync(ReadOnlyMemory<byte> values)` | Fires values in order, consuming [runs](../concepts/runs.md) in one call; returns how many were consumed, stopping early when a [decision](../concepts/decisions.md) starts deferring. |
+| `ValueTask FireAsync(in {Event} e)` | One per event type the machine handles. |
+| `void Fire(byte value)`, `int Fire(ReadOnlySpan<byte> values)` | Only when no action or decision in the machine is async ([`SALCH0601`](diagnostics.md#salch0601) otherwise). |
+| `void Enqueue(in {Event} e)` | Queues an event for after the current transition. |
+| `bool IsDeferring`, `ValueTask WhenReady()` | Backpressure while a decision is pending. |
+
+## The pure layer
+
+| Member | |
+|---|---|
+| `TransitionPlan Plan(byte value)`, `TransitionPlan Plan(in {Event} e)` | What a trigger would do now, evaluating guards, without doing it. |
+| `static MachineDefinition Definition` | States, parents, transitions and triggers, as data. |
+| `const string Mermaid`, `const string Dot` | The machine as a diagram. |
+
+## Hooks
+
+Generated `partial` methods, removed by the compiler unless the application implements them:
+
+| Hook | |
+|---|---|
+| `partial void OnTransitioned(in TransitionInfo<byte> transition)` | After every transition. |
+| `partial void OnUnhandled(StateId state, byte value)`, and one per event type | When nothing handles a trigger. |
+| `partial void On{Phase}Exception(Exception exception, in TransitionInfo<byte> transition, ref ExceptionResolution resolution)` | For `Guard`, `Transform`, `Exited`, `Entered` and `Completed`; see [exceptions](../concepts/exceptions.md). |
+
+## Through the interface
+
+`IMachine<TValue>` exposes the same machine without its generated types, for code that must not depend on one
+machine's shape: `StateType` instead of `StateId State`, `IsIn<TState>()`, `TryGetState<TState>(out TState)`,
+`FireAsync<TEvent>(TEvent)`, `Enqueue<TEvent>(TEvent)` and `Plan<TEvent>(TEvent)`. The generic members compare
+`typeof` constants that the JIT folds away, so they cost no more than the typed ones — except on
+`netstandard2.0`, where `TryGetState<TState>` boxes.

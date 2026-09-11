@@ -6,9 +6,13 @@
 A source-generated hierarchical state machine library for .NET. Your states own their data, your transitions
 own the transformation, and the compiler writes the machine.
 
-> **Status: design approved, implementation not started.** Nothing is on NuGet yet, and the API below is the
-> planned shape, not a shipped one. The design spec:
-> [`docs/superpowers/specs/2026-09-11-statealchemist-design.md`](docs/superpowers/specs/2026-09-11-statealchemist-design.md).
+> **Status: documented, implementation starting.** Nothing is on NuGet yet, and the API below is the planned shape,
+> not a shipped one.
+>
+> - **[Documentation](docs/index.md)** — concepts, guides and reference, written first as the contract the code is
+>   built against.
+> - **[Roadmap](docs/superpowers/plans/2026-09-11-00-roadmap.md)** — the order of work and how it is tested.
+> - **[Design specification](docs/superpowers/specs/2026-09-11-statealchemist-design.md)** — every decision and why.
 
 ## Why
 
