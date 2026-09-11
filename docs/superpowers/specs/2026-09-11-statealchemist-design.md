@@ -81,6 +81,7 @@ Every decision below was taken or approved during design review on 2026-09-11.
 | D8 | A transition's access to each state follows its role relative to the lowest common ancestor: exiting `in`, staying `ref`, entering `ref`. The parameter list declares what it touches. | Decided |
 | D9 | Async work that decides an outcome is split: an async decision over values, then a synchronous `Complete` per outcome over `ref`s, via a generated pending state that owns its cancellation. | Decided |
 | D10 | While a decision is pending, other triggers are **deferred** by default. | Decided |
+| D24 | Phase names are discoverable through code fixes, which work in Rider, Visual Studio and VS Code: `SALCH0901` (info, an empty class-form transition) and `SALCH0902` (hidden, on any transition) offer **Add Guard / Transform / Completed / CompletedAsync** and **Add Complete for** an uncovered outcome, each with the exact signature the transition's roles allow; `SALCH0206` offers a rename for near-miss names. A base class with overridable phases was rejected: phase signatures depend on the tree, and instances would replace static calls. | Decided |
 | D23 | Deferral is invisible to the host: `FireAsync` completes when its input has been processed, including waiting for any decision it started, so awaiting it *is* the backpressure. There is no `IsDeferring`, `WhenReady()`, consumed count or `MachineDeferringException`. | Decided |
 | D11 | The generator runs in the consuming app over the whole program; plugins are chosen at compile time. | Decided |
 | D12 | Two kinds of trigger: *values* (a `switch`, ranges, `OrElse`) and typed *events*. | Decided |
@@ -607,7 +608,7 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0102 | Error | app | Several guarded transitions for one source and trigger without distinct `Order`s. |
 | SALCH0104 | Error | app | A trigger value outside the value type. |
 | SALCH0105 | Error | app | A value type that is not integral or an enum of 16 bits or fewer. |
-| SALCH0106 | Error | declaring lib | A transition with no trigger, mixed value and event triggers, an empty range, or a non-constant value. |
+| SALCH0106 | Error | declaring lib | A transition with no `From`, no trigger, mixed value and event triggers, an empty range, or a non-constant value. |
 | SALCH0107 | Error | app | A machine without `Root` or `Value`, or an `[Include]` of a type that is not a `[Module]`. |
 | SALCH0103 | Error | app | Several actions in one phase for the same state or transition, from different modules, without distinct `Order`s. |
 | SALCH0201 | Error + fix | app | `ref` on a state the transition exits. |
@@ -626,6 +627,8 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0502 | Warning | app | State unreachable from the root's initial leaf. |
 | SALCH0601 | Error | app | Synchronous `Fire` used on a machine with async actions or decisions. |
 | SALCH0701 | Error | app | `[Run]` on a transition that is not a stay, or whose stop set cannot be computed. |
+| SALCH0901 | Info | declaring lib | A class-form transition declares no phases; code fixes add them with the right signatures (D24). |
+| SALCH0902 | Hidden | declaring lib | Carries the same code fixes on any transition (D24). |
 | SALCH0801 | Warning | anywhere | `FireAsync` or `Enqueue` on a machine that this method constructed and has not started on every path to that call (control-flow analysis within the method). Machines that cross methods, fields or DI are left to the runtime check. |
 
 ## 9. Performance targets (acceptance criteria)

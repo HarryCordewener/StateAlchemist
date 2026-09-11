@@ -122,6 +122,18 @@ from `Naws` there is nothing to read.
 
 Anything else is [`SALCH0204`](../reference/diagnostics.md#salch0204).
 
+## Help while you type
+
+You do not have to remember the phase names or work out which parameters a phase may take. An empty class-form
+transition gets a hint ([`SALCH0901`](../reference/diagnostics.md#salch0901)) whose quick-fixes write the method
+for you — **Add Guard**, **Add Transform**, **Add Completed**, **Add CompletedAsync** — each with exactly the
+parameters this transition may take: the state it leaves as `in`, the state it enters and any shared parent as
+`ref`, and the value or event that fires it. The same fixes stay available on transitions that already declare some
+phases, and a decision offers **Add Complete for** each outcome it does not cover yet. A misspelt phase name
+([`SALCH0206`](../reference/diagnostics.md#salch0206)) is offered a rename to the phase it was probably meant to be.
+
+Quick-fixes come from Roslyn analyzers, so they work the same in Rider, Visual Studio and VS Code.
+
 ## Naming pitfall
 
 Inside a module, a transition method named like a constant it uses — a method `Will` with `[On(Will)]` — makes

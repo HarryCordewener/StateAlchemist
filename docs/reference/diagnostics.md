@@ -15,6 +15,7 @@ modules it includes.
 | `SALCH06xx` | generated API |
 | `SALCH07xx` | runs |
 | `SALCH08xx` | lifecycle |
+| `SALCH09xx` | authoring assistance: hints whose code fixes write code for you |
 
 ---
 
@@ -107,12 +108,12 @@ small integral type.
 
 ## SALCH0106
 
-**Invalid triggers** · error · declaring library
+**Invalid transition declaration** · error · declaring library
 
 > '{0}' {1}
 
-A transition has no trigger, mixes value and event triggers, has an empty range, or names a trigger value that is
-not an integral constant.
+A transition does not name its `From` state, has no trigger, mixes value and event triggers, has an empty range,
+or names a trigger value that is not an integral constant.
 
 ## SALCH0107
 
@@ -267,3 +268,25 @@ A run is a stay on `[OnAny]` or a range, without a guard, whose transform takes
 > '{0}' is fired before StartAsync on some path
 
 See [lifecycle](../concepts/lifecycle.md#why-starting-is-separate).
+
+## SALCH0901
+
+**Transition declares no phases** · info · declaring library
+
+> Transition '{0}' declares no phases
+
+A class-form transition with no methods only changes state. That is valid, but usually unfinished. The code fixes
+add **Guard**, **Transform**, **Completed** or **CompletedAsync**, each with the exact parameters this transition
+may take: the source as `in`, the target and any shared parent as `ref`, and the value or event that fires it. For
+a decision, they add **Complete for** each outcome not yet covered. If the transition really is state-only, write it
+as a method instead.
+
+## SALCH0902
+
+**Phase can be added** · hidden · declaring library
+
+> Transition '{0}' can declare {1}
+
+Never shown as a warning: it exists so the same **Add Guard** / **Add Transform** / **Add Completed** code fixes
+are available on a transition that already declares some phases. In Rider, Visual Studio and VS Code they appear
+where the IDE offers quick-fixes.
