@@ -1,7 +1,14 @@
-# StateAlchemist
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/StateAlchemist300dpi-dark.svg">
+    <img src="docs/images/StateAlchemist300dpi.svg" alt="StateAlchemist — .NET state machine library" width="320">
+  </picture>
+</h1>
 
-> *"To obtain, something of equal value must be lost."*
-> — Alphonse Elric, *Fullmetal Alchemist*
+<p align="center">
+  <em>"To obtain, something of equal value must be lost."</em><br>
+  — Alphonse Elric, <em>Fullmetal Alchemist</em>
+</p>
 
 A source-generated hierarchical state machine library for .NET. Your states own their data, your transitions
 own the transformation, and the compiler writes the machine.
