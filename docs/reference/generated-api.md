@@ -13,6 +13,10 @@ generates uses a dictionary, a hash lookup, or reflection: dispatch is a `switch
 trigger; storage is fields; the definition is static arrays. The generated code is plain C# 7.3, so a
 `netstandard2.0` project compiles it on its default language version.
 
+A machine that is `Serialized`, or has an async decision, also gets an inbox: calls become inputs that whoever
+finds the machine idle processes in turn, as [concurrency](../concepts/concurrency.md) describes. Any other machine
+runs each call inline, with no inbox and no lock.
+
 A machine with an error gets no code at all; its diagnostics say why. Warnings about modules that come from other
 assemblies are reported on the `[Machine]` attribute, since that is where the application chose them.
 

@@ -43,7 +43,7 @@ public static class CheckAuth
 
 Outcome unions use C# 15 unions. A library targeting frameworks below .NET 11 declares the union attribute and
 interface itself, internally, as the language allows; the generator reads the cases from the union's
-single-parameter constructors either way.
+single-parameter constructors either way, and the case a result holds from the union's `Value`.
 
 ## Synchronous decisions
 
