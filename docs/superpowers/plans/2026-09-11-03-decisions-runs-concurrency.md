@@ -50,7 +50,8 @@ src/StateAlchemist.Reference/Interpreter/
 tests/StateAlchemist.Contracts/
     Machines/  UnionPolyfill, Deciding (states, events, outcomes), DecidingModule, Runs; RecordingContext and
                Shapes extended
-    Suite/     DecisionContract, BackpressureContract, RunContract (new); ConcurrencyContract extended
+    Suite/     DecisionContract, BackpressureContract, RunContract, SerializedContract (new);
+               ConcurrencyContract extended
 ```
 
 Modified besides: `RoleValidator` and its tests (Task 1), the API snapshot (Task 2), `IMachine.cs` XML docs and
@@ -1110,19 +1111,23 @@ git commit -m "Contract machines for decisions and runs"
 ### Task 4: The contracts
 
 **Files:**
-- Create: `tests/StateAlchemist.Contracts/Suite/DecisionContract.cs`, `BackpressureContract.cs`, `RunContract.cs`
-- Modify: `tests/StateAlchemist.Contracts/Suite/ConcurrencyContract.cs` (four tests added)
+- Create: `tests/StateAlchemist.Contracts/Suite/DecisionContract.cs`, `BackpressureContract.cs`, `RunContract.cs`,
+  `SerializedContract.cs`
+- Modify: `tests/StateAlchemist.Contracts/Suite/ConcurrencyContract.cs` (one test added)
 
 **Interfaces:**
 - Consumes: Task 3's machines.
-- Produces: three new abstract contracts; `ConcurrencyContract` extended.
+- Produces: four new abstract contracts; `ConcurrencyContract` extended. `Serialized` tests get their own contract
+  because a generated `Serialized` machine arrives a plan later than generated `Checked` and `Unchecked` ones
+  (Plans 5 and 4): each generated test project inherits whole contracts.
 
 | Contract | Enforces | Notably |
 |---|---|---|
 | `DecisionContract` | `concepts/decisions.md` | sync decisions inline; `FireAsync` waits through an async one while the source keeps its data; each outcome's `Complete` and `Completed`; a handled event leaves the pending state and cancels, and a late result is dropped; other events wait, then run before the rest of the input; `DecisionFailed` from `Decide` and `DecideAsync`; an outcome that throws fails its input; a failed input abandons its decision; stopping cancels and fails the waiting caller; self-firing refused; `Enqueue` from a decision; `Checked` refuses and `Serialized` queues another caller's values |
 | `BackpressureContract` | `concepts/decisions.md`, "Deferral and backpressure" | the docs' read loop over a real `Pipe`: the writer is paused while a decision is pending, then everything is processed |
 | `RunContract` | `concepts/runs.md` | a run in one call; the stop set; a guarded stop value that falls through is a run of one; a single value is a run of one; batch and value-by-value agree |
-| `ConcurrencyContract` (added) | `concepts/concurrency.md` | `Unchecked` with one caller; `Serialized` runs overlapping callers in turn, gives each its own exception, and takes callers from many threads |
+| `ConcurrencyContract` (added) | `concepts/concurrency.md` | `Unchecked` with one caller behaves like any other |
+| `SerializedContract` | `concepts/concurrency.md`, "Serialized" | overlapping callers run in turn; each gets its own exception; callers from many threads are all processed |
 
 - [ ] **Step 1: Write the decision contract**
 
@@ -1541,20 +1546,18 @@ public abstract class RunContract : MachineContract
 `[.. "ab\ncd"u8, 255, .. "xyz\a"u8]` spells IAC as a byte: `"\xFF"` inside a UTF-8 literal is the character
 U+00FF, which encodes as two bytes.
 
-- [ ] **Step 3: Extend the concurrency contract**
+- [ ] **Step 3: Extend the concurrency contract, and add the serialized one**
 
 `tests/StateAlchemist.Contracts/Suite/ConcurrencyContract.cs`:
 
 ```csharp
-using System;
-using System.Linq;
 using System.Threading.Tasks;
 using StateAlchemist.Contracts.Machines;
 using TUnit.Core;
 
 namespace StateAlchemist.Contracts.Suite;
 
-/// <summary>docs/concepts/concurrency.md: what each mode does when callers overlap.</summary>
+/// <summary>docs/concepts/concurrency.md: a Checked machine refuses a second caller and never corrupts state; an Unchecked one trusts its single caller.</summary>
 public abstract class ConcurrencyContract : MachineContract
 {
     [Test]
@@ -1587,7 +1590,23 @@ public abstract class ConcurrencyContract : MachineContract
         await machine.FireAsync(new byte[] { 3, 1 });
         await Assert.That(context.Trace).IsEqualTo("exited A1 (1) | exited A1 (extra) | entered A2 | completed Sibling");
     }
+}
+```
 
+`tests/StateAlchemist.Contracts/Suite/SerializedContract.cs`:
+
+```csharp
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using StateAlchemist.Contracts.Machines;
+using TUnit.Core;
+
+namespace StateAlchemist.Contracts.Suite;
+
+/// <summary>docs/concepts/concurrency.md, "Serialized": any thread may fire; calls run one at a time, in turn.</summary>
+public abstract class SerializedContract : MachineContract
+{
     [Test]
     public async Task ASerializedMachineRunsOverlappingCallersInTurn()
     {
@@ -1651,7 +1670,7 @@ git commit -m "Contracts for decisions, backpressure, runs and the concurrency m
 ### Task 5: The interpreter — inputs, the pump, decisions, runs
 
 **Files:**
-- Modify: `tests/StateAlchemist.Reference.Tests/Contracts/ReferenceContracts.cs` (three contracts)
+- Modify: `tests/StateAlchemist.Reference.Tests/Contracts/ReferenceContracts.cs` (four contracts)
 - Create: `tests/StateAlchemist.Reference.Tests/Interpreter/RunShapes.cs`; modify `ReferenceMachineTests.cs` (one test)
 - Modify: `src/StateAlchemist.Reference/Interpreter/ReferenceMachine.cs`, `ReferenceMachine.Execution.cs`
 - Create: `src/StateAlchemist.Reference/Interpreter/ReferenceMachine.Inbox.cs`, `ReferenceMachine.Decisions.cs`,
@@ -1750,6 +1769,12 @@ public sealed class ReferenceBackpressure : BackpressureContract
 
 [InheritsTests]
 public sealed class ReferenceRuns : RunContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceSerialized : SerializedContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
 }
