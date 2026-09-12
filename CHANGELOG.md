@@ -4,14 +4,26 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-12
+
+There is no 1.1.0.
+
 ### Added
 - `SALCH0702`: a run that shadows a value one of its ancestors handles. A state's trigger beats an ancestor's,
   which is what makes `[OnAny]` a state's "or else" — but a run takes a stretch of input in one call, so the
   ancestor's value is swallowed by the run rather than ending it, and the machine never leaves the state. Found by
   declaring TelnetNegotiationCore's core framing as a machine, where it ate every newline.
 
+### Fixed
+- **The package works on the .NET 8 SDK again.** A dependency update had compiled the generator, the analyzers and
+  the code fixes against Roslyn 5.9, and a compiler refuses an analyzer built against a newer Roslyn than its own
+  (`CS9057`): every consumer on an older SDK would have got no generated machine at all. They are built against
+  Roslyn 4.8 once more, which runs on every compiler from the .NET 8 SDK upwards. This never reached a release.
+
 ### Changed
 - The documentation says what a stay is where the word is first used, and every other page links to it.
+- `eng/check-package.sh` consumes the package on the .NET 8 SDK when one is installed, so the floor is tested
+  rather than asserted.
 
 ## [1.0.1] — 2026-09-11
 
