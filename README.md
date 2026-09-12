@@ -13,9 +13,15 @@
 A source-generated hierarchical state machine library for .NET. Your states own their data, your transitions
 own the transformation, and the compiler writes the machine.
 
-> **Status: implemented, not released.** The generator, the analyzers, the code fixes and the package are all
-> written and tested: 1,077 tests, the whole design, every performance target in the spec. Nothing is on NuGet yet.
+```bash
+dotnet add package StateAlchemist
+```
+
+> **Status: released.** [1.0.0](https://www.nuget.org/packages/StateAlchemist) is on NuGet. One package reference
+> brings the runtime, the generator, the analyzers and the code fixes: 1,107 tests, the whole design, every
+> performance target in the spec.
 >
+> - **[Examples](docs/guides/examples.md)** — a phone call, a crossing, telnet, a card door, a pipe reader.
 > - **[Documentation](docs/index.md)** — concepts, guides and reference.
 > - **[Roadmap](docs/superpowers/plans/2026-09-11-00-roadmap.md)** — the order of work and how it is tested.
 > - **[Design specification](docs/superpowers/specs/2026-09-11-statealchemist-design.md)** — every decision and why.

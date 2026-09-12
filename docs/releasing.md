@@ -24,8 +24,8 @@ it would fight MinVer. A "Verify the packed version matches the tag" step fails 
 2. Tag and push:
 
    ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
+   git tag v1.0.1
+   git push origin v1.0.1
    ```
 
    The tag triggers `.github/workflows/release.yml`; `workflow_dispatch` with the tag name as input does the same
@@ -36,6 +36,9 @@ it would fight MinVer. A "Verify the packed version matches the tag" step fails 
 
    For a release that does remove or re-signature public API, drop the property for that build, release, then set
    it to the new version. The API snapshot test (`RuntimeApi.verified.txt`) still records the change.
+
+A tag whose run fails publishes nothing: `build` and `release` need `test` and `package` to pass first. Fix the
+commit on `main`, then move the tag — `git push --delete origin vX.Y.Z`, delete the GitHub Release, and tag again.
 
 ## What the release workflow does
 
@@ -60,10 +63,8 @@ mechanisms, both short-lived:
   trusted-publishing policy on nuget.org for the `harrycordewener` account naming this repository and the
   `Release` workflow. Without that policy the push step fails with an authentication error.
 
-## Before the first release
+## What 1.0.0 cost
 
-- The package has never been published, so there is no `PackageValidationBaselineVersion` yet, and package
-  validation only checks that the frameworks in the package are consistent with each other.
-- `0.1.0` says "implemented, the API may still move", which is where the
-  [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) has it.
-- Run `dotnet pack src/StateAlchemist -c Release` and `eng/check-package.sh` once by hand and read the output.
+The first tag failed: CI built only Debug, so the release workflow was the first build that ever compiled Release,
+and an allocation test that bounded a cost relative to a Release-only zero failed there. CI's matrix now covers
+both configurations, which is what keeps a tag from being the first place a build is tried.
