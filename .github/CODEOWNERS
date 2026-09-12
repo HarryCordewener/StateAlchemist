@@ -1,0 +1,3 @@
+# The ruleset on main requires a code owner's review. Without this file there was no code owner to ask, which is
+# a rule that cannot be satisfied rather than one that is met.
+* @HarryCordewener
