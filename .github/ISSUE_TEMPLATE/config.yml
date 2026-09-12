@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability
+    url: https://github.com/HarryCordewener/StateAlchemist/security/advisories/new
+    about: Something exploitable goes here, privately, and not in a public issue. See SECURITY.md.
+  - name: Ask a question
+    url: https://discord.gg/SK2cWERJF7
+    about: The TelnetNegotiationCore Discord, where this is discussed. Anything decided there that matters ends up in an issue.

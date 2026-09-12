@@ -21,6 +21,11 @@ it would fight MinVer. A "Verify the packed version matches the tag" step fails 
 
 1. Move every entry under `## Unreleased` in [`CHANGELOG.md`](../CHANGELOG.md) into a new version heading, and
    commit it to `main`.
+
+   A release that fixes a publicly known vulnerability says so there, by CVE or advisory id, under `### Fixed`.
+   A reader has to be able to tell from the changelog alone whether upgrading is a security matter; "no known
+   vulnerabilities have been reported against any release" is the reason that section is empty today, not an
+   omission.
 2. Tag and push:
 
    ```bash

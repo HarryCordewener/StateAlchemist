@@ -1,0 +1,24 @@
+name: Idea
+description: A machine shape the library cannot express, or something it should do and does not.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to build
+      description: >
+        The machine or the protocol, and where the library runs out. What the declarations would have to say is
+        more useful than a feature name.
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: What it might look like
+      description: Declarations, if you have a shape in mind. Rough is fine.
+      render: csharp
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you did instead
+      description: The workaround, and what it costs — an allocation, a state that should not exist, a check at runtime.
