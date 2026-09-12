@@ -45,7 +45,11 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
+      # The tags, because MinVer reads the version from them: a shallow clone builds 0.0.0, and package validation
+      # refuses an assembly version below the published baseline's.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
