@@ -43,7 +43,12 @@ jobs:
           global-json-file: global.json
       # Spec §9: a machine in a native binary. The publish must warn about nothing — no reflection, no dictionaries,
       # nothing the trimmer has to guess at — and the binary must negotiate the same way the sample does.
-      - run: dotnet publish samples/StateAlchemist.AotSample -c Release -r linux-x64 -warnaserror
+      # Not in locked mode: publishing for a runtime identifier restores every referenced project for that RID,
+      # which is a different dependency graph from the one the lock files hold. What the lock files guard is what
+      # ships — the build, the tests and the pack — and this job publishes a sample to read the trimmer's warnings.
+      # It rewrites the lock files as it goes, which is harmless here and is why a local AOT publish leaves them
+      # modified: discard that, do not commit it.
+      - run: dotnet publish samples/StateAlchemist.AotSample -c Release -r linux-x64 -warnaserror /p:RestoreLockedMode=false
       - run: samples/StateAlchemist.AotSample/bin/Release/net11.0/linux-x64/publish/StateAlchemist.AotSample
 
   package:
