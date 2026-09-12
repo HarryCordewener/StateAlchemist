@@ -43,6 +43,27 @@ public class MachineDefinitionTests
             .Throws<ArgumentException>();
     }
 
+    /// <summary>A decision's outcomes name states too, and a diagram drawn from them would point at nothing.</summary>
+    [Test]
+    public async Task ItRejectsAnOutcomeToAMissingState()
+    {
+        await Assert.That(() => new MachineDefinition(
+                typeof(byte),
+                [new StateDefinition(0, typeof(Root), -1, false), new StateDefinition(1, typeof(A), 0, true)],
+                [
+                    new TransitionDefinition(0, "M.Ask", 1, -1, TransitionKind.Stay, TriggerDefinition.ForAny(), 0, false, false, false, true,
+                        [new OutcomeDefinition(typeof(B), 7)]),
+                ]))
+            .Throws<ArgumentException>();
+    }
+
+    /// <summary>A transition made without outcomes has none, rather than a null nobody can read.</summary>
+    [Test]
+    public async Task ATransitionWithoutOutcomesHasAnEmptyList()
+    {
+        await Assert.That(TwoChildren().Transitions[0].Outcomes).IsEmpty();
+    }
+
     [Test]
     public async Task ItRejectsATransitionToAMissingState()
     {

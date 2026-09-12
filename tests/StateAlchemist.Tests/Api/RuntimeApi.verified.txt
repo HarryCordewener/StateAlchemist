@@ -157,6 +157,13 @@
         public object From { get; }
         public object To { get; }
     }
+    public sealed class OutcomeDefinition
+    {
+        public OutcomeDefinition(System.Type type, int target) { }
+        public string Name { get; }
+        public int Target { get; }
+        public System.Type Type { get; }
+    }
     public enum Phase
     {
         Guard = 0,
@@ -215,6 +222,7 @@
     public sealed class TransitionDefinition
     {
         public TransitionDefinition(int index, string name, int source, int target, StateAlchemist.TransitionKind kind, StateAlchemist.TriggerDefinition trigger, int order, bool hasGuard, bool isRun, bool usesContext, bool isDecision) { }
+        public TransitionDefinition(int index, string name, int source, int target, StateAlchemist.TransitionKind kind, StateAlchemist.TriggerDefinition trigger, int order, bool hasGuard, bool isRun, bool usesContext, bool isDecision, System.Collections.Generic.IReadOnlyList<StateAlchemist.OutcomeDefinition> outcomes) { }
         public bool HasGuard { get; }
         public int Index { get; }
         public bool IsDecision { get; }
@@ -222,6 +230,7 @@
         public StateAlchemist.TransitionKind Kind { get; }
         public string Name { get; }
         public int Order { get; }
+        public System.Collections.Generic.IReadOnlyList<StateAlchemist.OutcomeDefinition> Outcomes { get; }
         public int Source { get; }
         public int Target { get; }
         public StateAlchemist.TriggerDefinition Trigger { get; }

@@ -54,8 +54,8 @@ where the module is written, by the [analyzer](diagnostics.md#which-component-re
 | Member | |
 |---|---|
 | `TransitionPlan Plan(byte value)`, `TransitionPlan Plan(in {Event} e)` | What a trigger would do now, evaluating guards, without doing it. |
-| `static MachineDefinition Definition` | States, parents, transitions and triggers, as data. |
-| `const string Mermaid`, `const string Dot` | The machine as a diagram: a Mermaid `stateDiagram-v2` and a Graphviz digraph, a composite state per parent and an arrow per transition. Written at compile time from the model the machine runs, so it cannot drift from the code. |
+| `static MachineDefinition Definition` | States, parents, transitions and triggers, as data. A [decision](../concepts/decisions.md) has no target — which one it takes is not known when the trigger arrives — so its `TransitionDefinition.Outcomes` name each outcome case and the state it moves to. |
+| `const string Mermaid`, `const string Dot` | The machine as a diagram: a Mermaid `stateDiagram-v2` and a Graphviz digraph, a composite state per parent and an arrow per transition — or, for a decision, an arrow per outcome, so a state only a decision reaches is not drawn as unreachable. Written at compile time from the model the machine runs, so it cannot drift from the code. |
 
 ## Hooks
 

@@ -33,8 +33,9 @@ await Assert.That(plan.Target).IsEqualTo(typeof(AwaitingVerb));
 await Assert.That(string.Join(",", plan.Exiting.Select(t => t.Name))).IsEqualTo("Idle");
 ```
 
-`Definition` describes the whole machine as data — states, parents, transitions, triggers — for tests that check
-structure ("every `Willing` refusal is an `[OnAny]`") and for diagrams. With
+`Definition` describes the whole machine as data — states, parents, transitions, triggers, and a decision's
+outcomes with the state each one moves to — for tests that check structure ("every `Willing` refusal is an
+`[OnAny]`") and for diagrams. With
 [`Purity.Strict`](../concepts/machines.md#purity), the pure layer is exact: nothing outside the machine's data,
 the trigger and the configuration can change what `Plan` predicts.
 

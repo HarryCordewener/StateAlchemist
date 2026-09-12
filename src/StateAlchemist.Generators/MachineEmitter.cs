@@ -308,7 +308,7 @@ internal sealed partial class MachineEmitter
         {
             var usesContext = new[] { t.Guard, t.Transform }.Any(m => m is not null && m.Parameters.Any(p => p.Kind == ParameterKind.Context));
             _w.Line($"        new {Rt}TransitionDefinition({t.Index}, {Literal(t.Name)}, {t.Source}, {t.Target}, {Rt}TransitionKind.{t.Kind}, {TriggerDefinition(t.Trigger)}, " +
-                    $"{t.Order}, {Bool(t.IsGuarded)}, {Bool(t.IsRun)}, {Bool(usesContext)}, {Bool(t.IsDecision)}),");
+                    $"{t.Order}, {Bool(t.IsGuarded)}, {Bool(t.IsRun)}, {Bool(usesContext)}, {Bool(t.IsDecision)}, {OutcomeDefinitions(t)}),");
         }
 
         _w.Line("    });");
@@ -317,6 +317,20 @@ internal sealed partial class MachineEmitter
         _w.Line($"public static {Rt}MachineDefinition Definition {{ get {{ return s_definition; }} }}");
         _w.Line();
         _w.Line($"{Rt}MachineDefinition {Rt}IMachine<{V}>.Definition {{ get {{ return s_definition; }} }}");
+    }
+
+    /// <summary>
+    /// A decision's outcomes, so the definition says where each one goes. Without them the states only a decision
+    /// reaches have nothing pointing at them, and a diagram drawn from the definition shows them as unreachable.
+    /// </summary>
+    private string OutcomeDefinitions(TransitionModel transition)
+    {
+        var completions = transition.Decision?.Completions ?? [];
+        return completions.Count == 0
+            ? $"new {Rt}OutcomeDefinition[0]"
+            : $"new {Rt}OutcomeDefinition[] {{ " +
+              string.Join(", ", completions.Select(c => $"new {Rt}OutcomeDefinition(typeof({Name(OutcomeType(c))}), {c.Target})")) +
+              " }";
     }
 
     private string TriggerDefinition(TriggerModel trigger) => trigger.Kind switch

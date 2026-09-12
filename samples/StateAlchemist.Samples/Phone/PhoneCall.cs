@@ -30,6 +30,9 @@ public enum Button : byte
 
     /// <summary>Hang up.</summary>
     HangUp,
+
+    /// <summary>A second of the call.</summary>
+    Second,
 }
 // end-snippet
 
@@ -85,6 +88,13 @@ public static class PhoneModule
         phone.Calls++;
         call.Seconds = 0;
     }
+
+    /// <summary>
+    /// A second of the call. It stays in <see cref="Talking"/>, so what it counts belongs to <c>Talking</c> and
+    /// goes when the call is held.
+    /// </summary>
+    [Transition(From = typeof(Talking)), On(Button.Second)]
+    public static void Count(ref Talking call) => call.Seconds++;
 
     [Transition(From = typeof(Talking), To = typeof(OnHold)), On(Button.Hold)]
     public static void Hold()

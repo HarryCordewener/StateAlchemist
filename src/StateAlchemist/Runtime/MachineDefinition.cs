@@ -58,6 +58,14 @@ public sealed class MachineDefinition
             {
                 throw new ArgumentException($"Transition '{transition.Name}' names a state that does not exist.", nameof(transitions));
             }
+
+            foreach (var outcome in transition.Outcomes)
+            {
+                if (outcome.Target < 0 || outcome.Target >= states.Count)
+                {
+                    throw new ArgumentException($"Outcome '{outcome.Name}' of '{transition.Name}' names a state that does not exist.", nameof(transitions));
+                }
+            }
         }
     }
 

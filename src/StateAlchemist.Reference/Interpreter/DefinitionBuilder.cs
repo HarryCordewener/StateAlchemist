@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using StateAlchemist.Model;
 
@@ -25,10 +26,17 @@ internal static class DefinitionBuilder
                 t.IsGuarded,
                 t.IsRun,
                 new[] { t.Guard, t.Transform }.OfType<MethodModel>().Any(m => m.Parameters.Any(p => p.Kind == ParameterKind.Context)),
-                t.IsDecision))
+                t.IsDecision,
+                Outcomes(t)))
             .ToList();
         return new MachineDefinition(machine.Spec.Value!, states, transitions);
     }
+
+    /// <summary>A decision's outcomes and where each goes; the same data a generated machine writes as a constant.</summary>
+    private static IReadOnlyList<OutcomeDefinition> Outcomes(TransitionModel transition) =>
+        (transition.Decision?.Completions ?? [])
+            .Select(c => new OutcomeDefinition(FindType(c.OutcomeType), c.Target))
+            .ToList();
 
     private static TriggerDefinition Trigger(TriggerModel trigger) => trigger.Kind switch
     {
