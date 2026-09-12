@@ -10,6 +10,15 @@
   — Alphonse Elric, <em>Fullmetal Alchemist</em>
 </p>
 
+<p align="center">
+  <a href="https://www.nuget.org/packages/StateAlchemist"><img alt="NuGet" src="https://img.shields.io/nuget/v/StateAlchemist?style=for-the-badge&logo=nuget&logoColor=white&color=blue"></a>
+  <a href="https://www.nuget.org/packages/StateAlchemist"><img alt="Downloads" src="https://img.shields.io/nuget/dt/StateAlchemist?style=for-the-badge&color=blue"></a>
+  <a href="https://github.com/HarryCordewener/StateAlchemist/actions/workflows/ci.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/HarryCordewener/StateAlchemist/ci.yml?branch=main&style=for-the-badge&label=tests"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/HarryCordewener/StateAlchemist"><img alt="OpenSSF Scorecard" src="https://img.shields.io/ossf-scorecard/github.com/HarryCordewener/StateAlchemist?style=for-the-badge&label=scorecard"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/HarryCordewener/StateAlchemist?style=for-the-badge"></a>
+  <a href="https://discord.gg/SK2cWERJF7"><img alt="Discord" src="https://img.shields.io/discord/1193672869104861195?style=for-the-badge&logo=discord&logoColor=white&label=discord"></a>
+</p>
+
 A source-generated hierarchical state machine library for .NET. Your states own their data, your transitions
 own the transformation, and the compiler writes the machine.
 
@@ -17,14 +26,15 @@ own the transformation, and the compiler writes the machine.
 dotnet add package StateAlchemist
 ```
 
-> **Status: released.** [1.0.0](https://www.nuget.org/packages/StateAlchemist) is on NuGet. One package reference
-> brings the runtime, the generator, the analyzers and the code fixes: 1,107 tests, the whole design, every
-> performance target in the spec.
->
-> - **[Examples](docs/guides/examples.md)** — a phone call, a crossing, telnet, a card door, a pipe reader.
-> - **[Documentation](docs/index.md)** — concepts, guides and reference.
-> - **[Roadmap](docs/superpowers/plans/2026-09-11-00-roadmap.md)** — the order of work and how it is tested.
-> - **[Design specification](docs/superpowers/specs/2026-09-11-statealchemist-design.md)** — every decision and why.
+One package reference brings the runtime, the generator, the analyzers and the code fixes. Releases are published
+from GitHub Actions by [trusted publishing](docs/releasing.md) — no long-lived key exists — and carry attested
+build provenance, so a `.nupkg` can be checked back to the workflow and commit that built it.
+
+- **[Examples](docs/guides/examples.md)** — a phone call, a crossing, telnet, a card door, a pipe reader.
+- **[Documentation](docs/index.md)** — concepts, guides and reference.
+- **[Roadmap](docs/superpowers/plans/2026-09-11-00-roadmap.md)** — the order of work and how it is tested.
+- **[Design specification](docs/superpowers/specs/2026-09-11-statealchemist-design.md)** — every decision and why.
+- **[Discord](https://discord.gg/SK2cWERJF7)** — the TelnetNegotiationCore server, where this is discussed.
 
 ## Why
 
