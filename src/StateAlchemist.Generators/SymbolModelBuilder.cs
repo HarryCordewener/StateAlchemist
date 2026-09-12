@@ -534,7 +534,13 @@ internal static class SymbolModelBuilder
                 union = union.TypeArguments[0] as INamedTypeSymbol;
             }
 
-            if (union is null || !union.GetAttributes().Any(a => a.AttributeClass is { } c && MetadataName(c) == "System.Runtime.CompilerServices.UnionAttribute"))
+            // A union carries UnionAttribute in metadata, but a union declared in this compilation does not have it
+            // on its source symbol — the compiler adds it when it emits. So a union in the same project is
+            // recognised by the `Value` property the union contract gives it, which the source symbol does have.
+            var declared = union?.GetAttributes().Any(a => a.AttributeClass is { } c && MetadataName(c) == "System.Runtime.CompilerServices.UnionAttribute") == true
+                || (union?.DeclaringSyntaxReferences.Length > 0
+                    && union.GetMembers("Value").OfType<IPropertySymbol>().Any(p => p.DeclaredAccessibility == Accessibility.Public));
+            if (union is null || !declared)
             {
                 return [];
             }

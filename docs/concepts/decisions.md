@@ -10,27 +10,99 @@ A decision is a static class marked `[Decision]`. Its `Decide` or `DecideAsync` 
 types. Each outcome gets a `Complete` overload — the transform for that outcome — which names its own target with
 `[To]`.
 
-```csharp
-public readonly record struct Accept(string Account);
-public readonly record struct Reject(byte[] Reply);
-public union AuthOutcome(Accept, Reject);
+<!-- snippet: sample-door-outcomes -->
+<a id='snippet-sample-door-outcomes'></a>
+```cs
+/// <summary>What the reader can decide. Each case carries what its outcome needs.</summary>
+public readonly record struct Allowed(string Name);
 
-[Decision(From = typeof(AuthRequested)), On(Se)]
-public static class CheckAuth
+/// <summary>The badge is not allowed in.</summary>
+public readonly record struct Refused(string Reason);
+
+/// <summary>The decision's result: one of these, and the generator writes a <c>Complete</c> for each.</summary>
+public union Answer(Allowed, Refused);
+```
+<sup><a href='/samples/StateAlchemist.Samples/Door/Door.cs#L32-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-door-outcomes' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample-door-decision -->
+<a id='snippet-sample-door-decision'></a>
+```cs
+[Module]
+public static class DoorModule
 {
-    public static async ValueTask<AuthOutcome> DecideAsync(TelnetContext context, AuthRequested request, CancellationToken ct) =>
-        await context.Accounts.VerifyAsync(request.Data, ct) ? new Accept(request.Name) : new Reject(DenyReply);
+    /// <summary>
+    /// A decision: the machine moves into a pending state below <see cref="Locked"/>, the caller's
+    /// <c>FireAsync</c> keeps waiting, and the outcome picks the transition that follows.
+    /// </summary>
+    [Decision(From = typeof(Locked), Handle = new[] { typeof(GaveUp) }), OnEvent(typeof(Badge))]
+    public static class Read
+    {
+        public static async ValueTask<Answer> DecideAsync(Access access, Badge badge, CancellationToken cancellation) =>
+            await access.Check(badge.Number, cancellation).ConfigureAwait(false)
+                ? new Answer(new Allowed($"badge {badge.Number}"))
+                : new Answer(new Refused("unknown badge"));
 
-    [To(typeof(Authenticated))]
-    public static void Complete(in AuthRequested from, ref Authenticated to, Accept outcome) => to.Account = outcome.Account;
+        /// <summary>One <c>Complete</c> per outcome, each naming where that outcome goes.</summary>
+        [To(typeof(Unlocked))]
+        public static void Complete(ref DoorFrame door, ref Unlocked unlocked, Allowed outcome)
+        {
+            door.Admitted++;
+            unlocked.Name = outcome.Name;
+        }
 
-    [To(typeof(Idle))]
-    public static void Complete(in AuthRequested from, ref Idle to, Reject outcome) { }
+        [To(typeof(Locked))]
+        public static void Complete(Refused outcome)
+        {
+        }
 
-    public static ValueTask CompletedAsync(TelnetContext context, Accept outcome) => context.OnAuthenticatedAsync(outcome);
-    public static ValueTask CompletedAsync(TelnetContext context, Reject outcome) => context.SendAsync(outcome.Reply);
+        /// <summary>And an action per outcome, after the state has changed.</summary>
+        public static void Completed(Access access, Allowed outcome) => access.Log.Add($"opened for {outcome.Name}");
+
+        public static void Completed(Access access, Refused outcome) => access.Log.Add($"refused: {outcome.Reason}");
+    }
+
+    /// <summary>
+    /// <c>Handle</c> above lets this run while the decision is pending, and what ends the wait is *leaving* the
+    /// pending state: this names <c>Locked</c> as its target, so it is a transition out of the pending state and
+    /// the reader's <c>CancellationToken</c> is cancelled. A stay would keep waiting.
+    /// </summary>
+    [Transition(From = typeof(Locked), To = typeof(Locked)), OnEvent(typeof(GaveUp))]
+    public static class Abandon
+    {
+        public static void Transform()
+        {
+        }
+
+        public static void Completed(Access access) => access.Log.Add("gave up waiting");
+    }
+
+    /// <summary>A reader that throws fires <see cref="DecisionFailed"/>, which is an ordinary trigger to recover from.</summary>
+    [Transition(From = typeof(Locked)), OnEvent(typeof(DecisionFailed))]
+    public static class Broken
+    {
+        public static void Transform()
+        {
+        }
+
+        public static void Completed(Access access, DecisionFailed failure) =>
+            access.Log.Add($"reader failed: {failure.Exception.Message}");
+    }
+
+    [Transition(From = typeof(Unlocked), To = typeof(Locked)), OnEvent(typeof(GaveUp))]
+    public static void Close()
+    {
+    }
+
+    /// <summary>This door is driven by events; a machine still says what its values do, and here they do nothing.</summary>
+    [Transition(From = typeof(DoorFrame)), OnAny]
+    public static void Ignore()
+    {
+    }
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Door/Door.cs#L63-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-door-decision' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 - **Phases keep the grammar**: `Guard`, `Decide` and `Complete` run before the state changes; `Completed` after.
 - `Decide` returns the union synchronously; `DecideAsync` returns `ValueTask<TUnion>`. The suffix must match the

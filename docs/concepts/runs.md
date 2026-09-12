@@ -4,10 +4,45 @@ Most bytes on a telnet connection are ordinary text or subnegotiation payload, a
 them the same way: "append it". Dispatching a `switch` per byte for that is wasted work. A **run transition**
 takes the whole stretch at once.
 
-```csharp
-[Transition(From = typeof(GmcpPayload)), OnAny, Run]
-public static void Capture(ref GmcpPayload self, ReadOnlySpan<byte> run) => self.Buffer.Append(run);
+<!-- snippet: sample-lines-module -->
+<a id='snippet-sample-lines-module'></a>
+```cs
+[Module]
+public static class LineModule
+{
+    /// <summary>
+    /// A run: every byte that is not a newline is handled the same way, so the machine takes the whole stretch
+    /// in one call. The stop set — here, just the newline — is worked out at compile time from the other
+    /// transitions in this state.
+    /// </summary>
+    [Transition(From = typeof(Line)), OnAny, Run]
+    public static void Text(ref Line line, ReadOnlySpan<byte> run) => line.Length += run.Length;
+
+    /// <summary>
+    /// The newline ends a line. This is a stay, not a re-entry: a stay keeps the state's data, so the transform
+    /// resets the length itself and the machine never leaves <see cref="Line"/>. A re-entry would clear the data
+    /// for you, and warn that it had ([`SALCH0301`](../../docs/reference/diagnostics.md#salch0301)).
+    /// </summary>
+    [Transition(From = typeof(Line)), On((byte)'\n')]
+    public static class EndOfLine
+    {
+        public static void Transform(ref Line line, ref Stream stream)
+        {
+            stream.Count++;
+            stream.LastLength = line.Length;
+            line.Length = 0;
+        }
+
+        public static void Completed(Lines lines, Stream stream) => lines.Lengths.Add(stream.LastLength);
+    }
+
+    /// <summary>An event from elsewhere. It waits its turn like any other input.</summary>
+    [Transition(From = typeof(Stream)), OnEvent(typeof(Flush))]
+    public static void Flushed(Lines lines) => lines.Flushes++;
+}
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Lines/LineReader.cs#L46-L80' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-lines-module' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 When the active leaf has a run transition, the batch `FireAsync(ReadOnlyMemory<TValue>)` scans ahead to the next
 value some other transition handles first — the **stop set** — and hands everything before it to the transform in

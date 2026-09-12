@@ -13,6 +13,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="TUnit" />
+    <!-- The reading sample's test drives it from a real pipe. -->
+    <PackageReference Include="System.IO.Pipelines" />
     <!-- To parse the documentation's code blocks, nothing more. -->
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.9.0" />
   </ItemGroup>

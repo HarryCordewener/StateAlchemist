@@ -4,6 +4,13 @@
     <RootNamespace>StateAlchemist.Samples</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The reading sample drives a machine from a real Pipe. -->
+    <PackageReference Include="System.IO.Pipelines" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />
+    <!-- The samples are real machines: the generator runs here, so the code in the documentation is code that
+         works, and the sample tests can fire it. -->
+    <ProjectReference Include="..\..\src\StateAlchemist.Generators\StateAlchemist.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

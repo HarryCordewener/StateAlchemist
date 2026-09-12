@@ -4,6 +4,8 @@ This guide builds a small telnet machine: it reads text, notices `IAC`, accepts 
 and reads the client's window size from a NAWS subnegotiation. The same machine is the running example in every
 concept page.
 
+For something smaller first — a phone call, or a pedestrian crossing — see [examples](examples.md).
+
 ## 1. Declare the states
 
 A state is a `public struct`; its fields are its data; its parent is named by `IState<TParent>`.
