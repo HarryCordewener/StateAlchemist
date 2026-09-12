@@ -30,6 +30,17 @@
   </PropertyGroup>
 
   <!--
+    A lock file per project pins the whole dependency graph by content hash, not just the versions written in the
+    csproj: restores are repeatable, and a package that changes underneath a version number is a restore failure
+    rather than a surprise. On CI the lock file is law — a restore that would have to change it fails instead.
+    After changing a PackageReference, restore with /p:RestoreForceEvaluate=true and commit what moves.
+  -->
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
+  </PropertyGroup>
+
+  <!--
     MinVer is the single source of the version: a `v1.2.3` tag builds 1.2.3, and any other commit builds the next
     patch as `-preview.0.N`. The release workflow therefore does NOT pass /p:Version — it only needs
     `fetch-depth: 0` so the tag is there to be read. A source tree with no git history at all (one extracted from
