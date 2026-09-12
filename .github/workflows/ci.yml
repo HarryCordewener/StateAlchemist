@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+# Nothing here writes anything: least privilege for the token every job gets.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Test (${{ matrix.framework }}, ${{ matrix.configuration }})
