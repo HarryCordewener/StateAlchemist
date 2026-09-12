@@ -7,7 +7,7 @@ StateAlchemist is a hierarchical state machine library for .NET where the machin
 interpreted**. Libraries declare states and transitions; an application picks the modules it wants; a source
 generator writes the machine as straight-line code.
 
-> **Status: released.** [1.0.0](https://www.nuget.org/packages/StateAlchemist) is on NuGet — `dotnet add package
+> **Status: released.** [State Alchemist](https://www.nuget.org/packages/StateAlchemist) is on NuGet — `dotnet add package
 > StateAlchemist` brings the runtime, the generator, the analyzers and the code fixes. Most code samples on these
 > pages are included from the compiled samples project, so they cannot drift.
 
