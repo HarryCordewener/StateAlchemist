@@ -9,9 +9,9 @@ using TUnit.Core;
 namespace StateAlchemist.Generated.Tests.Performance;
 
 /// <summary>
-/// Spec §9: every synchronous path allocates nothing. Measured per call after warming up, on the test thread, in the
-/// Debug build the suite runs — where an async method allocates even when it completes synchronously, so these also
-/// prove the synchronous paths call none.
+/// Spec §9: every synchronous path allocates nothing. Measured per call after warming up, on the test thread. The
+/// suite runs in Debug, where an async method allocates even when it completes synchronously, so a zero also proves
+/// the synchronous paths call none; the release workflow runs the same tests in Release.
 /// </summary>
 [NotInParallel]
 public class AllocationTests
@@ -92,10 +92,14 @@ public class AllocationTests
     }
 
     /// <summary>
-    /// A suspending action costs a fixed amount every time (spec §9): the call finishes in one async method, so
-    /// firing the action adds a bounded amount to awaiting it directly. The Debug build this suite runs compiles
-    /// async state machines as classes, which defeats the pooled builder; the Release cost is in the benchmarks.
+    /// What the machine adds to a suspending action: one continuation, once, however deep the machine is. A
+    /// ceiling above the cost of awaiting the action directly, because that cost depends on the build — Debug
+    /// compiles async state machines as classes, which the pooled builder cannot reuse, and in Release awaiting
+    /// the action allocates nothing at all.
     /// </summary>
+    private const long Suspension = 256;
+
+    /// <summary>A suspending action costs a fixed amount every time (spec §9): the call finishes in one async method.</summary>
     [Test]
     public async Task ASuspendingActionCostsTheSameEveryTime()
     {
@@ -108,7 +112,7 @@ public class AllocationTests
         var first = pump.Measure(() => machine.FireAsync((byte)4));
         var again = pump.Measure(() => machine.FireAsync((byte)4));
         await Assert.That(again).IsEqualTo(first).Because("a suspending call costs the same every time");
-        await Assert.That(first).IsLessThanOrEqualTo(8 * alone).Because($"firing a suspending action adds a bounded amount to it: {alone} B alone, {first} B through the machine");
+        await Assert.That(first).IsLessThanOrEqualTo(alone + Suspension).Because($"firing a suspending action adds a bounded amount to it: {alone} B alone, {first} B through the machine");
     }
 
     /// <summary>Runs suspending work on the calling thread: <c>await</c> posts here, and this pump runs it.</summary>

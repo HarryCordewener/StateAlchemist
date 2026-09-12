@@ -8,10 +8,15 @@ on:
 
 jobs:
   test:
+    name: Test (${{ matrix.framework }}, ${{ matrix.configuration }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         framework: [ net8.0, net10.0, net11.0 ]
+        # Release as well as Debug: the allocation tests measure what the JIT and the async builders do, and that
+        # differs between the two. Without this, a tag is the first time anything compiles Release.
+        configuration: [ Debug, Release ]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-dotnet@v5
@@ -22,8 +27,8 @@ jobs:
             8.0.x
             10.0.x
       - run: dotnet restore
-      - run: dotnet build --no-restore
-      - run: dotnet test --solution StateAlchemist.slnx --no-build --framework ${{ matrix.framework }}
+      - run: dotnet build --no-restore --configuration ${{ matrix.configuration }}
+      - run: dotnet test --solution StateAlchemist.slnx --no-build --configuration ${{ matrix.configuration }} --framework ${{ matrix.framework }}
 
   aot:
     runs-on: ubuntu-latest
