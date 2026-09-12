@@ -81,6 +81,7 @@ Every decision below was taken or approved during design review on 2026-09-11.
 | D8 | A transition's access to each state follows its role relative to the lowest common ancestor: exiting `in`, staying `ref`, entering `ref`. The parameter list declares what it touches. | Decided |
 | D9 | Async work that decides an outcome is split: an async decision over values, then a synchronous `Complete` per outcome over `ref`s, via a generated pending state that owns its cancellation. | Decided |
 | D10 | While a decision is pending, other triggers are **deferred** by default. | Decided |
+| D25 | **A machine's modules are named where the machine is declared.** `[Include(typeof(M))]` is the only way a module joins a machine by default — the same explicit composition root StrongInject, Jab and Pure.DI use, and the only shape in which a conflict between two modules can be reported to whoever chose them both. For the plugin experience — "add a package, get a protocol" — a library may *export* modules with an assembly-level `[assembly: ExportsModule(typeof(M))]`, and a machine may take every exported module with `[IncludeExported]`, optionally `Except` some. Both ends opt in. The generator reads only the assembly attributes of referenced assemblies, never their types: scanning referenced types for markers is expensive and cannot be done incrementally (Roslyn's own guidance), and the assembly attributes project to a sorted array of metadata names, which caches. Generator-to-generator chaining, which would let a library compose the machine for the host, is not possible: generators see the same input compilation and never each other's output, and Roslyn has intentionally avoided changing that. | Decided |
 | D24 | Phase names are discoverable through code fixes, which work in Rider, Visual Studio and VS Code: `SALCH0901` (info, an empty class-form transition) and `SALCH0902` (hidden, on any transition) offer **Add Guard / Transform / Completed / CompletedAsync** and **Add Complete for** an uncovered outcome, each with the exact signature the transition's roles allow; `SALCH0206` offers a rename for near-miss names. A base class with overridable phases was rejected: phase signatures depend on the tree, and instances would replace static calls. | Decided |
 | D23 | Deferral is invisible to the host: `FireAsync` completes when its input has been processed, including waiting for any decision it started, so awaiting it *is* the backpressure. There is no `IsDeferring`, `WhenReady()`, consumed count or `MachineDeferringException`. | Decided |
 | D11 | The generator runs in the consuming app over the whole program; plugins are chosen at compile time. | Decided |
@@ -105,7 +106,8 @@ StateAlchemist package      runtime types (attributes, IState<T>, IMachine<T>, p
                             + analyzers/: the source generator and diagnostics. No dependencies on
                             net8.0+; System.Threading.Channels on netstandard2.0.
       ▲
-Declaring libraries         state structs, transition methods, events, grouped into modules.
+Declaring libraries         state structs, transition methods, events, grouped into modules; optionally
+                            [assembly: ExportsModule(...)] so an app can take them by reference (D25).
 (TNC core, TNC plugins,     No dispatch is generated here — only declaration-site diagnostics
  third-party plugins)       (e.g. "transition methods must be public static").
       ▲
@@ -295,6 +297,26 @@ public sealed partial class MudTelnet;
 ```
 
 An app that needs several configurations (a client and a server, say) declares several machine types.
+
+**Exported modules (D25).** A library that wants "reference the package, get the protocol" says so in its own
+assembly, and a machine says it will take what libraries offer:
+
+```csharp
+// In the declaring library, once:
+[assembly: ExportsModule(typeof(GmcpModule))]
+
+// In the app:
+[Machine(Root = typeof(Connected), Value = typeof(byte), Context = typeof(TelnetContext))]
+[IncludeExported(Except = new[] { typeof(MsspModule) })]   // every exported module but this one
+[Include(typeof(PingModule))]                              // plus one nothing exports
+public sealed partial class GameTelnet;
+```
+
+`[IncludeExported]` reads the *assembly* attributes of referenced assemblies — not their types, which would be a
+scan the compiler cannot do incrementally. An exported type that is not a `[Module]`, and an `[IncludeExported]`
+that finds nothing, are both `SALCH0108`. Everything else is unchanged: the modules an `[IncludeExported]` brings
+in are the same modules an `[Include]` would, and the diagnostics about how they fit together are reported on the
+machine, where the choice was made.
 
 ## 6. Semantics
 
@@ -621,6 +643,7 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0105 | Error | app | A value type that is not integral or an enum of 16 bits or fewer. |
 | SALCH0106 | Error | declaring lib | A transition with no `From`, no trigger, mixed value and event triggers, an empty range, or a non-constant value. |
 | SALCH0107 | Error | app | A machine without `Root` or `Value`, or an `[Include]` of a type that is not a `[Module]`. |
+| SALCH0108 | Error/Warning | app | An `[assembly: ExportsModule]` of a type that is not a `[Module]` (error); an `[IncludeExported]` that matches no exported module (warning: nothing was added). |
 | SALCH0103 | Error | app | Several actions in one phase for the same state or transition, from different modules, without distinct `Order`s. |
 | SALCH0201 | Error + fix | app | `ref` on a state the transition exits. |
 | SALCH0202 | Error | app | Parameter names a state with no role in the transition, or that binds differently from different leaves of an ancestor-declared transition. |
