@@ -1,7 +1,7 @@
 # Releasing
 
-For maintainers. One package, `StateAlchemist`, carrying the runtime under `lib/` and both Roslyn components —
-the generator and the code fixes — under `analyzers/dotnet/cs`.
+For maintainers. One package, `StateAlchemist`: the runtime under `lib/`, the generator and the code fixes under
+`analyzers/dotnet/cs`.
 
 ## How a version is decided
 
@@ -32,18 +32,17 @@ it would fight MinVer. A "Verify the packed version matches the tag" step fails 
    thing by hand.
 3. After the release lands on nuget.org, set `PackageValidationBaselineVersion` to it in
    `src/StateAlchemist/StateAlchemist.csproj`. Package validation then diffs every later build against that
-   published surface and fails on a break — including one you did not mean to make.
+   published surface and fails on a break.
 
-   A release that *does* remove or re-signature public API is the exception: drop the property for that build,
-   release, then set it to the new version. The API snapshot test (`RuntimeApi.verified.txt`) still records the
-   change, so the removal is reviewed rather than merely permitted.
+   For a release that does remove or re-signature public API, drop the property for that build, release, then set
+   it to the new version. The API snapshot test (`RuntimeApi.verified.txt`) still records the change.
 
 ## What the release workflow does
 
 | Job | |
 |---|---|
 | `test` | builds Release and runs the whole suite on net8.0, net10.0 and net11.0 |
-| `package` | runs [`eng/check-package.sh`](../eng/check-package.sh): packs, checks the contents, then builds and runs a throwaway application that references nothing but the package — the machine is generated, the diagram prints, and the analyzer's `SALCH0002` fails that application's build when it should |
+| `package` | runs [`eng/check-package.sh`](../eng/check-package.sh): packs, checks the contents, then builds and runs a throwaway application that references nothing but the package. The machine is generated, the diagram prints, and the analyzer's `SALCH0002` fails that application's build when it should |
 | `build` | refuses a tag whose commit is not on `origin/main`, packs, checks that the version matches the tag and that both Roslyn components are inside, attests build provenance, and uploads the `.nupkg`/`.snupkg` |
 | `release` | pushes to GitHub Packages, then to nuget.org |
 
@@ -52,20 +51,19 @@ repository, at that commit.
 
 ## Authentication
 
-There are **no long-lived NuGet API keys in this repository** — no secret to leak, rotate or expire. Two
+There are **no long-lived NuGet API keys in this repository**: nothing to leak, rotate or expire. Two
 mechanisms, both short-lived:
 
 - **GitHub Packages** uses the workflow's own `GITHUB_TOKEN`.
 - **nuget.org** uses [trusted publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing):
   `NuGet/login@v1` exchanges the workflow's OIDC token for a key that lasts minutes. It requires a
   trusted-publishing policy on nuget.org for the `harrycordewener` account naming this repository and the
-  `Release` workflow. Without that policy the push step fails with an authentication error, which is the first
-  release's usual surprise.
+  `Release` workflow. Without that policy the push step fails with an authentication error.
 
 ## Before the first release
 
 - The package has never been published, so there is no `PackageValidationBaselineVersion` yet, and package
   validation only checks that the frameworks in the package are consistent with each other.
-- Decide the first version deliberately: `0.1.0` says "the design is implemented, the API may still move", which
-  is what the [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) currently claims.
-- Check `dotnet pack src/StateAlchemist -c Release` locally and read `eng/check-package.sh`'s output once by hand.
+- `0.1.0` says "implemented, the API may still move", which is where the
+  [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) has it.
+- Run `dotnet pack src/StateAlchemist -c Release` and `eng/check-package.sh` once by hand and read the output.

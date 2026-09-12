@@ -22,8 +22,8 @@ using RefToInCodeFix = codefixes::StateAlchemist.CodeFixes.RefToInCodeFix;
 namespace StateAlchemist.Generators.Tests.Analysis;
 
 /// <summary>
-/// The code fixes spec §8 promises: each one is applied to source that has the diagnostic, and what comes out is
-/// checked. A fix that produces code the compiler rejects is worse than no fix, so every result is compiled again.
+/// The code fixes spec §8 promises. Each is applied to source that has the diagnostic, and the result is compiled
+/// again: a fix that writes code the compiler rejects would be worse than no fix.
 /// </summary>
 public class CodeFixTests
 {
@@ -189,7 +189,7 @@ public class CodeFixTests
 
         var recompiled = TestCompilation.Create(text);
         var errors = recompiled.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error && d.Id.StartsWith("CS", StringComparison.Ordinal)).ToList();
-        await Assert.That(errors).IsEmpty().Because("what a fix writes must compile:\n" + string.Join("\n", errors));
+        await Assert.That(errors).IsEmpty().Because("what the fix wrote does not compile:\n" + string.Join("\n", errors));
         return text;
     }
 

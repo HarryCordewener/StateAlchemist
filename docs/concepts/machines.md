@@ -30,11 +30,10 @@ method is written.
 
 ### Modules a library offers
 
-A library that wants "reference the package, get the protocol" says so once, in its own assembly, and a machine
-says it will take what its references offer:
+A library can offer its modules to any machine that asks. It says so once, in its own assembly:
 
 ```csharp
-// In the library — in AssemblyInfo.cs, because an assembly attribute must precede every type in its file:
+// In the library, in AssemblyInfo.cs: an assembly attribute must precede every type in its file.
 [assembly: ExportsModule(typeof(GmcpModule))]
 ```
 
@@ -46,14 +45,12 @@ says it will take what its references offer:
 public sealed partial class MudTelnet;
 ```
 
-Both ends opt in: a library's modules never arrive in a machine that did not ask, and a machine never picks up a
-module the library meant to keep to itself. A module named both ways is included once, and
-`[IncludeExported(Except = new[] { typeof(MsspModule) })]` takes all but a few. Exporting something that is not a
-module is [`SALCH0108`](../reference/diagnostics.md#salch0108); asking when nothing is offered is
-[`SALCH0109`](../reference/diagnostics.md#salch0109).
+Both ends opt in, so a package reference alone never changes what a machine does. A module named both ways is
+included once, and `[IncludeExported(Except = new[] { typeof(MsspModule) })]` takes all but a few. Exporting
+something that is not a module is [`SALCH0108`](../reference/diagnostics.md#salch0108); asking when nothing is
+offered is [`SALCH0109`](../reference/diagnostics.md#salch0109).
 
-The machine an exported include builds is the machine an explicit `[Include]` would have built — the two are ways
-of naming a module, not different kinds of module.
+An exported include builds the same machine an explicit `[Include]` would.
 
 ## The machine declaration
 
@@ -71,13 +68,13 @@ public sealed partial class SampleTelnet
 <sup><a href='/samples/StateAlchemist.Samples/Telnet/SampleTelnet.cs#L3-L9' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-machine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The generator runs in the application and sees every included module, from every library, at once. It emits
-one merged `switch` for exactly that set of modules. That is why conflicts between plugins — two modules claiming
-the same option in the same state — are compile errors in the application
-([`SALCH0101`](../reference/diagnostics.md#salch0101)) instead of surprises at runtime.
+The generator runs in the application and sees every included module, from every library, at once, and emits one
+merged `switch` for that set. So a conflict between plugins, two modules claiming the same option in the same
+state, is a compile error in the application ([`SALCH0101`](../reference/diagnostics.md#salch0101)) rather than a
+runtime surprise.
 
-Modules are chosen when the application compiles. An application that needs several configurations — a client and
-a server, say — declares several machine types.
+Modules are chosen when the application compiles. An application that needs several configurations (a client and a
+server, say) declares several machine types.
 
 ## Options
 
@@ -117,7 +114,6 @@ Console.WriteLine(MudTelnet.Mermaid);   // a Mermaid stateDiagram-v2
 File.WriteAllText("telnet.dot", MudTelnet.Dot);   // a Graphviz digraph
 ```
 
-Both are written at compile time from the same model the machine runs — a composite state for every parent, its
-`[Initial]` child marked, one arrow per transition labelled with its trigger, and `run` or `decide` where that is
-what happens. Because they are `const string`s, a diagram costs nothing to read and cannot drift from the code: a
-README that pastes `Mermaid` is as current as the build.
+Both are written at compile time from the model the machine runs: a composite state for every parent with its
+`[Initial]` child marked, and one arrow per transition, labelled with its trigger and with `run` or `decide` where
+that applies. They are `const string`s, so reading one costs nothing and it cannot drift from the code.

@@ -17,22 +17,19 @@ modules it includes.
 | `SALCH08xx` | lifecycle |
 | `SALCH09xx` | authoring assistance: hints whose code fixes write code for you |
 
-## Where each diagnostic is reported
-
-Two components report these, and which one depends on what the problem needs to know.
+## Which component reports what
 
 - **The analyzer** reports a module's own problems, in the project where the module is written: a state that is not
   a public struct, a member that is not public static, a transition with no trigger, a phase whose name or
-  signature is wrong. It has to, because Roslyn cannot see a referenced assembly's non-public members — a library's
-  mistakes would otherwise be invisible until an application assembled a machine, and then be reported in the wrong
-  place. It also carries the `SALCH09xx` hints whose code fixes write a phase for you.
-- **The generator** reports everything that depends on which modules a machine includes: conflicts, coverage,
-  reachability, roles, and the machine declaration itself. Those answers change with the machine, so they belong to
-  the application that chose it.
-- **Two analyzers read your calls** rather than your declarations: `SALCH0801`, when a method constructs a machine
-  and fires it without starting it, and `SALCH0601`, when a machine that can suspend is fired synchronously.
+  signature is wrong. It has to: Roslyn cannot see a referenced assembly's non-public members, so a library's
+  mistakes would otherwise surface only when an application assembled a machine, and in the wrong place. It also
+  carries the `SALCH09xx` hints whose code fixes write a phase for you.
+- **The generator** reports what depends on which modules a machine includes: conflicts, coverage, reachability,
+  roles, and the machine declaration. Those answers change with the machine, so they belong to the application.
+- **Two analyzers read calls** rather than declarations: `SALCH0801` for a machine fired before it is started, and
+  `SALCH0601` for a machine that can suspend fired synchronously.
 
-Both ship in the package, so referencing StateAlchemist is all it takes.
+Everything ships in the package; referencing StateAlchemist is enough.
 
 ---
 

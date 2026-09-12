@@ -217,8 +217,8 @@ internal sealed partial class MachineEmitter
             _w.Line("await DrainQueue();");
         }
 
-        // A trigger that suspended: one async method finishes the whole call — the transition, the events it queued,
-        // and the release — so a suspended call costs one state machine, not one per step of the way back.
+        // A trigger that suspended: one async method finishes the whole call (the transition, the events it queued,
+        // the release), so a suspended call costs one state machine rather than one per step of the way back.
         _w.Line();
         AsyncMethod();
         using (_w.Block($"private async {ValueTaskType} FinishAfterDispatch({ValueTaskType} dispatched)"))
@@ -358,9 +358,9 @@ internal sealed partial class MachineEmitter
     }
 
     /// <summary>
-    /// The synchronous entry points, for a machine whose actions and decisions are all synchronous: the same call,
-    /// with the <see cref="ValueTaskType"/> consumed here instead of by the caller. Firing one of these on a machine
-    /// that can suspend would block the calling thread, which is what <c>SALCH0601</c> reports.
+    /// The synchronous entry points, for a machine whose actions and decisions are all synchronous: the same call
+    /// with the <see cref="ValueTaskType"/> consumed here instead of by the caller. Using one on a machine that can
+    /// suspend blocks the calling thread, which <c>SALCH0601</c> reports.
     /// </summary>
     private void WriteSyncFiring()
     {

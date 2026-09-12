@@ -13,10 +13,9 @@ using StateAlchemist.Model;
 namespace StateAlchemist.CodeFixes;
 
 /// <summary>
-/// D24: "add a phase" on a class-form transition. <c>SALCH0901</c> says a transition declares nothing yet;
-/// <c>SALCH0902</c> is hidden and shows nothing — it exists so the fixes are offered on any transition that could
-/// declare more. Each fix writes the phase with the signature the transition's own states give it, so the author
-/// never has to remember which parameter is <c>ref</c> and which is <c>in</c>.
+/// D24: "add a phase" on a class-form transition. <c>SALCH0901</c> reports a transition that declares nothing;
+/// <c>SALCH0902</c> is hidden and exists so the fixes are offered on any transition that could declare more. Each
+/// fix writes the phase with the signature the transition's states give it, `ref` and `in` included.
 /// </summary>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(AddPhaseCodeFix)), Shared]
 public sealed class AddPhaseCodeFix : CodeFixProvider

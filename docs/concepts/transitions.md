@@ -116,8 +116,8 @@ public static void Begin(in AwaitingOption from, ref SubNegotiation parent, ref 
 <!-- endSnippet -->
 
 Change `To` to `Idle` and `SubNegotiation` becomes exiting: `ref SubNegotiation` is then
-[`SALCH0201`](../reference/diagnostics.md#salch0201), because an edit to a state about to be cleared would be lost
-without a trace. Read it with `in` and write what matters into a state that survives. Naming a state the
+[`SALCH0201`](../reference/diagnostics.md#salch0201): an edit to a state about to be cleared would be lost. Read
+it with `in` and write what matters into a state that survives. Naming a state the
 transition does not touch at all — a sibling, an unrelated branch — is
 [`SALCH0202`](../reference/diagnostics.md#salch0202).
 

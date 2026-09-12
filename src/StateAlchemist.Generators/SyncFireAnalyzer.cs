@@ -10,10 +10,10 @@ using RoslynDescriptor = Microsoft.CodeAnalysis.DiagnosticDescriptor;
 namespace StateAlchemist.Generators;
 
 /// <summary>
-/// <c>SALCH0601</c>: the synchronous <c>Fire</c> on a machine that can suspend. Every machine has <c>Fire</c> — the
-/// generator cannot know, while emitting one machine, whether a caller means to use it — but on a machine with an
-/// async action or an async decision the call would block the calling thread until the action came back, which is a
-/// deadlock waiting for a synchronization context. So it is an error at the call, where the choice is made.
+/// <c>SALCH0601</c>: the synchronous <c>Fire</c> on a machine that can suspend. Every machine has <c>Fire</c>,
+/// because the generator cannot know while emitting one machine whether a caller means to use it. On a machine
+/// with an async action or decision the call would block the calling thread until the action came back, and
+/// deadlock under a synchronization context, so it is reported at the call.
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class SyncFireAnalyzer : DiagnosticAnalyzer

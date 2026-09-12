@@ -2,17 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Meet spec §9 — and measure the rest honestly — so that a generated machine costs what a hand-written
-`switch` costs on the paths where that can be measured at all, allocates nothing on every synchronous path, builds
-a TNC-sized machine in well under a second, and publishes into a native binary with no warnings.
+**Goal:** Meet spec §9: a generated machine allocates nothing on every synchronous path, costs what a hand-written
+`switch` costs wherever that is measurable, builds a TNC-sized machine in well under a second, and publishes into a
+native binary with no warnings.
 
 **Architecture:** Nothing about the semantics changes. The entry points of a machine without an inbox are flattened
 so the common call — refuse, dispatch, return — passes through no `async` method and no helper. A machine with an
 inbox keeps the design Plan 5 generated, with the allocations taken out of it: inputs are pooled and are themselves
 the `IValueTaskSource` the caller awaits, a caller that finds the machine idle runs its own input inline instead of
 waking a pump, and a call that never suspends returns a completed `ValueTask` with its input already back in the
-pool. A call that does suspend finishes in one `async` method instead of a chain of them. Everything is proved by
-allocation tests, which fail the build, and measured by benchmarks, which do not.
+pool. A call that does suspend finishes in one `async` method instead of a chain of them. Allocation tests fail the
+build; the benchmarks report the rest.
 
 **Tech Stack:** BenchmarkDotNet 0.15.8 (in-process on `net11.0`), Stateless 5.20 as the outside baseline, the
 NativeAOT toolchain for the publish check, TUnit for the allocation, size and construction tests.
@@ -33,9 +33,8 @@ more: **nothing in this plan may change what a machine does.** Every contract, e
 allocation test is the definition of "unchanged"; a faster path that changes an order or an exception is a bug, not
 a trade.
 
-Measurements in this plan are from one machine (x64, .NET 11 RC1, in-process short jobs). They are recorded to say
-what the shape of the cost is, not as thresholds for CI: the tests that fail a build are the allocation tests and
-the two size tests, which are stable.
+Measurements in this plan are from one machine (x64, .NET 11 RC1, in-process short jobs), recorded for shape
+rather than as CI thresholds. The tests that fail a build are the allocation tests and the two size tests.
 
 ## File structure
 
@@ -481,9 +480,8 @@ public sealed class StatelessMachine
 }
 ```
 
-Stateless has no "any value" trigger and no runs, so text is one configured internal transition per byte value —
-which is the honest way to give it the same behaviour, and also why it reads a kilobyte four orders of magnitude
-slower.
+Stateless has no "any value" trigger and no runs, so text is one configured internal transition per byte value.
+That is the same behaviour, and it is why it reads a kilobyte four orders of magnitude slower.
 
 `benchmarks/StateAlchemist.Benchmarks/MachineBenchmarks.cs`:
 
@@ -807,9 +805,8 @@ public class AllocationTests
 
     /// <summary>
     /// A suspending action costs a fixed amount every time (spec §9): the call finishes in one async method, so
-    /// firing the action adds a bounded amount to awaiting it directly, and never more as the calls go on. The
-    /// Debug build the suite runs compiles async state machines as classes, which defeats the pooled builder; what
-    /// a Release build costs is in the benchmarks.
+    /// firing the action adds a bounded amount to awaiting it directly. The Debug build this suite runs compiles
+    /// async state machines as classes, which defeats the pooled builder; the Release cost is in the benchmarks.
     /// </summary>
     [Test]
     public async Task ASuspendingActionCostsTheSameEveryTime()
@@ -2762,14 +2759,14 @@ using StateAlchemist.Model;
 
 namespace StateAlchemist.Generators;
 
-// The inbox and the pump, written into machines that are Serialized or have an async decision — the design the
+// The inbox and the pump, written into machines that are Serialized or have an async decision: the design the
 // reference interpreter runs (Plan 3), in generated C# 7.3. Every FireAsync is an input; whoever finds the machine
 // idle pumps, one trigger per step; a pending decision pauses the input that started it while the machine accepts
-// the events it handles. See ReferenceMachine.Inbox.cs for the rules, stated once.
+// the events it handles. ReferenceMachine.Inbox.cs states the rules once.
 //
-// For speed (Plan 6): inputs are pooled and are themselves the IValueTaskSource a caller awaits, so a call allocates
-// nothing in steady state; the pump runs synchronously and continues asynchronously only when a step suspends; and
-// the AsyncLocal that catches self-firing is set only while a decision is pending, which is rare. The
+// Plan 6 made it cheap: inputs are pooled and are themselves the IValueTaskSource a caller awaits, so a call
+// allocates nothing in steady state; the pump runs synchronously and continues asynchronously only when a step
+// suspends; and the AsyncLocal that catches self-firing is set only while a decision is pending. The
 // pending-decision parts are written only into machines that have an async decision.
 internal sealed partial class MachineEmitter
 {
@@ -4137,50 +4134,48 @@ must await every `FireAsync` before the next.
 ## Serialized
 
 Any thread may call `FireAsync`. Each call becomes an *input* in the machine's inbox, and whichever caller finds
-the machine idle runs it straight away — inline, on the calling thread, with no background consumer task and no
-thread hop when nothing is contended. Each transition, **including its awaited actions**, completes before the
-next begins. A caller whose trigger queued behind another waits on its input, which is itself the pooled
-`IValueTaskSource` the caller's `ValueTask` is built on: it completes when that caller's own triggers are done,
-and carries the exception if one throws. A call that finishes without suspending allocates nothing at all —
-the input goes back to the pool before `FireAsync` returns.
+the machine idle runs it on the calling thread: no background consumer task, and no thread hop when nothing is
+contended. Each transition, **including its awaited actions**, completes before the next begins. A caller whose
+trigger queued behind another waits on its input, which is the pooled `IValueTaskSource` behind that caller's
+`ValueTask`: it completes when that caller's own triggers are done, and carries the exception if one throws. A
+call that never suspends allocates nothing, because the input returns to the pool before `FireAsync` does.
 
-This is the turn-based model of Orleans grains. It is also what a lock around a machine cannot give you: a lock
-around `FireAsync` stops protecting anything once actions are async.
+This is the turn-based model of Orleans grains, and it is what a lock cannot give you: a lock around `FireAsync`
+stops protecting anything once actions are async.
 
-The inbox is a list and a lock, not a `Channel`: a channel's own completion sources and its bounded mode cost
-more than the whole rest of the call, and the machine needs neither — it has one reader by construction, and the
-inputs it hands out are the completion sources.
+The inbox is a list and a lock rather than a `Channel`. A channel brings its own completion sources and a bounded
+mode that costs more than the rest of the call, and the machine needs neither: it has one reader by construction,
+and the inputs it hands out are already completion sources.
 
 ### Bounded inbox
 
 `InboxCapacity = n` caps how many inputs may wait: producers that outrun the machine wait for room instead of
 growing the queue. Room is a `SemaphoreSlim`, taken when an input joins the inbox and released when the pump takes
-it out, so a producer that has to wait does so asynchronously. A bounded machine always goes through its inbox —
-it cannot take the inline path, which would skip the accounting — so it costs more per call even when nothing is
-contended. That is why it is opt-in.
+it out, so a producer that waits does so asynchronously. A bounded machine always goes through its inbox — the
+inline path would skip the accounting — so it costs more per call even uncontended. Hence opt-in.
 
 ## While a decision is pending
 
 While a [decision](decisions.md) is pending, the caller whose input started it is awaiting its `FireAsync`, and
-the decision completes on another thread. So the machine accepts **events** from other callers in every mode —
-`Checked` and `Unchecked` included — through the same inbox, which is why a machine with an async decision has one
-whatever its concurrency mode. That is what lets a disconnect or a timeout reach a pending decision.
+the decision completes on another thread. The machine therefore accepts **events** from other callers in every
+mode, `Checked` and `Unchecked` included, through the same inbox — which is why a machine with an async decision
+has an inbox whatever its concurrency mode. This is how a disconnect or a timeout reaches a pending decision.
 
 Events that waited run as soon as the decision resolves, in the order they arrived, before the rest of the paused
 input.
 
-Values are different: they come from one stream, so a second caller firing values while a decision is pending is
-misuse in every mode — `Checked` throws, `Serialized` queues them behind the waiting batch.
+Values come from one stream, so a second caller firing values while a decision is pending is misuse in every
+mode: `Checked` throws, `Serialized` queues them behind the waiting batch.
 
 ## What the inbox costs
 
 A machine with an inbox — `Serialized`, or any mode with an async decision — costs about 65 ns per call more than
-one without, for the same stay. The inbox is what buys the guarantee: every call is an object with an identity
-that outlives the calling stack, so it can be queued, completed later, and completed exactly once. Most of the
-cost is the two lock regions a call passes through, claiming the pump and releasing it.
+one without, for the same stay. That buys the guarantee: every call is an object whose identity outlives the
+calling stack, so it can be queued, completed later, and completed exactly once. Most of the cost is the two lock
+regions a call passes through, claiming the pump and releasing it.
 
-Every guard is paid per call, not per value: the batch `FireAsync(ReadOnlyMemory<TValue>)` pays it once for a
-whole read, which is why a machine reading a socket should hand the buffer over whole.
+Every guard is paid per call, not per value. The batch `FireAsync(ReadOnlyMemory<TValue>)` pays it once for a
+whole read, so a machine reading a socket should hand the buffer over whole.
 ```
 
 The design guessed at a `Channel` inbox and priced it. The implementation is a list and a lock, because a channel's
@@ -4197,7 +4192,7 @@ reader by construction, and the inputs it hands out are its completion sources.
 Transforms change the machine's data; **actions run your code**: network writes, callbacks, logging. Actions run
 *after* the state has changed, so their names are past tense, and they may be async.
 
-## Three places to put an action
+## Where an action goes
 
 | Declared as | Runs | Use it for |
 |---|---|---|
@@ -4266,13 +4261,13 @@ public static void Trace(TelnetContext context, Naws naws) => context.Log.Add($"
 
 An async action cannot take `ref` or `in` parameters — C# forbids it — which is why actions see copies.
 
-## Async without the cost
+## What async costs
 
 An action returning `ValueTask` that completes synchronously costs nothing extra: the generated code checks
-`IsCompletedSuccessfully` and carries straight on — no state machine is entered, and nothing is allocated. Only an
-action that actually suspends moves the rest of the call into a continuation, and then the whole of the rest of the
-call — the transition, the events it queued, the release — finishes in a single async method, whose state machine
-is pooled on `net6.0` and later. A suspending action costs what the action itself costs, plus that one continuation.
+`IsCompletedSuccessfully` and carries on, entering no state machine and allocating nothing. An action that
+suspends moves the rest of the call into a continuation. The rest of the call is the transition, the events it
+queued and the release, and all of it finishes in one async method, whose state machine is pooled on `net6.0` and
+later. So a suspending action costs what the action costs, plus that one continuation.
 
 While a transition's actions are awaited, the transition is still running: it [runs to
 completion](#run-to-completion) before the next trigger.
@@ -4281,9 +4276,9 @@ completion](#run-to-completion) before the next trigger.
 
 A transition finishes — through every awaited action — before the next trigger is processed. A trigger fired
 *during* a transition, such as an action calling `Enqueue(new Error())`, is queued and processed at step 9.
-`Enqueue` exists for code running inside the machine — an action, a hook, a decision. Called from anywhere else, it
-throws `InvalidOperationException`: from outside, use `FireAsync`. The
-queue is a small buffer inside the machine that allocates only if more than four events queue at once. Values are
+`Enqueue` is for code running inside the machine: an action, a hook, a decision. Called from outside it throws
+`InvalidOperationException`; use `FireAsync` there. The queue is a small buffer inside the machine, and allocates
+only if more than four events queue at once. Values are
 never queued this way; see [decisions](decisions.md#deferral-and-backpressure).
 ````
 
@@ -4310,24 +4305,23 @@ await telnet.StopAsync();                             // [Exited] actions from t
 ## Why starting is separate
 
 **Construction runs no actions.** It resets every state's storage and sets the active leaf to the root's initial
-path — nothing more, so it cannot fail and cannot await.
+path. Nothing else, so it cannot fail and cannot await.
 
 **`StartAsync` runs the initial path's `[Entered]` actions once** — a second call throws
 `InvalidOperationException`. Those actions may `Enqueue` events; they run before the first trigger. If one throws,
 the [exception hooks](exceptions.md) apply as they do in a transition, and `Skip` skips the remaining lifecycle
-actions. Keeping it separate means the host finishes
-wiring — attaching the machine to a connection, a pipe, a writer — before any action runs. A telnet server that
-speaks first, sending its offers as soon as a client connects, sends them from an `[Entered]` action: under
-`StartAsync`, not in a constructor, and not waiting for input that may never come.
+actions. Keeping it separate lets the host finish wiring — a connection, a pipe, a writer — before any action
+runs. A telnet server that speaks first sends its offers from an `[Entered]` action, so they go out under
+`StartAsync` rather than from a constructor or on the first byte that may never arrive.
 
 Forgetting to start is caught twice:
 
 - **At compile time**, where it can be seen: [`SALCH0801`](../reference/diagnostics.md#salch0801) warns when a
   method creates a machine and fires it without starting it on every path. A machine that crosses methods, fields
   or dependency injection is left to the runtime check.
-- **At runtime**, for one comparison: the first thing any `FireAsync` does is check the machine's status, and a
-  machine that is not running throws a clear exception instead of dispatching. That check is a field read and a
-  branch the processor predicts — it does not show up in the [measured cost](concurrency.md) of a call.
+- **At runtime**, for one comparison: every `FireAsync` checks the machine's status first, and one that is not
+  running throws instead of dispatching. The check is a field read and a predicted branch, below what the
+  [benchmarks](concurrency.md) can measure.
 
 ## Stopping and disposal
 

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make "add a package, get a protocol" work without giving up the composition root (D25), and make the
-package releasable the way the other libraries in this family are released — version from the git tag, symbols and
-Source Link, package validation, and a workflow that publishes without a stored key.
+**Goal:** Let a package reference bring a module with it (D25) without giving up the composition root, and make
+the package releasable the way the other libraries here are: version from the git tag, symbols and Source Link,
+package validation, and a workflow that publishes without a stored key.
 
 **Architecture:** A library offers a module once, in its own assembly: `[assembly: ExportsModule(typeof(M))]`. A
 machine takes what its references offer: `[IncludeExported]`, with `Except` for the ones it does not want. Both
@@ -2830,11 +2830,10 @@ method is written.
 
 ### Modules a library offers
 
-A library that wants "reference the package, get the protocol" says so once, in its own assembly, and a machine
-says it will take what its references offer:
+A library can offer its modules to any machine that asks. It says so once, in its own assembly:
 
 ```csharp
-// In the library — in AssemblyInfo.cs, because an assembly attribute must precede every type in its file:
+// In the library, in AssemblyInfo.cs: an assembly attribute must precede every type in its file.
 [assembly: ExportsModule(typeof(GmcpModule))]
 ```
 
@@ -2846,14 +2845,12 @@ says it will take what its references offer:
 public sealed partial class MudTelnet;
 ```
 
-Both ends opt in: a library's modules never arrive in a machine that did not ask, and a machine never picks up a
-module the library meant to keep to itself. A module named both ways is included once, and
-`[IncludeExported(Except = new[] { typeof(MsspModule) })]` takes all but a few. Exporting something that is not a
-module is [`SALCH0108`](../reference/diagnostics.md#salch0108); asking when nothing is offered is
-[`SALCH0109`](../reference/diagnostics.md#salch0109).
+Both ends opt in, so a package reference alone never changes what a machine does. A module named both ways is
+included once, and `[IncludeExported(Except = new[] { typeof(MsspModule) })]` takes all but a few. Exporting
+something that is not a module is [`SALCH0108`](../reference/diagnostics.md#salch0108); asking when nothing is
+offered is [`SALCH0109`](../reference/diagnostics.md#salch0109).
 
-The machine an exported include builds is the machine an explicit `[Include]` would have built — the two are ways
-of naming a module, not different kinds of module.
+An exported include builds the same machine an explicit `[Include]` would.
 
 ## The machine declaration
 
@@ -2871,13 +2868,13 @@ public sealed partial class SampleTelnet
 <sup><a href='/samples/StateAlchemist.Samples/Telnet/SampleTelnet.cs#L3-L9' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-machine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-The generator runs in the application and sees every included module, from every library, at once. It emits
-one merged `switch` for exactly that set of modules. That is why conflicts between plugins — two modules claiming
-the same option in the same state — are compile errors in the application
-([`SALCH0101`](../reference/diagnostics.md#salch0101)) instead of surprises at runtime.
+The generator runs in the application and sees every included module, from every library, at once, and emits one
+merged `switch` for that set. So a conflict between plugins, two modules claiming the same option in the same
+state, is a compile error in the application ([`SALCH0101`](../reference/diagnostics.md#salch0101)) rather than a
+runtime surprise.
 
-Modules are chosen when the application compiles. An application that needs several configurations — a client and
-a server, say — declares several machine types.
+Modules are chosen when the application compiles. An application that needs several configurations (a client and a
+server, say) declares several machine types.
 
 ## Options
 
@@ -2917,10 +2914,9 @@ Console.WriteLine(MudTelnet.Mermaid);   // a Mermaid stateDiagram-v2
 File.WriteAllText("telnet.dot", MudTelnet.Dot);   // a Graphviz digraph
 ```
 
-Both are written at compile time from the same model the machine runs — a composite state for every parent, its
-`[Initial]` child marked, one arrow per transition labelled with its trigger, and `run` or `decide` where that is
-what happens. Because they are `const string`s, a diagram costs nothing to read and cannot drift from the code: a
-README that pastes `Mermaid` is as current as the build.
+Both are written at compile time from the model the machine runs: a composite state for every parent with its
+`[Initial]` child marked, and one arrow per transition, labelled with its trigger and with `run` or `decide` where
+that applies. They are `const string`s, so reading one costs nothing and it cannot drift from the code.
 ````
 
 - [ ] **Step 2: The diagnostics**
@@ -2947,22 +2943,19 @@ modules it includes.
 | `SALCH08xx` | lifecycle |
 | `SALCH09xx` | authoring assistance: hints whose code fixes write code for you |
 
-## Where each diagnostic is reported
-
-Two components report these, and which one depends on what the problem needs to know.
+## Which component reports what
 
 - **The analyzer** reports a module's own problems, in the project where the module is written: a state that is not
   a public struct, a member that is not public static, a transition with no trigger, a phase whose name or
-  signature is wrong. It has to, because Roslyn cannot see a referenced assembly's non-public members — a library's
-  mistakes would otherwise be invisible until an application assembled a machine, and then be reported in the wrong
-  place. It also carries the `SALCH09xx` hints whose code fixes write a phase for you.
-- **The generator** reports everything that depends on which modules a machine includes: conflicts, coverage,
-  reachability, roles, and the machine declaration itself. Those answers change with the machine, so they belong to
-  the application that chose it.
-- **Two analyzers read your calls** rather than your declarations: `SALCH0801`, when a method constructs a machine
-  and fires it without starting it, and `SALCH0601`, when a machine that can suspend is fired synchronously.
+  signature is wrong. It has to: Roslyn cannot see a referenced assembly's non-public members, so a library's
+  mistakes would otherwise surface only when an application assembled a machine, and in the wrong place. It also
+  carries the `SALCH09xx` hints whose code fixes write a phase for you.
+- **The generator** reports what depends on which modules a machine includes: conflicts, coverage, reachability,
+  roles, and the machine declaration. Those answers change with the machine, so they belong to the application.
+- **Two analyzers read calls** rather than declarations: `SALCH0801` for a machine fired before it is started, and
+  `SALCH0601` for a machine that can suspend fired synchronously.
 
-Both ship in the package, so referencing StateAlchemist is all it takes.
+Everything ships in the package; referencing StateAlchemist is enough.
 
 ---
 
@@ -3275,8 +3268,8 @@ where the IDE offers quick-fixes.
 ````markdown
 # Releasing
 
-For maintainers. One package, `StateAlchemist`, carrying the runtime under `lib/` and both Roslyn components —
-the generator and the code fixes — under `analyzers/dotnet/cs`.
+For maintainers. One package, `StateAlchemist`: the runtime under `lib/`, the generator and the code fixes under
+`analyzers/dotnet/cs`.
 
 ## How a version is decided
 
@@ -3307,18 +3300,17 @@ it would fight MinVer. A "Verify the packed version matches the tag" step fails 
    thing by hand.
 3. After the release lands on nuget.org, set `PackageValidationBaselineVersion` to it in
    `src/StateAlchemist/StateAlchemist.csproj`. Package validation then diffs every later build against that
-   published surface and fails on a break — including one you did not mean to make.
+   published surface and fails on a break.
 
-   A release that *does* remove or re-signature public API is the exception: drop the property for that build,
-   release, then set it to the new version. The API snapshot test (`RuntimeApi.verified.txt`) still records the
-   change, so the removal is reviewed rather than merely permitted.
+   For a release that does remove or re-signature public API, drop the property for that build, release, then set
+   it to the new version. The API snapshot test (`RuntimeApi.verified.txt`) still records the change.
 
 ## What the release workflow does
 
 | Job | |
 |---|---|
 | `test` | builds Release and runs the whole suite on net8.0, net10.0 and net11.0 |
-| `package` | runs [`eng/check-package.sh`](../eng/check-package.sh): packs, checks the contents, then builds and runs a throwaway application that references nothing but the package — the machine is generated, the diagram prints, and the analyzer's `SALCH0002` fails that application's build when it should |
+| `package` | runs [`eng/check-package.sh`](../eng/check-package.sh): packs, checks the contents, then builds and runs a throwaway application that references nothing but the package. The machine is generated, the diagram prints, and the analyzer's `SALCH0002` fails that application's build when it should |
 | `build` | refuses a tag whose commit is not on `origin/main`, packs, checks that the version matches the tag and that both Roslyn components are inside, attests build provenance, and uploads the `.nupkg`/`.snupkg` |
 | `release` | pushes to GitHub Packages, then to nuget.org |
 
@@ -3327,23 +3319,22 @@ repository, at that commit.
 
 ## Authentication
 
-There are **no long-lived NuGet API keys in this repository** — no secret to leak, rotate or expire. Two
+There are **no long-lived NuGet API keys in this repository**: nothing to leak, rotate or expire. Two
 mechanisms, both short-lived:
 
 - **GitHub Packages** uses the workflow's own `GITHUB_TOKEN`.
 - **nuget.org** uses [trusted publishing](https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing):
   `NuGet/login@v1` exchanges the workflow's OIDC token for a key that lasts minutes. It requires a
   trusted-publishing policy on nuget.org for the `harrycordewener` account naming this repository and the
-  `Release` workflow. Without that policy the push step fails with an authentication error, which is the first
-  release's usual surprise.
+  `Release` workflow. Without that policy the push step fails with an authentication error.
 
 ## Before the first release
 
 - The package has never been published, so there is no `PackageValidationBaselineVersion` yet, and package
   validation only checks that the frameworks in the package are consistent with each other.
-- Decide the first version deliberately: `0.1.0` says "the design is implemented, the API may still move", which
-  is what the [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) currently claims.
-- Check `dotnet pack src/StateAlchemist -c Release` locally and read `eng/check-package.sh`'s output once by hand.
+- `0.1.0` says "implemented, the API may still move", which is where the
+  [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) has it.
+- Run `dotnet pack src/StateAlchemist -c Release` and `eng/check-package.sh` once by hand and read the output.
 ````
 
 `docs/index.md`:
@@ -3358,10 +3349,9 @@ StateAlchemist is a hierarchical state machine library for .NET where the machin
 interpreted**. Libraries declare states and transitions; an application picks the modules it wants; a source
 generator writes the machine as straight-line code.
 
-> **Status: implemented, not released.** These pages describe the library, and the code is built against them —
-> the plans in the [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) are all written and validated. Most code
-> samples here are included from the compiled samples project, so they cannot drift; the rest are checked to
-> parse. Nothing is on NuGet yet; [releasing](releasing.md) says what happens when it is.
+> **Status: implemented, not released.** These pages describe the library; the code is built against them, in the
+> order the [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) sets out. Most code samples are included from the
+> compiled samples project, so they cannot drift. Nothing is on NuGet yet; [releasing](releasing.md) covers that.
 
 ## Start here
 

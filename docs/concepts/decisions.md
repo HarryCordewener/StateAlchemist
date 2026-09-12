@@ -104,10 +104,10 @@ while (true)
 }
 ```
 
-This is the ordinary `PipeReader` loop, with nothing added. While a decision is pending, the loop is waiting on
-`FireAsync`; bytes that arrive meanwhile collect in the pipe; once the pipe passes its pause threshold it stops
-reading the socket, which pushes back on the sender. Nothing is copied — the machine keeps its place in your
-segment until the `ValueTask` completes — and nothing grows without bound.
+This is the ordinary `PipeReader` loop, with nothing added. While a decision is pending the loop waits on
+`FireAsync`, bytes that arrive collect in the pipe, and once the pipe passes its pause threshold it stops reading
+the socket, which pushes back on the sender. The machine keeps its place in your segment until the `ValueTask`
+completes, so nothing is copied and no buffer grows without a limit.
 
 ### Interrupting a pending decision
 
@@ -133,7 +133,7 @@ await machine.FireAsync(new Disconnect());
 If the machine is stopped while your `FireAsync` is waiting on a decision, the decision is cancelled, the rest of
 your input is discarded, and your `FireAsync` throws `MachineNotRunningException`.
 
-### Three rules
+### Rules
 
 - **Values come from one stream.** A second caller firing values while your batch waits on a decision is misuse:
   a `Checked` machine throws `ConcurrentUseException`; a `Serialized` machine queues them behind your batch.

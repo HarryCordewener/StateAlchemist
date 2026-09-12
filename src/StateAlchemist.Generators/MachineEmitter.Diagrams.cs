@@ -7,9 +7,9 @@ namespace StateAlchemist.Generators;
 internal sealed partial class MachineEmitter
 {
     /// <summary>
-    /// The machine as a diagram, twice, as <c>const string</c>s: Mermaid for a README or a docs page, Dot for
-    /// Graphviz. Both are written at compile time from the same model the machine runs, so a diagram cannot drift
-    /// from the code — and because they are constants, reading one costs nothing and needs no reflection.
+    /// The machine as two <c>const string</c>s: Mermaid for a README or a docs page, Dot for Graphviz. Both are
+    /// written at compile time from the model the machine runs, so they cannot drift from the code, and reading one
+    /// costs nothing.
     /// </summary>
     private void WriteDiagrams()
     {

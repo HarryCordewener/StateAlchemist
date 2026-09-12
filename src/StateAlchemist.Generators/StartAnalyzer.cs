@@ -12,12 +12,11 @@ namespace StateAlchemist.Generators;
 
 /// <summary>
 /// <c>SALCH0801</c>: firing a machine this method constructed and has not started on every path to the call. A
-/// machine that crosses methods, fields or dependency injection is left to the runtime check — this analyzer only
-/// claims what one method's control flow proves.
+/// machine that crosses methods, fields or dependency injection is left to the runtime check.
 /// <para>
-/// The analysis is the textbook one: walk the method's control-flow graph forwards, carrying the set of machines
-/// started on *every* path into each block, and report a fire on a machine that set does not contain. Intersection
-/// at joins is what makes "on every path" true rather than hopeful, and a loop is iterated to a fixed point.
+/// A forward must-analysis over the method's control-flow graph: each block carries the set of machines started on
+/// every path into it, intersected at joins and iterated to a fixed point, and a fire on a machine outside that
+/// set is reported.
 /// </para>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]

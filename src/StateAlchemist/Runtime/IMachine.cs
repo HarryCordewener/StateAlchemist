@@ -49,8 +49,8 @@ public interface IMachine<TValue> : IAsyncDisposable
     /// <summary>Fires values in order, consuming runs of values in one call.</summary>
     /// <param name="values">The values. The machine holds them until the returned task completes; nothing is copied.</param>
     /// <returns>
-    /// Completes when every value has been processed, including waiting for any decision one of them started — so a
-    /// read loop that awaits it stops reading while a decision is pending, which is the backpressure.
+    /// Completes when every value has been processed, including waiting for any decision one of them started. A read
+    /// loop that awaits it therefore stops reading while a decision is pending, which is the backpressure.
     /// </returns>
     /// <exception cref="MachineNotRunningException">The machine is not running, or was stopped while waiting on a decision.</exception>
     ValueTask FireAsync(ReadOnlyMemory<TValue> values);

@@ -7,10 +7,9 @@ StateAlchemist is a hierarchical state machine library for .NET where the machin
 interpreted**. Libraries declare states and transitions; an application picks the modules it wants; a source
 generator writes the machine as straight-line code.
 
-> **Status: implemented, not released.** These pages describe the library, and the code is built against them —
-> the plans in the [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) are all written and validated. Most code
-> samples here are included from the compiled samples project, so they cannot drift; the rest are checked to
-> parse. Nothing is on NuGet yet; [releasing](releasing.md) says what happens when it is.
+> **Status: implemented, not released.** These pages describe the library; the code is built against them, in the
+> order the [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) sets out. Most code samples are included from the
+> compiled samples project, so they cannot drift. Nothing is on NuGet yet; [releasing](releasing.md) covers that.
 
 ## Start here
 

@@ -12,8 +12,8 @@ namespace StateAlchemist.Generated.Tests;
 
 /// <summary>
 /// The documentation, checked against the code it describes. Most of the docs' code is a snippet taken from the
-/// compiled samples, so it cannot drift; what is left are the hand-written illustrations and the table of generated
-/// members, and these are the two things that can quietly stop being true.
+/// compiled samples and cannot drift; what is left is the hand-written illustrations and the table of generated
+/// members.
 /// </summary>
 public class DocumentationTests
 {
@@ -49,8 +49,8 @@ public class DocumentationTests
     }
 
     /// <summary>
-    /// What a block's C# has to be valid as: a file, a class member, or a statement. A docs block is often a
-    /// fragment — one method, or two lines of a read loop — and each is C# in the place the prose puts it.
+    /// What a block has to be valid as: a file, a class member, a statement, or an attribute. A docs block is often
+    /// a fragment — one method, or two lines of a read loop — valid where the prose puts it.
     /// </summary>
     private static IReadOnlyList<string> Parse(string block)
     {

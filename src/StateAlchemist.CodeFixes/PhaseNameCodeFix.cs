@@ -15,8 +15,8 @@ namespace StateAlchemist.CodeFixes;
 
 /// <summary>
 /// <c>SALCH0206</c> and <c>SALCH0207</c>: a phase method whose name is not a phase, or whose <c>Async</c> suffix
-/// disagrees with what it returns. Both are fixed by renaming — the method is what the author meant, spelled wrong —
-/// so the fix offers the phases that fit what the method returns, and renames it through the solution.
+/// disagrees with what it returns. Both are fixed by renaming, so the fix offers the phases that fit the return
+/// type and renames the method through the solution.
 /// </summary>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(PhaseNameCodeFix)), Shared]
 public sealed class PhaseNameCodeFix : CodeFixProvider

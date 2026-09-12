@@ -9,12 +9,12 @@ namespace StateAlchemist.Generators;
 
 /// <summary>
 /// Reports a declaring library's own problems where its modules are written (spec §8). Roslyn cannot see a
-/// referenced assembly's non-public members, so a module compiled into a library must be checked while that library
-/// compiles: the generator, running in the application, would never see them.
+/// referenced assembly's non-public members, so a module compiled into a library has to be checked while that
+/// library compiles; the generator, running in the application, would never see them.
 /// <para>
-/// Only the diagnostics that a module's own declarations can be wrong about are reported here — a state that is not
-/// a public struct, a member that is not public static, a phase whose name or signature is wrong. Everything about
-/// how declarations fit together needs a machine, and stays the generator's.
+/// Only what a module's own declarations can be wrong about is reported here: a state that is not a public struct,
+/// a member that is not public static, a phase whose name or signature is wrong. Anything that depends on how
+/// declarations fit together needs a machine, and stays the generator's.
 /// </para>
 /// </summary>
 [DiagnosticAnalyzer(LanguageNames.CSharp)]

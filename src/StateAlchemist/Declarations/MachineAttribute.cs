@@ -4,7 +4,8 @@ namespace StateAlchemist;
 
 /// <summary>
 /// Declares a machine on a <c>partial class</c>. The source generator fills the class in with the machine's
-/// storage, dispatch, plan layer and definition, built from the modules named by <see cref="IncludeAttribute"/>.
+/// storage, dispatch, plan layer and definition, built from the modules named by <see cref="IncludeAttribute"/>
+/// and, when the class carries <see cref="IncludeExportedAttribute"/>, those its references export.
 /// </summary>
 /// <example>
 /// <code>

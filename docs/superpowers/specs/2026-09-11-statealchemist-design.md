@@ -1,9 +1,10 @@
 # StateAlchemist — a source-generated hierarchical state machine library
 
-**Status:** design, approved 2026-09-11 · **Package:** `StateAlchemist`
+**Status:** approved 2026-09-11, and implemented: see the
+[roadmap](../plans/2026-09-11-00-roadmap.md) · **Package:** `StateAlchemist`, not yet published
 
-**First consumer:** TelnetNegotiationCore (TNC) 4.0. The TNC migration gets its own spec once this library's
-design is settled; section 12 only maps the concepts across.
+**First consumer:** TelnetNegotiationCore (TNC) 4.0, which has its own
+[migration design](2026-09-11-tnc-4.0-migration-design.md); section 12 only maps the concepts across.
 
 ---
 
@@ -81,9 +82,6 @@ Every decision below was taken or approved during design review on 2026-09-11.
 | D8 | A transition's access to each state follows its role relative to the lowest common ancestor: exiting `in`, staying `ref`, entering `ref`. The parameter list declares what it touches. | Decided |
 | D9 | Async work that decides an outcome is split: an async decision over values, then a synchronous `Complete` per outcome over `ref`s, via a generated pending state that owns its cancellation. | Decided |
 | D10 | While a decision is pending, other triggers are **deferred** by default. | Decided |
-| D25 | **A machine's modules are named where the machine is declared.** `[Include(typeof(M))]` is the only way a module joins a machine by default — the same explicit composition root StrongInject, Jab and Pure.DI use, and the only shape in which a conflict between two modules can be reported to whoever chose them both. For the plugin experience — "add a package, get a protocol" — a library may *export* modules with an assembly-level `[assembly: ExportsModule(typeof(M))]`, and a machine may take every exported module with `[IncludeExported]`, optionally `Except` some. Both ends opt in. The generator reads only the assembly attributes of referenced assemblies, never their types: scanning referenced types for markers is expensive and cannot be done incrementally (Roslyn's own guidance), and the assembly attributes project to a sorted array of metadata names, which caches. Generator-to-generator chaining, which would let a library compose the machine for the host, is not possible: generators see the same input compilation and never each other's output, and Roslyn has intentionally avoided changing that. | Decided |
-| D24 | Phase names are discoverable through code fixes, which work in Rider, Visual Studio and VS Code: `SALCH0901` (info, an empty class-form transition) and `SALCH0902` (hidden, on any transition) offer **Add Guard / Transform / Completed / CompletedAsync** and **Add Complete for** an uncovered outcome, each with the exact signature the transition's roles allow; `SALCH0206` offers a rename for near-miss names. A base class with overridable phases was rejected: phase signatures depend on the tree, and instances would replace static calls. | Decided |
-| D23 | Deferral is invisible to the host: `FireAsync` completes when its input has been processed, including waiting for any decision it started, so awaiting it *is* the backpressure. There is no `IsDeferring`, `WhenReady()`, consumed count or `MachineDeferringException`. | Decided |
 | D11 | The generator runs in the consuming app over the whole program; plugins are chosen at compile time. | Decided |
 | D12 | Two kinds of trigger: *values* (a `switch`, ranges, `OrElse`) and typed *events*. | Decided |
 | D13 | Transforms and guards may take the context; the signature shows it and the definition records it. `[Machine(Purity = Purity.Strict)]` forbids it, for machines that want the pure layer guaranteed. | Decided |
@@ -92,10 +90,13 @@ Every decision below was taken or approved during design review on 2026-09-11.
 | D16 | Hooks (`OnTransitioned`, `OnUnhandled`, the exception hooks) are generated `partial` methods, free when not implemented. | Decided |
 | D17 | Sync and async decisions, named by the .NET convention: `Decide` returns the union, `DecideAsync` returns `ValueTask<TUnion>`. The same holds for `Completed`/`CompletedAsync`. The suffix must match the shape. Guards cover the simple "pick a target" case. | Decided |
 | D18 | Exception semantics (§6.9), with optional per-phase exception hooks that receive the exception and the transition and choose the recovery. | Decided |
-| D19 | Concurrency is a compile-time choice per machine: `Checked` (default; concurrent use throws), `Unchecked` (no guard), or `Serialized` (any thread may fire; a `Channel` inbox, drained inline, processes calls in turn; an optional capacity makes it bounded, for backpressure on event producers). The deferring path uses the same inbox in every mode. | Decided |
+| D19 | Concurrency is a compile-time choice per machine: `Checked` (default; concurrent use throws), `Unchecked` (no guard), or `Serialized` (any thread may fire; an inbox, drained inline by whichever caller finds the machine idle, processes calls in turn; `InboxCapacity` makes it bounded, for backpressure on event producers). The deferring path uses the same inbox in every mode. The inbox is a list and a lock, not a `Channel`: see the Plan 6 findings in the roadmap. | Decided |
 | D20 | The library is named **StateAlchemist**; diagnostics use the prefix `SALCH` (StyleCop owns `SA`). | Decided |
 | D21 | A state with children always enters an `[Initial]` child; the machine rests only in leaves. | Decided |
-| D22 | Construction runs no actions; `StartAsync()` runs the initial path's `[Entered]` actions once, and `StopAsync()` runs `[Exited]` from the leaf to the root. Every `FireAsync` begins by comparing the machine's status, which is one predicted branch — not free, but below what the benchmarks can measure. An analyzer flags firing a machine that is not started on every path (`SALCH0801`). | Decided |
+| D22 | Construction runs no actions; `StartAsync()` runs the initial path's `[Entered]` actions once, and `StopAsync()` runs `[Exited]` from the leaf to the root. Every `FireAsync` begins by comparing the machine's status: one predicted branch, below what the benchmarks can measure. An analyzer flags firing a machine that is not started on every path (`SALCH0801`). | Decided |
+| D23 | Deferral is invisible to the host: `FireAsync` completes when its input has been processed, including waiting for any decision it started, so awaiting it *is* the backpressure. There is no `IsDeferring`, `WhenReady()`, consumed count or `MachineDeferringException`. | Decided |
+| D24 | Phase names are discoverable through code fixes, which work in Rider, Visual Studio and VS Code: `SALCH0901` (info, an empty class-form transition) and `SALCH0902` (hidden, on any transition) offer **Add Guard / Transform / Completed / CompletedAsync** and **Add Complete for** an uncovered outcome, each with the exact signature the transition's roles allow; `SALCH0206` offers a rename for near-miss names. A base class with overridable phases was rejected: phase signatures depend on the tree, and instances would replace static calls. | Decided |
+| D25 | **A machine's modules are named where the machine is declared.** By default `[Include(typeof(M))]` is the only way a module joins a machine, as in StrongInject, Jab and Pure.DI; it is also the only arrangement in which a conflict between two modules can be reported to whoever chose them both. A library may additionally *export* modules with `[assembly: ExportsModule(typeof(M))]`, and a machine may take what its references export with `[IncludeExported]`, optionally `Except` some. Both ends opt in, so a package reference alone never changes a machine. Only the assembly attributes of references are read, never their types: scanning referenced types for markers cannot be done incrementally (Roslyn's guidance), while assembly attributes project to metadata names and cache. A library cannot compose the machine for its host with a generator of its own: generators all see the same input compilation and never each other's output, and Roslyn has kept it that way deliberately. | Decided |
 
 ## 5. The model
 
@@ -103,8 +104,9 @@ Every decision below was taken or approved during design review on 2026-09-11.
 
 ```
 StateAlchemist package      runtime types (attributes, IState<T>, IMachine<T>, plan/definition types)
-                            + analyzers/: the source generator and diagnostics. No dependencies on
-                            net8.0+; System.Threading.Channels on netstandard2.0.
+                            + analyzers/: the generator, the analyzers and the code fixes. No
+                            dependencies on net8.0+; System.Memory and Microsoft.Bcl.AsyncInterfaces
+                            on netstandard2.0.
       ▲
 Declaring libraries         state structs, transition methods, events, grouped into modules; optionally
                             [assembly: ExportsModule(...)] so an app can take them by reference (D25).
@@ -543,37 +545,34 @@ that mode's code.
 
 | Mode | Who may fire | Misuse | Cost per call (measured, uncontended) |
 |---|---|---|---|
-| `Checked` (default) | One caller at a time | Detected: throws `ConcurrentUseException`, never corrupts state | +6.5 ns (one `Interlocked.Exchange`) |
+| `Checked` (default) | One caller at a time | Detected: throws `ConcurrentUseException`, never corrupts state | +4.9 ns (one `Interlocked.CompareExchange`) |
 | `Unchecked` | One caller at a time | Undefined: state can corrupt | none |
-| `Serialized` | Any thread | None: calls are queued and processed one at a time, in turn | +20.7 ns (unbounded `Channel` inbox, drained inline); +47.7 ns bounded |
+| `Serialized` | Any thread | None: calls are queued and processed one at a time, in turn | +65 ns (inbox, drained inline); more when bounded |
 
 - **`Checked`** follows `Dictionary`, which detects concurrent modification and throws instead of corrupting:
   wrong use fails loudly, and correct use pays one interlocked operation per call.
 - **`Unchecked`** follows `Channels`' `SingleReader`/`SingleWriter`: the host promises a single caller, and the
   machine takes the faster path.
-- **`Serialized`** follows Orleans' turn-based grains: any thread may call `FireAsync`. Each call is written to a
-  `Channel` created with `SingleReader = true`, and whichever caller finds the machine idle drains it inline with
-  `TryRead` — no dedicated consumer task, no thread hop when uncontended. Each transition, *including its awaited
-  actions*, runs to completion before the next begins. That is what external locking cannot give Stateless: a
-  lock around `FireAsync` breaks down once handlers are async.
-  - **Bounded inbox:** `[Machine(Concurrency = Concurrency.Serialized, InboxCapacity = n)]` uses a bounded channel
-    with `FullMode = Wait`, so event producers that outrun the machine are made to wait instead of growing the
-    queue. It costs +47.7 ns per call (the bounded channel takes a lock), so it is opt-in.
-  - **Inbox items** are a generated struct: a tag plus the value or one of the event payloads. Nothing is boxed.
-  - **Completion:** a caller whose trigger queued behind another awaits a pooled `IValueTaskSource`
-    (`ManualResetValueTaskSourceCore`) that completes when its transition does, carrying that transition's
-    exception if it throws. Nothing is allocated per call in steady state.
+- **`Serialized`** follows Orleans' turn-based grains: any thread may call `FireAsync`, each call becomes an
+  input in the machine's inbox, and whichever caller finds the machine idle runs it on the calling thread. No
+  consumer task, and no thread hop when uncontended. Each transition, *including its awaited actions*, runs to
+  completion before the next begins. This is what external locking cannot give Stateless: a lock around
+  `FireAsync` breaks down once handlers are async.
+  - **The inbox** is a list guarded by a lock. A `Channel` was specified first and measured slower: its own
+    completion sources and its bounded mode cost more than the rest of the call, and the machine has one reader
+    by construction.
+  - **Bounded inbox:** `[Machine(Concurrency = Concurrency.Serialized, InboxCapacity = n)]` counts room with a
+    `SemaphoreSlim`, so a producer that outruns the machine waits instead of growing the queue. A bounded machine
+    always goes through its inbox, so it costs more per call; it is opt-in.
+  - **Completion:** an input *is* the pooled `IValueTaskSource` (`ManualResetValueTaskSourceCore`) its caller
+    awaits. It completes when that caller's triggers are done, carrying the exception if one throws, and returns
+    to the pool, so nothing is allocated per call in steady state.
 - **Guards are paid per call, not per value.** The batch `FireAsync(ReadOnlyMemory<TValue>)` takes the guard once
-  for the whole batch, so a 4 KB read pays its +6.5 ns or +18 ns once, not 4,096 times.
+  for the whole batch, so a 4 KB read pays the +4.9 ns once, not 4,096 times.
 - **The deferring path is serialised in every mode.** While a decision is pending, the caller that started it is
   awaiting and the decision's completion arrives on another thread, so events fired meanwhile go through the same
-  `Channel` inbox even in `Checked` and `Unchecked` machines — which is what lets a disconnect or timeout reach a
-  pending decision (§6.6). The cost exists only while a decision is pending.
-
-For comparison on the same machine: a raw `ConcurrentQueue` inbox +18.3 ns, `System.Threading.Lock` +13 ns,
-`Monitor` +15 ns, `SemaphoreSlim.WaitAsync` +32 ns — and a lock alone is not correct once actions are async.
-The `Channel` costs 2.4 ns more than the raw queue it is built on, for standard completion semantics and the
-bounded option.
+  inbox even in `Checked` and `Unchecked` machines. That is how a disconnect or timeout reaches a pending
+  decision (§6.6). The cost exists only while a decision is pending.
 
 ## 7. Generated code
 
@@ -707,12 +706,13 @@ so a regression fails the build, not only the benchmark.
 
 ## 11. Packaging and repository
 
-- One package, `StateAlchemist`: `lib/{netstandard2.0,net8.0,net10.0,net11.0}` (runtime; its only dependency is
-  `System.Threading.Channels` on `netstandard2.0`) and
-  `analyzers/dotnet/cs` (generator and analyzers, `netstandard2.0`, Roslyn 4.8 — i.e. apps building with the
-  .NET 8 SDK or later).
+- One package, `StateAlchemist`: `lib/{netstandard2.0,net8.0,net10.0,net11.0}` for the runtime, whose only
+  dependencies are `System.Memory` and `Microsoft.Bcl.AsyncInterfaces` on `netstandard2.0`; and
+  `analyzers/dotnet/cs` for the generator, the analyzers and the code fixes (`netstandard2.0`, Roslyn 4.8, so
+  apps building with the .NET 8 SDK or later can load them).
 - Repository conventions follow TNC: warnings as errors, `global.json` pinning the .NET 11 SDK (`latestFeature`),
-  CI testing each runtime by framework, a CHANGELOG, a version bump per PR.
+  CI testing each runtime by framework, and a CHANGELOG. The version comes from the git tag (MinVer), and
+  `docs/releasing.md` is the procedure.
 
 ## 12. Mapping TNC onto it (outline for the migration spec)
 
@@ -732,37 +732,30 @@ so a regression fails the build, not only the benchmark.
 | `OnTransitioned` trace logging | `partial void OnTransitioned` |
 | 2.17 plain-text shortcut | `[Run]` on `ReadingCharacters`, stop set `{IAC, LF}` |
 | auth / TTABLE / encryption callbacks | async decisions with union outcomes, deferred by default |
-| plugin `ConfigureStateMachine` + `AddPlugin<T>()` | a `[Module]` + `[Include(typeof(T))]` on the app's machine |
+| plugin `ConfigureStateMachine` + `AddPlugin<T>()` | a `[Module]`, and either `[Include(typeof(M))]` on the app's machine or `[assembly: ExportsModule(typeof(M))]` plus `[IncludeExported]` (D25) |
 | `ByteOrTrigger`, `ReadNextCharacter` | gone: values are bytes, `Error` is an event |
 
 The migration breaks TNC's public API (`TelnetStateMachine`, `IProtocolContext.StateMachine`,
-`ConfigureStateMachine`, the `State` enum) and is TNC 4.0. How TNC's runtime options (client/server mode,
-per-plugin options) map onto machine declarations and `TConfig` is the migration spec's first question.
+`ConfigureStateMachine`, the `State` enum) and is TNC 4.0. The
+[migration design](2026-09-11-tnc-4.0-migration-design.md) carries it from here.
 
 ## 13. Milestones
 
-Each milestone ends with its exit criteria green in CI.
-
-| | Scope | Exit criteria |
-|---|---|---|
-| **M0** Skeleton | Repo, runtime/generator/tests/benchmarks/samples projects, CI matrix, `global.json`. | An empty generator runs in a sample app on all TFMs. |
-| **M1** Flat machines, cross-assembly | States without hierarchy; value triggers (`On`, `OnAny`); stay/move; sync transforms; `switch` dispatch; `StateId`; `Definition`; SALCH0001–0002, SALCH0101, SALCH0203–0204. Declarations in a separate library from the start. | A flat telnet-negotiation sample; 0 B per fire; first benchmark against Stateless recorded. |
-| **M2** Hierarchy and data lifetimes | `IState<T>`; LCA and roles; generated exit/entry sequences; `Reset`; per-level precedence; ranges; re-entry snapshots; guards and `Order`; `[Initial]` children; SALCH0003–0004, SALCH0102, SALCH0201–0202, SALCH0301, SALCH0502. | Property tests against the reference interpreter pass on random trees. |
-| **M3** Actions and events | `void`/`ValueTask` actions with the sync fast path and continuations; class-form transitions and phase names; `Completed`, `[Exited]`, `[Entered]` with `Order`; `StartAsync`; typed events; the event queue; hooks; exception semantics; exception hooks and `Enqueue`; `StopAsync`/`DisposeAsync`; SALCH0801; SALCH0103, SALCH0205–0207, SALCH0501, SALCH0601. | Order-of-operations and exception-hook tests; 0 B when actions complete synchronously. |
-| **M4** Decisions and deferral | Sync and async decisions; pending states; union outcomes; cancellation on exit; `Handle`; `FireAsync` waiting through a decision, and events from other callers while it waits; the three concurrency modes and the `Channel` inbox (bounded and unbounded); SALCH0208–0209, SALCH0401–0402. | A `Pipe` sample with the ordinary read loop stops reading while a decision is pending and resumes at the right byte; a disconnect event cancels a pending decision; cancellation tests. |
-| **M5** Runs and performance | `[Run]` with `SearchValues`/scalar fallback; pooled continuations; full benchmark suite; AOT sample; SALCH0701. | Every §9 target met. |
-| **M6** Preview release | Diagrams; `Plan`; docs for every diagnostic; `1.0.0-preview.1` package. | Published preview; the TNC migration spec written against it. |
+The milestones this section first listed (M0–M6) were re-cut into the eight implementation plans in the
+[roadmap](../plans/2026-09-11-00-roadmap.md), which records what each one delivered and what validating it taught.
+All eight are written and validated; nothing is published.
 
 ## 14. Open questions
 
-1. **Minimum SDK for consumers** — proposed: .NET 8 SDK (Roslyn 4.8). Newer Roslyn APIs would raise it.
+1. **Minimum SDK for consumers**: settled at the .NET 8 SDK (Roslyn 4.8), which is what the generator, the
+   analyzers and the code fixes are built against.
 
 ## 15. Risks
 
 | Risk | Mitigation |
 |---|---|
 | Generator complexity and debuggability. | Generated code written to be read (one method per move, comments naming the declaration); snapshot tests; the reference interpreter as an oracle. |
-| Choosing plugins at compile time is a large change for TNC users. | It is TNC 4.0; the migration guide maps every plugin; an app can declare several machines. |
+| Choosing plugins at compile time is a large change for TNC users. | It is TNC 4.0; the migration design maps every plugin, an app can declare several machines, and D25 keeps "reference a package, get its module". |
 | Declarations cross assembly boundaries as metadata only. | Attribute arguments must be constants (`typeof`, literals); declaration-site analyzers catch shape errors where they are written. |
 | Whole-program generation cost grows with plugin count. | Incremental pipeline keyed per module; the §9 generator target is a CI check. |
 | `SearchValues` is `net8.0`+. | Scalar fallback for `netstandard2.0`, covered by the same run tests. |

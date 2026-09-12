@@ -93,9 +93,8 @@ public class AllocationTests
 
     /// <summary>
     /// A suspending action costs a fixed amount every time (spec §9): the call finishes in one async method, so
-    /// firing the action adds a bounded amount to awaiting it directly, and never more as the calls go on. The
-    /// Debug build the suite runs compiles async state machines as classes, which defeats the pooled builder; what
-    /// a Release build costs is in the benchmarks.
+    /// firing the action adds a bounded amount to awaiting it directly. The Debug build this suite runs compiles
+    /// async state machines as classes, which defeats the pooled builder; the Release cost is in the benchmarks.
     /// </summary>
     [Test]
     public async Task ASuspendingActionCostsTheSameEveryTime()

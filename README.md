@@ -13,36 +13,31 @@
 A source-generated hierarchical state machine library for .NET. Your states own their data, your transitions
 own the transformation, and the compiler writes the machine.
 
-> **Status: under construction, not released.** The generator writes working machines — hierarchy, actions,
-> events, decisions, runs, every concurrency mode — that pass the whole contract suite, and they are fast: a stay
-> costs 7.7 ns and a move 20 ns with no allocation at all, a kilobyte of text is captured at 48 GB/s, and a machine
-> publishes into a native binary with no warnings. The analyzers, the code fixes, the diagrams and the package are
-> in too — the whole design is implemented and tested. Nothing is on NuGet yet; publishing is its own decision.
+> **Status: implemented, not released.** The generator, the analyzers, the code fixes and the package are all
+> written and tested: 1,077 tests, the whole design, every performance target in the spec. Nothing is on NuGet yet.
 >
-> - **[Documentation](docs/index.md)** — concepts, guides and reference, written first as the contract the code is
->   built against.
+> - **[Documentation](docs/index.md)** — concepts, guides and reference.
 > - **[Roadmap](docs/superpowers/plans/2026-09-11-00-roadmap.md)** — the order of work and how it is tested.
 > - **[Design specification](docs/superpowers/specs/2026-09-11-statealchemist-design.md)** — every decision and why.
 
 ## Why
 
 State machine libraries such as [Stateless](https://github.com/dotnet-state-machine/stateless) interpret your
-configuration at runtime: every trigger is looked up in dictionaries, dispatched through delegates, and allocates
-along the way. That's fine for a workflow that fires a few times a minute. It isn't fine for a protocol parser
-on a TCP connection, where every byte is a trigger.
+configuration at runtime: every trigger is a dictionary lookup and a delegate call, and allocates on the way.
+That is affordable for a workflow that fires a few times a minute, and not for a protocol parser on a TCP
+connection, where every byte is a trigger.
 
 Measured on .NET 11 RC1 against the shape of [TelnetNegotiationCore](https://github.com/HarryCordewener/TelnetNegotiationCore)'s
-state machine, per byte fired:
+state machine:
 
-| | Stateless 5.20 | StateAlchemist (target) |
+| | Stateless 5.20 | StateAlchemist |
 |---|---|---|
-| Negotiation byte | 611 ns, 1,575 B | ≤ 25 ns, **0 B** |
-| Subnegotiation payload byte | 282 ns, 1,193 B | a vectorised run: ≥ 1 GB/s, **0 B** |
-| Building the machine, per connection | 4.4 ms, 2.2 MB | nothing: the definition is generated code |
+| A negotiation byte | 611 ns, 1,575 B | 20 ns, **0 B** |
+| A byte of subnegotiation payload | 282 ns, 1,193 B | a run: 1 KB in 21 ns, **0 B** |
+| Building the machine, per connection | 4.4 ms, 2.2 MB | 0.07 µs, one object |
 
-StateAlchemist moves that work to compile time. A source generator reads your declarations and emits the
-machine as straight-line code: a `switch` on the active state, then on the trigger, calling your
-transformations directly.
+A source generator reads your declarations and emits the machine as straight-line code: a `switch` on the active
+state, then on the trigger, calling your transformations directly.
 
 ## The idea
 
@@ -59,13 +54,12 @@ lives in a state that isn't being left.
 - **External code is kept separate from state changes.** Transforms are synchronous and pure. Actions (network
   writes, callbacks, logging) run after the state commits, and may be async. One that completes synchronously
   allocates nothing.
-- **Async decisions defer, and you don't have to care.** When outside code has to choose the outcome (an auth
-  check, an API lookup), the machine parks in a generated pending state until it has an answer. `FireAsync` simply
-  completes once your input has been processed, so the ordinary `Pipe` read loop stops reading while it waits and
-  the pipe pushes back on the sender. Leaving the pending state cancels the decision.
+- **Async decisions defer without an API for it.** When outside code chooses the outcome (an auth check, an API
+  lookup), the machine parks in a generated pending state until it has an answer. `FireAsync` completes once your
+  input has been processed, so a `Pipe` read loop stops reading while it waits and the pipe pushes back on the
+  sender. Leaving the pending state cancels the decision.
 
 ```csharp
-// Planned API, per the approved design.
 public struct SubNegotiation : IState<Connected> { public byte Option; }
 [Initial] public struct AwaitingOption : IState<SubNegotiation> { }
 public struct Naws : IState<SubNegotiation> { public byte[]? Bytes; public int Index; }
@@ -86,32 +80,24 @@ public struct Naws : IState<SubNegotiation> { public byte[]? Bytes; public int I
 public sealed partial class MudTelnet;
 ```
 
-## Planned features
+## Features
 
 - Hierarchical states whose data is reset on entry and cleared on exit, with no allocation per entry.
-- Two kinds of trigger: *values* (a byte, a `char`, a small enum), matched exactly, by range, or by `OnAny`,
-  which catches whatever a state doesn't otherwise handle; and typed *events* with their own payload.
-- *Run* transitions: a vectorised scan hands a whole stretch of input to one call, instead of one dispatch per value.
+- Value triggers (a byte, a `char`, a small enum) matched exactly, by range, or by `OnAny` for whatever a state
+  does not otherwise handle; and typed events with their own payload.
+- Run transitions: one call takes a whole stretch of input, found by a vectorised scan.
 - Async actions and decisions with a synchronous fast path, run-to-completion semantics, and backpressure.
-- Compile-time diagnostics for conflicts between plugins, role violations, and decision outcomes with no
-  transition.
-- A pure *plan* layer (what would this trigger do?) and the whole machine as data, with Mermaid and DOT diagrams
-  generated as constants.
-- Native AOT and trimming clean, with no reflection. Targets `netstandard2.0`, `net8.0`, `net10.0` and `net11.0`.
+- Compile-time diagnostics for conflicts between plugins, role violations, and uncovered decision outcomes, with
+  code fixes for the ones a fix can write.
+- A pure *plan* layer (what would this trigger do?), the machine as data, and Mermaid and DOT diagrams as
+  constants.
+- No reflection: AOT- and trim-clean. Targets `netstandard2.0`, `net8.0`, `net10.0` and `net11.0`.
 
-## Roadmap
+Adding a protocol is adding a package reference: a library offers its modules with
+`[assembly: ExportsModule(typeof(M))]`, and a machine takes them with `[IncludeExported]`.
 
-| Milestone | Scope |
-|---|---|
-| M0 | Repository skeleton, generator plumbing, CI |
-| M1 | Flat machines declared across assemblies, `switch` dispatch |
-| M2 | Hierarchy, data lifetimes, roles, guards |
-| M3 | Actions, events, run-to-completion |
-| M4 | Async decisions, deferral and backpressure |
-| M5 | Run transitions and the performance targets |
-| M6 | `1.0.0-preview.1` |
-
-The first consumer is [TelnetNegotiationCore](https://github.com/HarryCordewener/TelnetNegotiationCore) 4.0.
+The first consumer is [TelnetNegotiationCore](https://github.com/HarryCordewener/TelnetNegotiationCore) 4.0; the
+[migration design](docs/superpowers/specs/2026-09-11-tnc-4.0-migration-design.md) says how.
 
 ## License
 

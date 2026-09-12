@@ -34,8 +34,8 @@ Plans 1–2's constraints hold. In addition:
   releases it (a gate, an answer), never a timing.
 - **Outcome unions use C# 15 `union` declarations**, compiled on every target: below .NET 11 the contract library
   declares `UnionAttribute` and `IUnion` internally, exactly as a declaring library targeting `net8.0` would.
-- **No `System.Threading.Channels` in the interpreter.** It is the generated machine's inbox (Plan 6); the
-  interpreter's inbox is a locked list, which is easier to read and lets it pick a handled event out of order.
+- **No `System.Threading.Channels` in the interpreter.** Its inbox is a locked list, which is easier to read and
+  lets it pick a handled event out of order.
 
 ## File structure
 
@@ -3269,8 +3269,8 @@ public interface IMachine<TValue> : IAsyncDisposable
     /// <summary>Fires values in order, consuming runs of values in one call.</summary>
     /// <param name="values">The values. The machine holds them until the returned task completes; nothing is copied.</param>
     /// <returns>
-    /// Completes when every value has been processed, including waiting for any decision one of them started — so a
-    /// read loop that awaits it stops reading while a decision is pending, which is the backpressure.
+    /// Completes when every value has been processed, including waiting for any decision one of them started. A read
+    /// loop that awaits it therefore stops reading while a decision is pending, which is the backpressure.
     /// </returns>
     /// <exception cref="MachineNotRunningException">The machine is not running, or was stopped while waiting on a decision.</exception>
     ValueTask FireAsync(ReadOnlyMemory<TValue> values);

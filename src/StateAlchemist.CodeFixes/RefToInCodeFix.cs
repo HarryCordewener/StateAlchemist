@@ -12,8 +12,8 @@ using StateAlchemist.Model;
 namespace StateAlchemist.CodeFixes;
 
 /// <summary>
-/// <c>SALCH0201</c>: a transition takes a state it exits by <c>ref</c>. Writing to it would be writing to data that
-/// is about to be cleared, so the fix is the only one that can be right — take it as <c>in</c>, and read it.
+/// <c>SALCH0201</c>: a transition takes a state it exits by <c>ref</c>. The data is about to be cleared, so there
+/// is one fix: take it as <c>in</c> and read it.
 /// </summary>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(RefToInCodeFix)), Shared]
 public sealed class RefToInCodeFix : CodeFixProvider

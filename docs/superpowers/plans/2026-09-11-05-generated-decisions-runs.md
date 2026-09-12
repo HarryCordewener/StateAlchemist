@@ -31,8 +31,7 @@ pending-decision parts of an inbox are written only into machines with an async 
 would be compiler warnings, and so errors.
 
 Performance is Plan 6's: this plan allocates an input per call and a pending slot per decision, and uses a locked
-list for the inbox, exactly as the interpreter does. The bounded inbox (`InboxCapacity`) arrives with Plan 6's
-`Channel`.
+list for the inbox, exactly as the interpreter does. The bounded inbox (`InboxCapacity`) arrives in Plan 6.
 
 ## File structure
 
@@ -3524,8 +3523,7 @@ git commit -m "The C# 7.3 test and random agreement cover decisions, the inbox a
   inbox.
 - **The outcome is read from the union's `Value`**, noted in `concepts/decisions.md`, so generated code needs no
   C# 15 pattern matching.
-- **The bounded inbox waits for Plan 6.** Neither the interpreter nor generated code honours `InboxCapacity` yet; it
-  arrives with the `Channel` inbox.
+- **The bounded inbox waits for Plan 6.** Neither the interpreter nor generated code honours `InboxCapacity` yet.
 
 ## Plan 5 exit gate
 

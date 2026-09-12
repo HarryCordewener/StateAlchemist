@@ -18,24 +18,23 @@ await telnet.StopAsync();                             // [Exited] actions from t
 ## Why starting is separate
 
 **Construction runs no actions.** It resets every state's storage and sets the active leaf to the root's initial
-path — nothing more, so it cannot fail and cannot await.
+path. Nothing else, so it cannot fail and cannot await.
 
 **`StartAsync` runs the initial path's `[Entered]` actions once** — a second call throws
 `InvalidOperationException`. Those actions may `Enqueue` events; they run before the first trigger. If one throws,
 the [exception hooks](exceptions.md) apply as they do in a transition, and `Skip` skips the remaining lifecycle
-actions. Keeping it separate means the host finishes
-wiring — attaching the machine to a connection, a pipe, a writer — before any action runs. A telnet server that
-speaks first, sending its offers as soon as a client connects, sends them from an `[Entered]` action: under
-`StartAsync`, not in a constructor, and not waiting for input that may never come.
+actions. Keeping it separate lets the host finish wiring — a connection, a pipe, a writer — before any action
+runs. A telnet server that speaks first sends its offers from an `[Entered]` action, so they go out under
+`StartAsync` rather than from a constructor or on the first byte that may never arrive.
 
 Forgetting to start is caught twice:
 
 - **At compile time**, where it can be seen: [`SALCH0801`](../reference/diagnostics.md#salch0801) warns when a
   method creates a machine and fires it without starting it on every path. A machine that crosses methods, fields
   or dependency injection is left to the runtime check.
-- **At runtime**, for one comparison: the first thing any `FireAsync` does is check the machine's status, and a
-  machine that is not running throws a clear exception instead of dispatching. That check is a field read and a
-  branch the processor predicts — it does not show up in the [measured cost](concurrency.md) of a call.
+- **At runtime**, for one comparison: every `FireAsync` checks the machine's status first, and one that is not
+  running throws instead of dispatching. The check is a field read and a predicted branch, below what the
+  [benchmarks](concurrency.md) can measure.
 
 ## Stopping and disposal
 

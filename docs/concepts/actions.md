@@ -3,7 +3,7 @@
 Transforms change the machine's data; **actions run your code**: network writes, callbacks, logging. Actions run
 *after* the state has changed, so their names are past tense, and they may be async.
 
-## Three places to put an action
+## Where an action goes
 
 | Declared as | Runs | Use it for |
 |---|---|---|
@@ -72,13 +72,13 @@ public static void Trace(TelnetContext context, Naws naws) => context.Log.Add($"
 
 An async action cannot take `ref` or `in` parameters — C# forbids it — which is why actions see copies.
 
-## Async without the cost
+## What async costs
 
 An action returning `ValueTask` that completes synchronously costs nothing extra: the generated code checks
-`IsCompletedSuccessfully` and carries straight on — no state machine is entered, and nothing is allocated. Only an
-action that actually suspends moves the rest of the call into a continuation, and then the whole of the rest of the
-call — the transition, the events it queued, the release — finishes in a single async method, whose state machine
-is pooled on `net6.0` and later. A suspending action costs what the action itself costs, plus that one continuation.
+`IsCompletedSuccessfully` and carries on, entering no state machine and allocating nothing. An action that
+suspends moves the rest of the call into a continuation. The rest of the call is the transition, the events it
+queued and the release, and all of it finishes in one async method, whose state machine is pooled on `net6.0` and
+later. So a suspending action costs what the action costs, plus that one continuation.
 
 While a transition's actions are awaited, the transition is still running: it [runs to
 completion](#run-to-completion) before the next trigger.
@@ -87,7 +87,7 @@ completion](#run-to-completion) before the next trigger.
 
 A transition finishes — through every awaited action — before the next trigger is processed. A trigger fired
 *during* a transition, such as an action calling `Enqueue(new Error())`, is queued and processed at step 9.
-`Enqueue` exists for code running inside the machine — an action, a hook, a decision. Called from anywhere else, it
-throws `InvalidOperationException`: from outside, use `FireAsync`. The
-queue is a small buffer inside the machine that allocates only if more than four events queue at once. Values are
+`Enqueue` is for code running inside the machine: an action, a hook, a decision. Called from outside it throws
+`InvalidOperationException`; use `FireAsync` there. The queue is a small buffer inside the machine, and allocates
+only if more than four events queue at once. Values are
 never queued this way; see [decisions](decisions.md#deferral-and-backpressure).

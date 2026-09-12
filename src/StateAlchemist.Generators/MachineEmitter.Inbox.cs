@@ -3,14 +3,14 @@ using StateAlchemist.Model;
 
 namespace StateAlchemist.Generators;
 
-// The inbox and the pump, written into machines that are Serialized or have an async decision — the design the
+// The inbox and the pump, written into machines that are Serialized or have an async decision: the design the
 // reference interpreter runs (Plan 3), in generated C# 7.3. Every FireAsync is an input; whoever finds the machine
 // idle pumps, one trigger per step; a pending decision pauses the input that started it while the machine accepts
-// the events it handles. See ReferenceMachine.Inbox.cs for the rules, stated once.
+// the events it handles. ReferenceMachine.Inbox.cs states the rules once.
 //
-// For speed (Plan 6): inputs are pooled and are themselves the IValueTaskSource a caller awaits, so a call allocates
-// nothing in steady state; the pump runs synchronously and continues asynchronously only when a step suspends; and
-// the AsyncLocal that catches self-firing is set only while a decision is pending, which is rare. The
+// Plan 6 made it cheap: inputs are pooled and are themselves the IValueTaskSource a caller awaits, so a call
+// allocates nothing in steady state; the pump runs synchronously and continues asynchronously only when a step
+// suspends; and the AsyncLocal that catches self-firing is set only while a decision is pending. The
 // pending-decision parts are written only into machines that have an async decision.
 internal sealed partial class MachineEmitter
 {

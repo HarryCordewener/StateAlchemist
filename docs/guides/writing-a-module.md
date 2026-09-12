@@ -76,6 +76,10 @@ Nothing in `TelnetCore` changes. The core never needed to know NAWS exists.
 public sealed partial class MudTelnet;
 ```
 
+To save applications that line, offer the module from your assembly — `[assembly: ExportsModule(typeof(NawsModule))]`
+— and a machine written with `[IncludeExported]` picks it up from the package reference. See
+[modules a library offers](../concepts/machines.md#modules-a-library-offers).
+
 ## What the compiler checks for you
 
 - If another module also claims `AwaitingOption` on byte 31, the application fails to compile with

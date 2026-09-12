@@ -1,6 +1,6 @@
 # Triggers
 
-A trigger is what makes a transition fire. There are two kinds, because they behave differently.
+A trigger is what makes a transition fire. There are two kinds, dispatched differently.
 
 | | Values | Events |
 |---|---|---|
@@ -44,7 +44,7 @@ From the active leaf up to the root, the first match wins, and **at each level**
 Only when a level has nothing does resolution move to the parent. Two things follow:
 
 - **`[OnAny]` is a state's "or else".** It shadows everything its ancestors do with values. `Willing`'s `[OnAny]`
-  refuses every option some module does not accept by exact value — which is exactly what refusing means.
+  refuses every option no module accepts by exact value.
 - **`[OnAny]` never matches an event.** An `Error` transition declared on the root still reaches `Willing`.
 
 Events resolve the same way without the categories: the exact event type at each level, leaf first.
