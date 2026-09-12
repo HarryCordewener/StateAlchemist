@@ -3,15 +3,42 @@
 Five machines, smallest first. Each is compiled in `samples/StateAlchemist.Samples` and run by a test, so what
 these pages show is what the code does.
 
+Each one opens with a diagram: a box for every state, a box inside a box for a state inside a state, and an arrow
+for every transition, labelled with its trigger and what that step does. A `[*]` arrow points at the `[Initial]`
+child a parent enters first. An arrow that leaves a state and comes back to it is a *stay*, which keeps the
+state's data; an arrow between two boxes is a *move*, which clears whatever it enters. The diagrams are checked
+against the machines they draw, so an arrow that is not a transition, or a transition with no arrow, fails a test.
+Every machine also emits its own unannotated `Mermaid` and `Dot` constants — see
+[machines](../concepts/machines.md).
+
 | | Example | Shows |
 |---|---|---|
 | 1 | [A phone call](#a-phone-call) | states, triggers, transitions, actions |
 | 2 | [A pedestrian crossing](#a-pedestrian-crossing) | hierarchy, data lifetime, guards, a move across two levels |
-| 3 | [Telnet](writing-a-module.md) | modules from other libraries, runs, events |
+| 3 | [Telnet](#telnet) | modules from other libraries, runs, events |
 | 4 | [A door with a card reader](#a-door-with-a-card-reader) | async decisions, cancellation, recovery |
 | 5 | [Reading a pipe](#reading-a-pipe) | batches, runs, `Serialized`, backpressure |
 
 ## A phone call
+
+<!-- diagram: PhoneCall -->
+```mermaid
+stateDiagram-v2
+    state Phone {
+        [*] --> OnHook
+        state OnHook
+        state Ringing
+        state Talking
+        state OnHold
+    }
+    OnHook --> Ringing : Lift — off the hook, waiting for an answer
+    Ringing --> Talking : Answered — Phone.Calls + 1, Talking.Seconds = 0
+    Talking --> Talking : Second — Talking.Seconds + 1, a stay, so what it counts survives
+    Talking --> OnHold : Hold — a move out of Talking, so its Seconds are lost
+    OnHold --> Talking : Hold — a move back in, counting from zero again
+    Phone --> OnHook : HangUp — declared on the root, so it works wherever the phone is
+    Phone --> Phone : any — a button that does not apply here, ignored
+```
 
 The same example Stateless opens with. A fixed set of triggers is an enum, and the machine fires that enum:
 
@@ -35,9 +62,12 @@ public enum Button : byte
 
     /// <summary>Hang up.</summary>
     HangUp,
+
+    /// <summary>A second of the call.</summary>
+    Second,
 }
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Phone/PhoneCall.cs#L15-L34' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-triggers' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Phone/PhoneCall.cs#L15-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-triggers' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 States are structs; the one marked `[Initial]` is where the machine starts:
@@ -79,7 +109,7 @@ public struct OnHold : IState<Phone>
 {
 }
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Phone/PhoneCall.cs#L36-L70' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-states' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Phone/PhoneCall.cs#L39-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-states' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 A transition is a method when all it does is change data. Actions are past tense, and run after the state has
@@ -103,6 +133,13 @@ public static class PhoneModule
         phone.Calls++;
         call.Seconds = 0;
     }
+
+    /// <summary>
+    /// A second of the call. It stays in <see cref="Talking"/>, so what it counts belongs to <c>Talking</c> and
+    /// goes when the call is held.
+    /// </summary>
+    [Transition(From = typeof(Talking)), On(Button.Second)]
+    public static void Count(ref Talking call) => call.Seconds++;
 
     [Transition(From = typeof(Talking), To = typeof(OnHold)), On(Button.Hold)]
     public static void Hold()
@@ -135,7 +172,7 @@ public static class PhoneModule
     public static void Ended(PhoneLog log, Talking call) => log.Entries.Add($"talked for {call.Seconds}s");
 }
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Phone/PhoneCall.cs#L72-L119' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-module' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Phone/PhoneCall.cs#L75-L129' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-module' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The application names the root, the trigger type and the modules it wants:
@@ -148,7 +185,7 @@ The application names the root, the trigger type and the modules it wants:
 [Include(typeof(PhoneModule))]
 public sealed partial class PhoneCall;
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Phone/PhoneCall.cs#L121-L126' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-machine' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Phone/PhoneCall.cs#L131-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-machine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ```csharp
@@ -157,12 +194,48 @@ await phone.StartAsync();
 await phone.FireAsync(Button.Lift);
 await phone.FireAsync(Button.Answered);       // log: "connected (call 1)"
 phone.TryGetPhone(out var state);             // state.Calls == 1
+
+await phone.FireAsync(Button.Second);         // three times
+await phone.FireAsync(Button.Hold);           // log: "talked for 3s"
+await phone.FireAsync(Button.Hold);           // log: "connected (call 1)"
+await phone.FireAsync(Button.Second);         // once
+await phone.FireAsync(Button.HangUp);         // log: "talked for 1s"
 ```
 
-Holding the call leaves `Talking`, so the seconds it counts start again afterwards. Data that has to survive
-belongs in a state above both — which is the next example.
+Three seconds before the hold and one after: holding the call leaves `Talking`, so the seconds it counts start
+again, while `Phone.Calls` — one state up, and never left — still reads 1. Data that has to survive belongs in a
+state above both, which is the next example.
 
 ## A pedestrian crossing
+
+<!-- diagram: PedestrianCrossing -->
+```mermaid
+stateDiagram-v2
+    state Junction {
+        [*] --> Working
+        state Working {
+            [*] --> Red
+            state Red
+            state Green
+            state Amber
+        }
+        state Faulted {
+            [*] --> Flashing
+            state Flashing
+        }
+    }
+    Red --> Green : Tick — Green.Seconds = 0, and the Entered action reports it
+    Green --> Green : Tick — Green.Seconds + 1, the fallback when the guard says no
+    Green --> Amber : Tick — tried first, by Order 1; its guard needs Requested and Seconds of 3 or more
+    Amber --> Red : Tick — Working.Requested = false, Junction.Cycles + 1
+    Working --> Working : Requested — Working.Requested = true, a stay, so the light does not change
+    Working --> Faulted : Fault — leaves the light and Working at once, and lands on Flashing
+    Faulted --> Working : Cleared — enters Working, which continues to its initial child, Red
+    Junction --> Junction : any — anything a state below does not handle, ignored
+```
+
+`Junction` outlives everything, `Working` outlives the light it is showing, and `Green` dies when the light
+changes — which is why the button's request sits on `Working` and the seconds sit on `Green`.
 
 Hierarchy, and what it does for data:
 
@@ -329,7 +402,73 @@ public sealed partial class PedestrianCrossing;
 A fault moves across two levels — out of the light, out of `Working`, into `Faulted`, and down to its `[Initial]`
 child. Clearing it enters `Working` and lands on `Red` the same way.
 
+## Telnet
+
+A protocol parser, and the example for modules: `TelnetCore` reads text and recognises `IAC`, and `GmcpModule`
+and `NawsModule` add transitions out of states they do not own. [Writing a module](writing-a-module.md) walks
+through the code; this is its shape.
+
+<!-- diagram: SampleTelnet -->
+```mermaid
+stateDiagram-v2
+    state Connected {
+        [*] --> Idle
+        state Command {
+            [*] --> AwaitingVerb
+            state AwaitingVerb
+            state Willing
+        }
+        state SubNegotiation {
+            [*] --> AwaitingOption
+            state AwaitingOption
+            state Naws
+            state NawsEscaping
+        }
+        state Idle
+    }
+    Idle --> Idle : any — ordinary text, Idle.LineLength + 1
+    Idle --> Idle : 10 — a line feed ends the line, Idle.LineLength = 0
+    Idle --> Command : 255 — IAC, so a command follows
+    AwaitingVerb --> Willing : 251 — WILL, so an option follows
+    AwaitingVerb --> SubNegotiation : 250 — SB, so a subnegotiation follows
+    AwaitingVerb --> Idle : any — a verb no module handles
+    Willing --> Idle : 201 — GMCP, accepted by GmcpModule, which replies IAC DO GMCP
+    Willing --> Idle : any — any other option, refused by TelnetCore with IAC DONT option
+    AwaitingOption --> Naws : 31 — NAWS, and SubNegotiation.Option = 31
+    Naws --> Naws : any — one of the four size bytes, kept in Naws.Bytes
+    Naws --> NawsEscaping : 255 — IAC inside NAWS, carrying the bytes across
+    NawsEscaping --> Idle : 240 — SE, guarded on having all four, sets Connected.Width and Height
+    SubNegotiation --> Idle : any — a subnegotiation no module understands, abandoned
+    Connected --> Idle : Error — an event declared on the root, so it recovers from anywhere
+```
+
+`Willing` has two arrows to `Idle` because that is the point of the example: `TelnetCore` declares the `any` one,
+which refuses, and `GmcpModule` — a different library — declares the `201` one, which accepts. The more specific
+trigger wins, so adding the module changes what the machine does without changing `TelnetCore`.
+
 ## A door with a card reader
+
+<!-- diagram: CardDoor -->
+```mermaid
+stateDiagram-v2
+    state DoorFrame {
+        [*] --> Locked
+        state Locked
+        state Unlocked
+    }
+    Locked --> Unlocked : Badge decide / Allowed — DoorFrame.Admitted + 1, Unlocked.Name = the badge
+    Locked --> Locked : Badge decide / Refused — nothing changes, and the action says why
+    Locked --> Locked : GaveUp — leaves the pending state, which cancels the reader
+    Locked --> Locked : DecisionFailed — the reader threw, and this recovers from it
+    Unlocked --> Locked : GaveUp — the door closes
+    DoorFrame --> DoorFrame : any — this door is driven by events, so its values do nothing
+```
+
+`decide` marks the two arrows the badge could take: which one it does take is not known when the badge arrives,
+only when the reader answers, and the `Complete` for that outcome is what moves the door. In between, the machine
+parks — still in `Locked`, because the pending state it waits in is the machine's own and not one of yours, which
+is why `Handle`'s events are the ones `Locked` would accept. `FireAsync` returns when the answer has been
+processed, so awaiting a badge means awaiting the reader.
 
 When something outside the machine decides the outcome, and may take a while, that is a
 [decision](../concepts/decisions.md). Its result is a union, and each case gets its own `Complete`:
@@ -440,6 +579,22 @@ await door.FireAsync(new Badge(7));           // completes when the reader has a
 ```
 
 ## Reading a pipe
+
+<!-- diagram: LineReader -->
+```mermaid
+stateDiagram-v2
+    state Stream {
+        [*] --> Line
+        state Line
+    }
+    Line --> Line : any run — every byte up to the next newline, in one call, Line.Length + run.Length
+    Line --> Line : 10 — the newline ends the line, Stream.Count + 1 and Line.Length back to 0
+    Stream --> Stream : Flush — an event from another thread, taking its turn like any other input
+```
+
+One state, three arrows, and all of them stays: nothing here is ever left, so `Line.Length` is reset by the
+transform rather than by entering the state. The `run` arrow is what makes a stretch of text one call — its stop
+set, the newline, is worked out at compile time from the other arrows out of `Line`.
 
 The shape a protocol parser wants: bytes arrive in whatever chunks the socket gives, a whole stretch of text is
 one call, and something else fires events meanwhile.

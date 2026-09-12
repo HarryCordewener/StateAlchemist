@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace StateAlchemist;
 
@@ -14,6 +15,7 @@ namespace StateAlchemist;
 /// <param name="isRun">Whether it is a run transition.</param>
 /// <param name="usesContext">Whether its guard or transform takes the context.</param>
 /// <param name="isDecision">Whether it is a decision.</param>
+/// <param name="outcomes">A decision's outcomes and where each goes; empty for anything else.</param>
 public sealed class TransitionDefinition(
     int index,
     string name,
@@ -25,8 +27,37 @@ public sealed class TransitionDefinition(
     bool hasGuard,
     bool isRun,
     bool usesContext,
-    bool isDecision)
+    bool isDecision,
+    IReadOnlyList<OutcomeDefinition> outcomes)
 {
+    /// <summary>Creates a transition with no outcomes.</summary>
+    /// <param name="index">The transition's position in <see cref="MachineDefinition.Transitions"/>.</param>
+    /// <param name="name">The declaring member, such as <c>NawsModule.Capture</c>.</param>
+    /// <param name="source">The source state's index.</param>
+    /// <param name="target">The target state's index, or −1 for a stay.</param>
+    /// <param name="kind">Stay, move or re-entry.</param>
+    /// <param name="trigger">What it fires on.</param>
+    /// <param name="order">Its order among guarded transitions for the same trigger.</param>
+    /// <param name="hasGuard">Whether it declares a <c>Guard</c>.</param>
+    /// <param name="isRun">Whether it is a run transition.</param>
+    /// <param name="usesContext">Whether its guard or transform takes the context.</param>
+    /// <param name="isDecision">Whether it is a decision.</param>
+    public TransitionDefinition(
+        int index,
+        string name,
+        int source,
+        int target,
+        TransitionKind kind,
+        TriggerDefinition trigger,
+        int order,
+        bool hasGuard,
+        bool isRun,
+        bool usesContext,
+        bool isDecision)
+        : this(index, name, source, target, kind, trigger, order, hasGuard, isRun, usesContext, isDecision, new OutcomeDefinition[0])
+    {
+    }
+
     /// <summary>The transition's position in <see cref="MachineDefinition.Transitions"/>.</summary>
     public int Index { get; } = index;
 
@@ -59,4 +90,10 @@ public sealed class TransitionDefinition(
 
     /// <summary>Whether it is a decision.</summary>
     public bool IsDecision { get; } = isDecision;
+
+    /// <summary>
+    /// A decision's outcomes and where each one goes. Empty for every other transition, and for a decision whose
+    /// outcomes the front-end could not resolve.
+    /// </summary>
+    public IReadOnlyList<OutcomeDefinition> Outcomes { get; } = outcomes ?? throw new ArgumentNullException(nameof(outcomes));
 }

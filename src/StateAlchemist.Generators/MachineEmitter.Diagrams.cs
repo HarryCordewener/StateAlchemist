@@ -27,7 +27,6 @@ internal sealed partial class MachineEmitter
         var lines = new List<string> { "stateDiagram-v2" };
         void WriteState(int index, string indent)
         {
-            var state = _model.States[index];
             var children = _model.States.Where(s => s.Parent == index).ToList();
             var name = _stateIds[index];
             if (children.Count == 0)
@@ -43,7 +42,11 @@ internal sealed partial class MachineEmitter
                 lines.Add($"{indent}    [*] --> {_stateIds[initial.Index]}");
             }
 
-            foreach (var child in children)
+            // Composites before leaves: Mermaid cannot parse a bare `state X` immediately followed by a nested
+            // `state Y {`, and reads the two as one name. Ordering this way is the whole fix, and it is stable
+            // because the states themselves are in index order within each group.
+            foreach (var child in children.Where(c => _model.States.Any(s => s.Parent == c.Index))
+                         .Concat(children.Where(c => !_model.States.Any(s => s.Parent == c.Index))))
             {
                 WriteState(child.Index, indent + "    ");
             }
@@ -52,10 +55,9 @@ internal sealed partial class MachineEmitter
         }
 
         WriteState(_hierarchy.Root, "    ");
-        foreach (var transition in _model.Transitions)
+        foreach (var arrow in Arrows())
         {
-            var target = transition.Target < 0 ? transition.Source : transition.Target;
-            lines.Add($"    {_stateIds[transition.Source]} --> {_stateIds[target]} : {Label(transition)}");
+            lines.Add($"    {_stateIds[arrow.Source]} --> {_stateIds[arrow.Target]} : {arrow.Label}");
         }
 
         return string.Join("\n", lines);
@@ -86,14 +88,38 @@ internal sealed partial class MachineEmitter
         }
 
         WriteState(_hierarchy.Root, "    ");
-        foreach (var transition in _model.Transitions)
+        foreach (var arrow in Arrows())
         {
-            var target = transition.Target < 0 ? transition.Source : transition.Target;
-            lines.Add($"    {_stateIds[transition.Source]} -> {_stateIds[target]} [label=\"{Label(transition)}\"];");
+            lines.Add($"    {_stateIds[arrow.Source]} -> {_stateIds[arrow.Target]} [label=\"{arrow.Label}\"];");
         }
 
         lines.Add("}");
         return string.Join("\n", lines);
+    }
+
+    /// <summary>
+    /// One arrow per transition — except a decision, which is one arrow per outcome. A decision does not know its
+    /// target when the trigger arrives, so drawing it as a stay would leave the states only its outcomes reach
+    /// with nothing pointing at them: the door sample's <c>Unlocked</c> is reached by exactly one thing, and that
+    /// thing is an outcome. A decision whose outcomes did not resolve falls back to the stay.
+    /// </summary>
+    private IEnumerable<(int Source, int Target, string Label)> Arrows()
+    {
+        foreach (var transition in _model.Transitions)
+        {
+            var completions = transition.Decision?.Completions ?? [];
+            if (completions.Count == 0)
+            {
+                yield return (transition.Source, transition.Target < 0 ? transition.Source : transition.Target, Label(transition));
+                continue;
+            }
+
+            foreach (var completion in completions)
+            {
+                var outcome = completion.OutcomeType;
+                yield return (transition.Source, completion.Target, $"{Label(transition)} / {outcome.Substring(outcome.LastIndexOf('.') + 1)}");
+            }
+        }
     }
 
     /// <summary>What an arrow says: its trigger, and whether it is a run or a decision.</summary>

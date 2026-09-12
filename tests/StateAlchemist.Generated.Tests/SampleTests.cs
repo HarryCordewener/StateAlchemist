@@ -26,19 +26,43 @@ public class SampleTests
 
         await phone.FireAsync(Button.Lift);
         await phone.FireAsync(Button.Answered);
+        await phone.FireAsync(Button.Second);
+        await phone.FireAsync(Button.Second);
+        await phone.FireAsync(Button.Second);
         await phone.FireAsync(Button.Hold);
         await phone.FireAsync(Button.Hold);
+        await phone.FireAsync(Button.Second);
         await phone.FireAsync(Button.HangUp);
 
         phone.TryGetPhone(out var state);
         await Assert.That(state.Calls).IsEqualTo(1);
         await Assert.That(phone.IsIn<OnHook>()).IsTrue();
         // Hold leaves Talking, so its actions run again when the call resumes — and the seconds start over,
-        // because they belong to Talking. Data that should survive a hold belongs in a state above both.
+        // because they belong to Talking: three seconds before the hold, one after. Data that should survive a
+        // hold belongs in a state above both.
         await Assert.That(log.Entries).IsEquivalentTo(new[]
         {
-            "connected (call 1)", "talked for 0s", "connected (call 1)", "talked for 0s",
+            "connected (call 1)", "talked for 3s", "connected (call 1)", "talked for 1s",
         });
+    }
+
+    /// <summary>Hanging up is declared on the root, so it applies wherever the phone is.</summary>
+    [Test]
+    [Arguments(new[] { Button.Lift })]
+    [Arguments(new[] { Button.Lift, Button.Answered })]
+    [Arguments(new[] { Button.Lift, Button.Answered, Button.Hold })]
+    public async Task HangingUpWorksFromEveryState(Button[] route)
+    {
+        await using var phone = new PhoneCall(new PhoneLog());
+        await phone.StartAsync();
+        foreach (var button in route)
+        {
+            await phone.FireAsync(button);
+        }
+
+        await phone.FireAsync(Button.HangUp);
+
+        await Assert.That(phone.IsIn<OnHook>()).IsTrue();
     }
 
     [Test]
@@ -141,6 +165,53 @@ public class SampleTests
 
         await Assert.That(door.IsIn<Locked>()).IsTrue();
         await Assert.That(access.Log).IsEquivalentTo(new[] { "refused: unknown badge" });
+    }
+
+    /// <summary>What the door counts lives on the root, so it survives every lock and unlock.</summary>
+    [Test]
+    public async Task TheDoorCountsWhoItAdmits()
+    {
+        var access = new Access();
+        await using var door = new CardDoor(access);
+        await door.StartAsync();
+
+        await door.FireAsync(new Badge(7));
+        await door.FireAsync(new GaveUp());             // the door closes
+        await door.FireAsync(new Badge(11));
+
+        door.TryGetDoorFrame(out var frame);
+        await Assert.That(frame.Admitted).IsEqualTo(2);
+        await Assert.That(door.IsIn<Unlocked>()).IsTrue();
+        await Assert.That(access.Log).IsEquivalentTo(new[] { "opened for badge 7", "opened for badge 11" });
+    }
+
+    /// <summary>
+    /// The pending state a decision parks in is the machine's own, not one of yours: while the reader is thinking
+    /// the door is still <see cref="Locked"/>, which is what <c>Handle</c>'s events are matched against.
+    /// </summary>
+    [Test]
+    public async Task WhileTheReaderIsThinkingTheDoorIsStillLocked()
+    {
+        var asked = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var access = new Access
+        {
+            Check = async (_, cancellation) =>
+            {
+                asked.TrySetResult(true);
+                return await new TaskCompletionSource<bool>().Task.WaitAsync(cancellation);
+            },
+        };
+
+        await using var door = new CardDoor(access);
+        await door.StartAsync();
+        var reading = door.FireAsync(new Badge(1));
+        await asked.Task;
+
+        await Assert.That(door.IsIn<Locked>()).IsTrue();
+        await Assert.That(door.Status).IsEqualTo(MachineStatus.Running);
+
+        await door.FireAsync(new GaveUp());
+        await reading;
     }
 
     /// <summary>The event the decision handles ends the wait, and cancels the reader.</summary>

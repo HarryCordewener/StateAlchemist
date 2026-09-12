@@ -4,6 +4,30 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+- `TransitionDefinition.Outcomes`: a decision's outcome cases and the state each one moves to, as
+  `OutcomeDefinition`. A decision has no target — which one it takes is not known when the trigger arrives — so
+  without these the states only a decision reaches were named by nothing in `MachineDefinition`. Purely additive;
+  the existing constructor still works and makes a transition with no outcomes.
+
+### Fixed
+- **A decision's outcomes were missing from the generated diagrams.** `Mermaid` and `Dot` drew a decision as one
+  self-arrow, so a state only an outcome reaches had no arrow into it and read as unreachable — the door sample's
+  `Unlocked`, whose only way in is a decision, among them. A decision is now one arrow per outcome, labelled
+  `<trigger> decide / <Outcome>`.
+- **The generated `Mermaid` constant did not always parse.** Mermaid reads a bare `state X` written immediately
+  before a nested `state Y {` as a single state name and refuses the whole diagram, which is what happened to any
+  machine with a leaf sibling ahead of a composite one — the telnet machine the documentation uses among them.
+  Composite children are now written first. `Dot` was never affected.
+
+### Changed
+- [Examples](docs/guides/examples.md) opens each machine with a diagram of its own: every state, every parent,
+  every `[Initial]` child and every transition, each arrow labelled with its trigger and what that step does.
+  A test reconciles each diagram against the machine's `MachineDefinition`, so an arrow that is not a transition,
+  or a transition with no arrow, fails the build.
+- The phone example counts the seconds of a call, so the lesson its prose draws — that holding the call leaves
+  `Talking` and loses what `Talking` was counting — is something the example actually shows.
+
 ## [1.2.0] — 2026-09-12
 
 There is no 1.1.0.

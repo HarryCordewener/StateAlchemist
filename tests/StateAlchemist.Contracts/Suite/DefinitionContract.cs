@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using StateAlchemist.Contracts.Machines;
+using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Recording;
 using TUnit.Core;
 
@@ -29,6 +30,26 @@ public abstract class DefinitionContract : MachineContract
         await Assert.That(definition.States[sibling.Target].Name).IsEqualTo("A2");
         await Assert.That(definition.Transitions.Single(t => t.Name == "RecorderModule.Pinged").Trigger.ToString()).IsEqualTo("event Ping");
         await Assert.That(definition.Transitions.Single(t => t.Name == "RecorderModule.Stay").Kind).IsEqualTo(TransitionKind.Stay);
+    }
+
+    /// <summary>
+    /// A decision's outcomes, and the state each one moves to. The decision itself has no target — which one it
+    /// takes is not known when the trigger arrives — so without these the states only a decision reaches are
+    /// named by nothing, and a diagram drawn from the definition shows them as unreachable.
+    /// </summary>
+    [Test]
+    public async Task TheDefinitionNamesEachDecisionOutcomeAndWhereItGoes()
+    {
+        var definition = Create(Shapes.Deciding, new RecordingContext(), null).Definition;
+
+        var ask = definition.Transitions.Single(t => t.Name == "DecidingModule.Ask");
+        await Assert.That(ask.IsDecision).IsTrue();
+        await Assert.That(ask.Target).IsEqualTo(-1);
+        await Assert.That(string.Join(",", ask.Outcomes.Select(o => $"{o.Name}->{definition.States[o.Target].Name}")))
+            .IsEqualTo("Accept->Account,Reject->Refused");
+        await Assert.That(ask.Outcomes.Select(o => o.Type)).IsEquivalentTo(new[] { typeof(Accept), typeof(Reject) });
+
+        await Assert.That(definition.Transitions.Single(t => t.Name == "DecidingModule.Again").Outcomes).IsEmpty();
     }
 
     [Test]
