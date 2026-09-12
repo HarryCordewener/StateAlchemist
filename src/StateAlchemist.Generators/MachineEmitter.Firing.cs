@@ -378,8 +378,15 @@ internal sealed partial class MachineEmitter
         }
 
         _w.Line();
-        _w.Line("/// <summary>Consumes a call that a synchronous machine has already finished, and throws what it threw.</summary>");
-        _w.Line($"private static void Await({ValueTaskType} fired) {{ fired.GetAwaiter().GetResult(); }}");
+        _w.Line("/// <summary>Consumes the call, and throws what it threw. Blocks while another thread holds the pump.</summary>");
+        using (_w.Block($"private static void Await({ValueTaskType} fired)"))
+        {
+            // A pooled IValueTaskSource cannot be waited on by GetResult: on an incomplete source it throws rather
+            // than blocking, and the finally in Input.GetResult would then return a still-queued input to the pool.
+            // AsTask consumes the source properly, and blocking on the task is what the caller asked for.
+            _w.Line("if (fired.IsCompleted) { fired.GetAwaiter().GetResult(); return; }");
+            _w.Line("fired.AsTask().GetAwaiter().GetResult();");
+        }
     }
 
     /// <summary>

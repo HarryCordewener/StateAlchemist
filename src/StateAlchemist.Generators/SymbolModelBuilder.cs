@@ -27,6 +27,15 @@ internal static class SymbolModelBuilder
     /// </summary>
     public static SymbolMachine BuildModule(INamedTypeSymbol module, Compilation compilation) => new Builder(module, new KnownTypes(compilation)).RunModule();
 
+    /// <summary>
+    /// The attribute's first constructor argument, or null when it has none. <c>[Exited(Of = typeof(X))]</c> — a
+    /// property the attribute does not have, written for <c>[Exited(typeof(X))]</c> — reaches here with no
+    /// arguments at all, and that has to become a diagnostic: a generator that throws writes nothing, and its
+    /// author sees CS0246 for every state instead of the one mistake.
+    /// </summary>
+    private static object? FirstArgument(AttributeData? attribute) =>
+        attribute is not null && attribute.ConstructorArguments.Length > 0 ? attribute.ConstructorArguments[0].Value : null;
+
     private sealed class Builder(INamedTypeSymbol machine, KnownTypes known)
     {
         private readonly List<ModelDiagnostic> _diagnostics = [];
@@ -100,7 +109,7 @@ internal static class SymbolModelBuilder
             _options = Options(concurrency, inbox, purity, unhandled);
             var modules = machine.GetAttributes()
                 .Where(a => Is(a.AttributeClass, known.Include))
-                .Select(a => a.ConstructorArguments[0].Value)
+                .Select(FirstArgument)
                 .OfType<INamedTypeSymbol>()
                 .Where(module => IsModule(module, machineLocation))
                 .ToList();
@@ -244,7 +253,7 @@ internal static class SymbolModelBuilder
 
                 foreach (var exited in method.GetAttributes().Where(a => Is(a.AttributeClass, known.Exited)))
                 {
-                    if (exited.ConstructorArguments[0].Value is INamedTypeSymbol state)
+                    if (FirstArgument(exited) is INamedTypeSymbol state)
                     {
                         yield return new ActionDeclaration(module, method, ActionPhase.Exited, state, IntArgument(exited, "Order"), index++);
                     }
@@ -252,7 +261,7 @@ internal static class SymbolModelBuilder
 
                 foreach (var entered in method.GetAttributes().Where(a => Is(a.AttributeClass, known.Entered)))
                 {
-                    if (entered.ConstructorArguments[0].Value is INamedTypeSymbol state)
+                    if (FirstArgument(entered) is INamedTypeSymbol state)
                     {
                         yield return new ActionDeclaration(module, method, ActionPhase.Entered, state, IntArgument(entered, "Order"), index++);
                     }
@@ -286,7 +295,7 @@ internal static class SymbolModelBuilder
                         if (t.Class is not null)
                         {
                             pending.AddRange(t.Class.GetMembers().OfType<IMethodSymbol>()
-                                .Select(m => m.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.To))?.ConstructorArguments[0].Value)
+                                .Select(m => FirstArgument(m.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.To))))
                                 .OfType<INamedTypeSymbol>());
                         }
 
@@ -384,7 +393,7 @@ internal static class SymbolModelBuilder
             {
                 var completions = classMethods.Where(m => m.Name == "Complete").Select(m =>
                 {
-                    var target = m.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.To))?.ConstructorArguments[0].Value as INamedTypeSymbol;
+                    var target = FirstArgument(m.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.To))) as INamedTypeSymbol;
                     var complete = MethodModelOf(m, declaringType, stateIndex, outcomes);
                     if (target is null)
                     {
@@ -413,6 +422,12 @@ internal static class SymbolModelBuilder
             var attributes = member.GetAttributes();
             foreach (var on in attributes.Where(a => Is(a.AttributeClass, known.On)))
             {
+                if (on.ConstructorArguments.Length == 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "has an [On] with no value"));
+                    continue;
+                }
+
                 var value = on.ConstructorArguments[0];
                 if (ToInt64(value) is { } number)
                 {
@@ -426,7 +441,11 @@ internal static class SymbolModelBuilder
 
             foreach (var range in attributes.Where(a => Is(a.AttributeClass, known.OnRange)))
             {
-                if (ToInt64(range.ConstructorArguments[0]) is not { } low || ToInt64(range.ConstructorArguments[1]) is not { } high)
+                if (range.ConstructorArguments.Length < 2)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "has an [OnRange] without both ends"));
+                }
+                else if (ToInt64(range.ConstructorArguments[0]) is not { } low || ToInt64(range.ConstructorArguments[1]) is not { } high)
                 {
                     _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "has a range whose ends are not integral constants"));
                 }
@@ -452,7 +471,7 @@ internal static class SymbolModelBuilder
                 return [];
             }
 
-            if (onEvent?.ConstructorArguments[0].Value is INamedTypeSymbol eventType)
+            if (FirstArgument(onEvent) is INamedTypeSymbol eventType)
             {
                 triggers.Add(TriggerModel.Event(Event(eventType)));
             }

@@ -4,6 +4,28 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-09-11
+
+Four races in the inbox, each found by review and each now covered by a test that fails without its fix.
+
+### Fixed
+- **`Fire` on a machine with an inbox threw instead of waiting.** A pooled `IValueTaskSource` cannot be waited on
+  with `GetResult`: on a call another thread was still pumping it threw `InvalidOperationException` and returned a
+  queued input to the pool, which then served two callers at once. It blocks, as its documentation said.
+- **A stop could strand a caller forever.** `FireAsync` read the status outside the lock, so a call that started
+  while the machine was running could join the inbox after `StopAsync` had drained it, and wait for a pump that
+  would never come. Joining now happens under the same lock that stops the machine, and a call that loses the race
+  throws `MachineNotRunningException`.
+- **A bounded inbox leaked room.** An event a pending decision handles is taken out of the inbox by the pump, and
+  the slot it held was never released — after `InboxCapacity` of them every `FireAsync` parked forever. Only a
+  machine that is `Serialized` with an `InboxCapacity` and has an async decision was affected.
+- **Stopping and disposing at once ran the exit actions twice.** The check and the stop are now one claim.
+- **A pooled input could be settled after it had been re-used**, completing a different caller's `FireAsync` before
+  its trigger had run. Inputs carry a generation, and a decision only settles the caller it actually belongs to.
+- **The generator threw on an attribute written with a property it does not have** (`[Exited(Of = typeof(X))]`),
+  which suppressed the whole machine and buried the mistake under a `CS0246` for every state. A malformed
+  attribute is reported and the rest of the machine is still written.
+
 ## [1.0.0] — 2026-09-11
 
 The first release. One package: the runtime under `lib/`, the generator, the analyzers and the code fixes under

@@ -83,6 +83,8 @@ internal sealed partial class MachineEmitter
             _w.Line($"public {TypeType} Unknown;");
             _w.Line("public bool HasCaller;");
             _w.Line("public int Settled;");
+            _w.Line("/// <summary>Bumped on every return to the pool: a reference taken before that one must not settle this input.</summary>");
+            _w.Line("public int Generation;");
             if (IsChecked)
             {
                 _w.Line("public bool HoldsBusy;");
@@ -116,6 +118,7 @@ internal sealed partial class MachineEmitter
             _w.Line("public int Decision;");
             _w.Line("public string Name;");
             _w.Line("public Input Owner;");
+            _w.Line("public int OwnerGeneration;");
             if (decisions.Any(t => t.Trigger.Kind != MatchKind.Event))
             {
                 _w.Line($"public {V} Value;");
@@ -169,6 +172,7 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line("input.Core.Reset();");
+            _w.Line("input.Generation++;");
             _w.Line("if (global::System.Threading.Interlocked.CompareExchange(ref _spare, input, null) == null) return;");
             _w.Line("lock (_sync) { if (_pool.Count < 16) _pool.Push(input); }");
         }
@@ -231,28 +235,36 @@ internal sealed partial class MachineEmitter
                 _w.Line("var inline = false;");
             }
 
+            // Stopping happens under this lock, so the check above is not enough: a machine that was running when
+            // this call started can be stopped before it joins, and Abandon would never see it.
+            _w.Line("var stopped = false;");
             using (_w.Block("lock (_sync)"))
             {
-                if (Deciding)
+                _w.Line($"if (_status != {Rt}MachineStatus.Running) stopped = true;");
+                using (_w.Block("else"))
                 {
-                    _w.Line("input.ArrivedWhilePending = _pending != null;");
-                }
+                    if (Deciding)
+                    {
+                        _w.Line("input.ArrivedWhilePending = _pending != null;");
+                    }
 
-                if (IsChecked)
-                {
-                    // One caller at a time — except events, which anyone may fire while a decision is pending.
-                    var claim = "if (_busy) refused = true; else { _busy = true; input.HoldsBusy = true; }";
-                    _w.Line(Deciding ? $"if (!(input.IsEvent && input.ArrivedWhilePending)) {{ {claim} }}" : claim);
-                }
+                    if (IsChecked)
+                    {
+                        // One caller at a time — except events, which anyone may fire while a decision is pending.
+                        var claim = "if (_busy) refused = true; else { _busy = true; input.HoldsBusy = true; }";
+                        _w.Line(Deciding ? $"if (!(input.IsEvent && input.ArrivedWhilePending)) {{ {claim} }}" : claim);
+                    }
 
-                // A bounded inbox releases room as inputs leave it, so its callers always go through it.
-                var join = Bounded ? "_inbox.Add(input);" : $"if ({idle}) {{ _pumping = true; _current = input; inline = true; }} else _inbox.Add(input);";
-                _w.Line(IsChecked ? $"if (!refused) {{ {join} }}" : join);
+                    // A bounded inbox releases room as inputs leave it, so its callers always go through it.
+                    var join = Bounded ? "_inbox.Add(input);" : $"if ({idle}) {{ _pumping = true; _current = input; inline = true; }} else _inbox.Add(input);";
+                    _w.Line(IsChecked ? $"if (!refused) {{ {join} }}" : join);
+                }
             }
 
+            _w.Line($"if (stopped) {{ {(Bounded ? "_room.Release(); " : string.Empty)}Return(input); return Faulted(new {Rt}MachineNotRunningException(_status)); }}");
             if (IsChecked)
             {
-                _w.Line($"if (refused) {{ Return(input); return Faulted(new {Rt}ConcurrentUseException()); }}");
+                _w.Line($"if (refused) {{ {(Bounded ? "_room.Release(); " : string.Empty)}Return(input); return Faulted(new {Rt}ConcurrentUseException()); }}");
             }
 
             _w.Line(Bounded ? "PumpNow();" : "if (inline) RunInline(input); else PumpNow();");
@@ -273,8 +285,9 @@ internal sealed partial class MachineEmitter
             using (_w.Block($"private async {ValueTaskType} SubmitWhenRoom(Input input, short token)"))
             {
                 _w.Line("await _room.WaitAsync();");
-                _w.Line($"if (_status != {Rt}MachineStatus.Running) {{ _room.Release(); Return(input); throw new {Rt}MachineNotRunningException(_status); }}");
-                _w.Line("lock (_sync) { _inbox.Add(input); }");
+                _w.Line("var stopped = false;");
+                _w.Line($"lock (_sync) {{ if (_status != {Rt}MachineStatus.Running) stopped = true; else _inbox.Add(input); }}");
+                _w.Line($"if (stopped) {{ _room.Release(); Return(input); throw new {Rt}MachineNotRunningException(_status); }}");
                 _w.Line("PumpNow();");
                 _w.Line($"await new {ValueTaskType}(input, token);");
             }
@@ -410,7 +423,9 @@ internal sealed partial class MachineEmitter
 
                     using (_w.Block("for (var i = 0; i < _inbox.Count; i++)"))
                     {
-                        _w.Line("if (_inbox[i].IsEvent && Handles(_pending.Decision, _inbox[i].Tag)) { item = _inbox[i]; _inbox.RemoveAt(i); owner = item; return Step.Event; }");
+                        // Leaving the inbox frees its room, here as anywhere: an event the decision handles is
+                        // taken straight out of it, and a bounded inbox that never released this would fill up.
+                        _w.Line($"if (_inbox[i].IsEvent && Handles(_pending.Decision, _inbox[i].Tag)) {{ item = _inbox[i]; _inbox.RemoveAt(i);{(Bounded ? " _room.Release();" : string.Empty)} owner = item; return Step.Event; }}");
                     }
 
                     _w.Line("return Step.None;");
@@ -526,7 +541,7 @@ internal sealed partial class MachineEmitter
                 _w.Line("_flow.Value = s_step; _owner = pending.Owner; _started = null; _inside = true;");
                 _w.Line("lock (_sync) { EndPending(pending); }");
                 _w.Line("try { await ApplyDecision(pending); }");
-                _w.Line($"catch ({Exception} exception) {{ Fail(pending.Owner, exception); }}");
+                _w.Line($"catch ({Exception} exception) {{ if (pending.Owner != null && pending.Owner.Generation == pending.OwnerGeneration) Fail(pending.Owner, exception); }}");
                 _w.Line("finally { _inside = false; ReleaseEnded(); }");
             }
         }
@@ -558,7 +573,7 @@ internal sealed partial class MachineEmitter
                 using (_w.Block("lock (_sync)"))
                 {
                     _w.Line("if (input == _current) _current = null;");
-                    _w.Line("if (_pending != null && _pending.Owner == input) { abandoned = _pending; EndPending(abandoned); }");
+                    _w.Line("if (_pending != null && _pending.Owner == input && _pending.OwnerGeneration == input.Generation) { abandoned = _pending; EndPending(abandoned); }");
                 }
 
                 _w.Line("if (abandoned != null) abandoned.Cancellation.Cancel();");
@@ -639,12 +654,12 @@ internal sealed partial class MachineEmitter
                 using (_w.Block("for (var i = 0; i < _inbox.Count;)"))
                 {
                     _w.Line("var waited = _inbox[i];");
-                    _w.Line("if (waited.IsEvent && waited.ArrivedWhilePending) { _inbox.RemoveAt(i); waited.ArrivedWhilePending = false; _queued.Add(waited); } else i++;");
+                    _w.Line($"if (waited.IsEvent && waited.ArrivedWhilePending) {{ _inbox.RemoveAt(i);{(Bounded ? " _room.Release();" : string.Empty)} waited.ArrivedWhilePending = false; _queued.Add(waited); }} else i++;");
                 }
 
                 using (_w.Block("foreach (var pending in ended)"))
                 {
-                    _w.Line("if (pending.Owner != null && pending.Owner != _current && (_pending == null || _pending.Owner != pending.Owner))");
+                    _w.Line("if (pending.Owner != null && pending.Owner.Generation == pending.OwnerGeneration && pending.Owner != _current && (_pending == null || _pending.Owner != pending.Owner))");
                     _w.Line("{ if (finished == null) finished = new global::System.Collections.Generic.List<Input>(); finished.Add(pending.Owner); }");
                 }
             }

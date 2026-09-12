@@ -48,7 +48,7 @@ internal sealed partial class MachineEmitter
                 using (_w.Block("lock (_sync)"))
                 {
                     _w.Line($"if (_pending != null) throw new global::System.InvalidOperationException(\"'{decision.Name}' cannot start while decision '\" + _pending.Name + \"' is pending.\");");
-                    _w.Line($"pending = new Pending {{ Decision = {decision.Index}, Name = {Literal(decision.Name)}, Owner = _owner }};");
+                    _w.Line($"pending = new Pending {{ Decision = {decision.Index}, Name = {Literal(decision.Name)}, Owner = _owner, OwnerGeneration = _owner == null ? 0 : _owner.Generation }};");
                     _w.Line(decision.Trigger.Kind == MatchKind.Event ? "pending.Event = e;" : "pending.Value = value;");
                     _w.Line("_pending = pending;");
                     _w.Line("_started = pending;");

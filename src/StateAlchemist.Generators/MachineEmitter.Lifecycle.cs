@@ -23,10 +23,17 @@ internal sealed partial class MachineEmitter
         WriteLifecycleActions("Start", starting, $"_status = {Rt}MachineStatus.Running;", null);
 
         _w.Line();
+        _w.Line("/// <summary>Whether a stop has already been claimed: two threads must not both run the exit actions.</summary>");
+        _w.Line("private int _stopping;");
+
+        _w.Line();
         _w.Line("/// <inheritdoc/>");
         using (_w.Block($"public {ValueTaskType} StopAsync()"))
         {
             _w.Line($"if (_status != {Rt}MachineStatus.Running) {{ _status = {Rt}MachineStatus.Stopped; return default({ValueTaskType}); }}");
+            // Disposing and stopping from two threads at once, which `await using` around an explicit StopAsync
+            // does: the loser returns without waiting, rather than running every Exited action a second time.
+            _w.Line($"if (global::System.Threading.Interlocked.Exchange(ref _stopping, 1) != 0) return default({ValueTaskType});");
             _w.Line(HasInbox ? "Abandon();" : $"_status = {Rt}MachineStatus.Stopped;");
             _w.Line("if (_lifetime != null) _lifetime.Cancel();");
             _w.Line("return Stop();");

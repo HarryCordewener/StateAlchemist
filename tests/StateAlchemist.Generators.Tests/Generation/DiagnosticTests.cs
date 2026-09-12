@@ -85,6 +85,44 @@ public class DiagnosticTests
         await Assert.That(reasons).DoesNotContain(IncrementalStepRunReason.New);
     }
 
+    /// <summary>
+    /// An attribute written with a property it does not have arrives with no constructor arguments at all. The
+    /// compiler reports that typo itself; the generator's part is to keep writing the machine, because a generator
+    /// that throws produces nothing and buries the one real error under a CS0246 for every state.
+    /// </summary>
+    [Test]
+    public async Task AnAttributeWrittenWithTheWrongArgumentDoesNotStopTheGenerator()
+    {
+        var source = """
+            namespace Typo
+            {
+                public struct R : global::StateAlchemist.IRootState { }
+
+                [global::StateAlchemist.Initial]
+                public struct A : global::StateAlchemist.IState<R> { }
+
+                [global::StateAlchemist.Module]
+                public static class M
+                {
+                    [global::StateAlchemist.Transition(From = typeof(R)), global::StateAlchemist.OnAny]
+                    public static void Ignore() { }
+
+                    [global::StateAlchemist.Exited(Of = typeof(A))]
+                    public static void Left() { }
+                }
+
+                [global::StateAlchemist.Machine(Root = typeof(R), Value = typeof(byte))]
+                [global::StateAlchemist.Include(typeof(M))]
+                public sealed partial class Machine { }
+            }
+            """;
+
+        var result = Driver().RunGenerators(TestCompilation.Create(source)).GetRunResult();
+
+        await Assert.That(result.Diagnostics.Where(d => d.Id == "CS8785").Select(d => d.GetMessage())).IsEmpty();
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
+    }
+
     private static string BadDeclarationsSource([CallerFilePath] string here = "") =>
         File.ReadAllText(Path.Combine(Path.GetDirectoryName(here)!, "..", "..", "StateAlchemist.Reference.Tests", "FrontEnd", "BadDeclarations.cs"));
 }
