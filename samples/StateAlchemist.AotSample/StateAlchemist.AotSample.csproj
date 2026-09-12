@@ -8,6 +8,10 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <IsAotCompatible>true</IsAotCompatible>
     <TrimmerSingleWarn>false</TrimmerSingleWarn>
+    <!-- No lock file here. Publishing native infers a runtime identifier, and a restore writes that RID into the
+         lock file — so the file would differ between a Linux, Windows and macOS developer and locked mode would
+         refuse whichever came second. What this sample depends on is the library, whose graph is locked. -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />
