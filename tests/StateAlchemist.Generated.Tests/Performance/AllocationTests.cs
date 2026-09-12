@@ -92,12 +92,27 @@ public class AllocationTests
     }
 
     /// <summary>
-    /// What the machine adds to a suspending action: one continuation, once, however deep the machine is. A
-    /// ceiling above the cost of awaiting the action directly, because that cost depends on the build — Debug
-    /// compiles async state machines as classes, which the pooled builder cannot reuse, and in Release awaiting
-    /// the action allocates nothing at all.
+    /// What the machine may add to a suspending action, above the cost of awaiting that action directly: one
+    /// continuation and the state machine the compiler writes for it.
     /// </summary>
-    private const long Suspension = 256;
+    /// <remarks>
+    /// A ceiling with room in it, not a measurement. The exact size is the compiler's business and it moves
+    /// between builds and runtimes — measured here, per call:
+    /// <code>
+    ///            alone   through   machine adds
+    /// Debug   net8.0    48 B   304 B   256 B
+    /// Debug   net10.0   48 B   304 B   256 B
+    /// Debug   net11.0   48 B   288 B   240 B
+    /// Release net8.0     0 B   128 B   128 B
+    /// Release net10.0    0 B   128 B   128 B
+    /// Release net11.0    0 B   112 B   112 B
+    /// </code>
+    /// At 256 this passed by nothing at all on two of those six, which is a test that fails on somebody else's
+    /// machine for a reason that is not a regression. The assertion that carries the weight is the equality above
+    /// it: a suspending call costs the same every time, so nothing accumulates per call. This one is here to
+    /// catch a change of kind — a Task allocated per call, a state machine that grows with the machine.
+    /// </remarks>
+    private const long Suspension = 512;
 
     /// <summary>A suspending action costs a fixed amount every time (spec §9): the call finishes in one async method.</summary>
     [Test]
