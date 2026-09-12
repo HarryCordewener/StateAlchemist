@@ -1,0 +1,25 @@
+version: 2
+
+# Pinned actions stop being a security measure the moment they stop being updated: Dependabot rewrites the digest
+# and the version comment together, so a pin is current without anyone reading release notes for a living.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: [ "*" ]
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # Roslyn's version is the floor the generator supports, not a dependency to chase: a bump here raises the
+      # SDK an application needs, so it is reviewed on its own.
+      roslyn:
+        patterns: [ "Microsoft.CodeAnalysis*" ]
+      rest:
+        patterns: [ "*" ]
+        exclude-patterns: [ "Microsoft.CodeAnalysis*" ]

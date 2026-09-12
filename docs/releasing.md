@@ -47,10 +47,18 @@ commit on `main`, then move the tag — `git push --delete origin vX.Y.Z`, delet
 | `test` | builds Release and runs the whole suite on net8.0, net10.0 and net11.0 |
 | `package` | runs [`eng/check-package.sh`](../eng/check-package.sh): packs, checks the contents, then builds and runs a throwaway application that references nothing but the package. The machine is generated, the diagram prints, and the analyzer's `SALCH0002` fails that application's build when it should |
 | `build` | refuses a tag whose commit is not on `origin/main`, packs, checks that the version matches the tag and that both Roslyn components are inside, attests build provenance, and uploads the `.nupkg`/`.snupkg` |
-| `release` | pushes to GitHub Packages, then to nuget.org |
+| `release` | pushes to GitHub Packages, then to nuget.org, then attaches the `.nupkg`, the `.snupkg` and the provenance bundle to the GitHub release, creating it if the tag has none |
 
 Provenance attestation means a consumer can verify that a given `.nupkg` was built by this workflow, from this
-repository, at that commit.
+repository, at that commit:
+
+```bash
+gh attestation verify StateAlchemist.1.0.1.nupkg --repo HarryCordewener/StateAlchemist
+```
+
+The same bundle is attached to the release as `StateAlchemist.<version>.sigstore.json`, so the proof travels with
+the file rather than only living in GitHub's attestation store. [`SECURITY.md`](../SECURITY.md) says how to report
+anything wrong with it.
 
 ## Authentication
 
