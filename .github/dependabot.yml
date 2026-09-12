@@ -15,9 +15,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Roslyn's version is the floor the generator supports, not a dependency to chase. An analyzer compiled
+    # against a newer Roslyn than the host compiler is refused with CS9057, so raising this drops every consumer
+    # on an older SDK — it is a decision about what the package supports, not an update. Patches only.
+    ignore:
+      - dependency-name: "Microsoft.CodeAnalysis*"
+        update-types: [ "version-update:semver-major", "version-update:semver-minor" ]
     groups:
-      # Roslyn's version is the floor the generator supports, not a dependency to chase: a bump here raises the
-      # SDK an application needs, so it is reviewed on its own.
       roslyn:
         patterns: [ "Microsoft.CodeAnalysis*" ]
       rest:

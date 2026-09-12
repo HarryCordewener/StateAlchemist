@@ -47,6 +47,18 @@ fi
 
 echo "== consume"
 mkdir -p "$work/app"
+
+# On the oldest SDK the package claims to support, when that SDK is here. An analyzer compiled against a newer
+# Roslyn than the host is refused with CS9057 and the machine is simply never generated, which is a break no test
+# that runs on the newest SDK can see. CI installs 8.0.x for this job; a developer without it gets a note.
+if dotnet --list-sdks | grep -q '^8\.'; then
+    echo "   on the .NET 8 SDK, which is the floor"
+    cat > "$work/app/global.json" <<XML
+{ "sdk": { "version": "8.0.100", "rollForward": "latestFeature" } }
+XML
+else
+    echo "   no .NET 8 SDK here: consuming with $(dotnet --version) instead, which does not test the floor" >&2
+fi
 cat > "$work/app/nuget.config" <<XML
 <configuration>
   <packageSources>
