@@ -2351,7 +2351,9 @@ git commit -m "Take a module from a referenced library, end to end"
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <!-- Only where it ships: normalised paths are what Source Link needs in a package, and what would stop a test
+         from finding the documentation it checks, since [CallerFilePath] becomes /_/… under it. -->
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true' AND '$(IsPackable)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
 
   <!--
