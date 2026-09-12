@@ -7,11 +7,20 @@ namespace StateAlchemist.Generators;
 /// <summary>The runtime and BCL types the front-end recognises, resolved once per compilation.</summary>
 internal sealed class KnownTypes(Compilation compilation)
 {
+    /// <summary>The compilation these types came from: the exported-module search reads its assemblies.</summary>
+    public Compilation Compilation { get; } = compilation;
+
     public INamedTypeSymbol? Machine { get; } = compilation.GetTypeByMetadataName("StateAlchemist.MachineAttribute");
 
     public INamedTypeSymbol? Include { get; } = compilation.GetTypeByMetadataName("StateAlchemist.IncludeAttribute");
 
     public INamedTypeSymbol? Module { get; } = compilation.GetTypeByMetadataName("StateAlchemist.ModuleAttribute");
+
+    /// <summary>An assembly's offer of a module (D25).</summary>
+    public INamedTypeSymbol? ExportsModule { get; } = compilation.GetTypeByMetadataName("StateAlchemist.ExportsModuleAttribute");
+
+    /// <summary>A machine's acceptance of what its references export (D25).</summary>
+    public INamedTypeSymbol? IncludeExported { get; } = compilation.GetTypeByMetadataName("StateAlchemist.IncludeExportedAttribute");
 
     public INamedTypeSymbol? Transition { get; } = compilation.GetTypeByMetadataName("StateAlchemist.TransitionAttribute");
 

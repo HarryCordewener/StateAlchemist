@@ -4,7 +4,7 @@
     <RootNamespace>StateAlchemist</RootNamespace>
     <IsPackable>true</IsPackable>
     <PackageId>StateAlchemist</PackageId>
-    <Version>0.1.0-alpha.1</Version>
+    <Title>StateAlchemist</Title>
     <Description>A source-generated hierarchical state machine library: states own their data, transitions own the transformation, the compiler writes the machine.</Description>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <IsAotCompatible Condition="'$(TargetFramework)' != 'netstandard2.0'">true</IsAotCompatible>
@@ -12,6 +12,11 @@
     <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
     <!-- The logo lives with the documentation, which a source tree built from the plans alone does not have. -->
     <PackageIcon Condition="Exists('..\..\docs\images\StateAlchemist.png')">StateAlchemist.png</PackageIcon>
+    <!-- Every build is checked for framework compatibility across the package's target frameworks. Once a version
+         is on nuget.org, set PackageValidationBaselineVersion to it and every later build is also diffed against
+         that published surface, so a removed or re-signatured public member fails here rather than in a
+         consumer's restore. See docs/releasing.md. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
   </PropertyGroup>
 
   <!-- The generator and the code fixes travel in this package, under analyzers/, so referencing StateAlchemist is
@@ -28,6 +33,17 @@
     <None Include="..\StateAlchemist.Generators\bin\$(Configuration)\netstandard2.0\StateAlchemist.Generators.dll" Pack="true" PackagePath="analyzers\dotnet\cs" Visible="false" />
     <None Include="..\StateAlchemist.CodeFixes\bin\$(Configuration)\netstandard2.0\StateAlchemist.CodeFixes.dll" Pack="true" PackagePath="analyzers\dotnet\cs" Visible="false" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- The version comes from the git tag; see docs/releasing.md. -->
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <!-- A source tree with no git history — one extracted from the implementation plans — has no version to read,
+         and 0.0.0-preview.0 is the right answer there rather than a warning on every build. -->
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MINVER1001</MSBuildWarningsAsMessages>
+  </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
     <PackageReference Include="PolySharp" PrivateAssets="all" />

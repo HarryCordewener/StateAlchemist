@@ -36,6 +36,33 @@ public static class ReflectionModelBuilder
         private readonly List<Type> _stateTypes = [];
         private MachineOptions _options = new("System.Byte", ValueDomain.Byte);
 
+        /// <summary>The modules this assembly and its references offered, for a machine that asked (D25).</summary>
+        private void AddExported(List<Type> modules)
+        {
+            if (spec.Exported is not { } exported)
+            {
+                return;
+            }
+
+            if (exported.Count == 0)
+            {
+                _diagnostics.Add(new(DiagnosticCatalog.NothingExported, SourceSpan.None, spec.Name));
+                return;
+            }
+
+            foreach (var export in exported)
+            {
+                if (export.Module.GetCustomAttribute<ModuleAttribute>() is null)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.ExportedTypeIsNotAModule, SourceSpan.None, export.Assembly, export.Module.Name));
+                }
+                else if (!modules.Contains(export.Module))
+                {
+                    modules.Add(export.Module);
+                }
+            }
+        }
+
         public ReflectedMachine Run()
         {
             if (spec.Root is null)
@@ -50,6 +77,7 @@ public static class ReflectionModelBuilder
 
             _options = Options(spec);
             var modules = spec.Modules.Where(IsModule).ToList();
+            AddExported(modules);
             var declarations = modules.SelectMany(Declarations).ToList();
             CollectStates(declarations);
             var stateIndex = _stateTypes.Select((type, index) => (type, index)).ToDictionary(p => p.type, p => p.index);

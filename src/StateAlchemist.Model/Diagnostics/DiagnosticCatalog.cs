@@ -45,6 +45,12 @@ public static class DiagnosticCatalog
     public static readonly DiagnosticDescriptor IncompleteMachine = new("SALCH0107", Severity.Error, "Incomplete machine declaration",
         "Machine '{0}' {1}", App);
 
+    public static readonly DiagnosticDescriptor ExportedTypeIsNotAModule = new("SALCH0108", Severity.Error, "Exported type is not a module",
+        "'{0}' exports '{1}', which is not a [Module]", App);
+
+    public static readonly DiagnosticDescriptor NothingExported = new("SALCH0109", Severity.Warning, "Nothing exported to include",
+        "'{0}' includes exported modules, but nothing this assembly references exports one", App);
+
     public static readonly DiagnosticDescriptor RefOnExitingState = new("SALCH0201", Severity.Error, "Writing to an exiting state",
         "Parameter '{0}' of '{1}' takes '{2}' by ref, but the transition exits it; take it as in", App);
 
@@ -107,6 +113,7 @@ public static class DiagnosticCatalog
     [
         InvalidState, NotPublicStatic, InvalidHierarchy, InitialChild,
         ConflictingTransitions, AmbiguousGuardOrder, AmbiguousActionOrder, TriggerOutOfRange, UnsupportedValueType, InvalidTransition, IncompleteMachine,
+        ExportedTypeIsNotAModule, NothingExported,
         RefOnExitingState, StateNotAvailable, InvalidPhaseSignature, UnbindableParameter, ContextUnderStrictPurity, UnknownPhase, AsyncSuffix, TwoDecideMethods, UncheckedWithAsync,
         ReentryClearsData,
         OutcomeCompletions, UnknownOutcome,

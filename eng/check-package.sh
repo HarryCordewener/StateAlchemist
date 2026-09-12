@@ -11,7 +11,16 @@ trap 'rm -rf "$work"' EXIT
 echo "== pack"
 dotnet pack "$root/src/StateAlchemist" -c Release -o "$work/feed" --nologo | tail -1
 package="$(ls "$work/feed"/*.nupkg)"
+symbols="$(ls "$work/feed"/*.snupkg)"
+echo "packed $(basename "$package") and $(basename "$symbols")"
 version="$(basename "$package" .nupkg | sed 's/^StateAlchemist\.//')"
+
+# A symbol package with no PDB in it would look like symbols and debug like nothing.
+if ! unzip -Z1 "$symbols" | grep -q "lib/net8.0/StateAlchemist.pdb"; then
+    echo "the symbol package has no portable PDB for net8.0" >&2
+    unzip -Z1 "$symbols" >&2
+    exit 1
+fi
 
 echo "== contents"
 contents="$(unzip -Z1 "$package")"

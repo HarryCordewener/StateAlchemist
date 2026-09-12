@@ -45,6 +45,12 @@
         public int Order { get; set; }
         public System.Type State { get; }
     }
+    [System.AttributeUsage(System.AttributeTargets.Assembly, AllowMultiple=true, Inherited=false)]
+    public sealed class ExportsModuleAttribute : System.Attribute
+    {
+        public ExportsModuleAttribute(System.Type module) { }
+        public System.Type Module { get; }
+    }
     public interface IEvent { }
     public interface IMachine<TValue> : System.IAsyncDisposable
         where TValue :  struct
@@ -76,6 +82,12 @@
     {
         public IncludeAttribute(System.Type module) { }
         public System.Type Module { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=false, Inherited=false)]
+    public sealed class IncludeExportedAttribute : System.Attribute
+    {
+        public IncludeExportedAttribute() { }
+        public System.Type[] Except { get; set; }
     }
     [System.AttributeUsage(System.AttributeTargets.Struct, AllowMultiple=false, Inherited=false)]
     public sealed class InitialAttribute : System.Attribute

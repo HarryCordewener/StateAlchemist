@@ -17,6 +17,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" VersionOverride="5.9.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\StateAlchemist.ExportingLibrary\StateAlchemist.ExportingLibrary.csproj" />
     <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />
     <ProjectReference Include="..\..\src\StateAlchemist.Generators\StateAlchemist.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\StateAlchemist.Contracts\StateAlchemist.Contracts.csproj" />

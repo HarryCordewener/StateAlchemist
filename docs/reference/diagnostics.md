@@ -140,6 +140,30 @@ or names a trigger value that is not an integral constant.
 
 A `[Machine]` without `Root` or `Value`, or an `[Include]` of a type that is not a `[Module]`.
 
+## SALCH0108
+
+**Exported type is not a module** · error · app
+
+> '{0}' exports '{1}', which is not a [Module]
+
+An assembly's `[assembly: ExportsModule(typeof(X))]` offers `X` to any machine that writes `[IncludeExported]`, so
+`X` has to be a `[Module]`. Reported on the machine that asked, because that is the build where the offer was taken
+up — the library itself may never have been compiled against a machine.
+
+**Fix:** mark the exported type `[Module]`, or stop exporting it.
+
+## SALCH0109
+
+**Nothing exported to include** · warning · app
+
+> '{0}' includes exported modules, but nothing this assembly references exports one
+
+The machine asks for what its references export and nothing does, so `[IncludeExported]` added nothing. Either a
+package that was meant to offer a module does not, or the attribute is left over.
+
+**Fix:** name the module with `[Include]`, or remove `[IncludeExported]`. See
+[modules and the machine declaration](../concepts/machines.md#modules).
+
 ## SALCH0201
 
 **Writing to an exiting state** · error · app

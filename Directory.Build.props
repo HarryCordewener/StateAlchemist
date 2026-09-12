@@ -12,5 +12,30 @@
     <PackageProjectUrl>https://github.com/HarryCordewener/StateAlchemist</PackageProjectUrl>
     <RepositoryUrl>https://github.com/HarryCordewener/StateAlchemist</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PackageReleaseNotes>https://github.com/HarryCordewener/StateAlchemist/blob/main/CHANGELOG.md</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <!--
+    Reproducibility and consumer tooling. EmbedUntrackedSources plus a snupkg means a consumer can step into the
+    library from their debugger against the exact commit that produced the package; ContinuousIntegrationBuild
+    normalises source paths, so it is only correct on CI.
+  -->
+  <PropertyGroup>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!--
+    MinVer is the single source of the version: a `v1.2.3` tag builds 1.2.3, and any other commit builds the next
+    patch as `-preview.0.N`. The release workflow therefore does NOT pass /p:Version — it only needs
+    `fetch-depth: 0` so the tag is there to be read. A source tree with no git history at all (one extracted from
+    the implementation plans, say) builds 0.0.0-alpha.0, which is why MinVer's "no commits" report is not an error.
+  -->
+  <PropertyGroup>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerDefaultPreReleaseIdentifiers>preview.0</MinVerDefaultPreReleaseIdentifiers>
+    <MinVerSkip Condition="'$(Configuration)' == 'Debug'">true</MinVerSkip>
   </PropertyGroup>
 </Project>

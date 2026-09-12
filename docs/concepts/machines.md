@@ -28,6 +28,33 @@ Every method a machine calls must be `public static`, because the generated code
 ([`SALCH0002`](../reference/diagnostics.md#salch0002)); analyzers in the declaring library report that where the
 method is written.
 
+### Modules a library offers
+
+A library that wants "reference the package, get the protocol" says so once, in its own assembly, and a machine
+says it will take what its references offer:
+
+```csharp
+// In the library — in AssemblyInfo.cs, because an assembly attribute must precede every type in its file:
+[assembly: ExportsModule(typeof(GmcpModule))]
+```
+
+```csharp
+// In the application:
+[Machine(Root = typeof(Connected), Value = typeof(byte), Context = typeof(TelnetContext))]
+[IncludeExported]                                       // every module this app's references export
+[Include(typeof(MyOwnModule))]                          // plus one nothing exports
+public sealed partial class MudTelnet;
+```
+
+Both ends opt in: a library's modules never arrive in a machine that did not ask, and a machine never picks up a
+module the library meant to keep to itself. A module named both ways is included once, and
+`[IncludeExported(Except = new[] { typeof(MsspModule) })]` takes all but a few. Exporting something that is not a
+module is [`SALCH0108`](../reference/diagnostics.md#salch0108); asking when nothing is offered is
+[`SALCH0109`](../reference/diagnostics.md#salch0109).
+
+The machine an exported include builds is the machine an explicit `[Include]` would have built — the two are ways
+of naming a module, not different kinds of module.
+
 ## The machine declaration
 
 An application declares a machine on a `partial class`:

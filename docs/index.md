@@ -7,10 +7,10 @@ StateAlchemist is a hierarchical state machine library for .NET where the machin
 interpreted**. Libraries declare states and transitions; an application picks the modules it wants; a source
 generator writes the machine as straight-line code.
 
-> **Status: documentation first.** These pages describe the library as designed and approved. The code is being
-> built against them, in the order set out in the [roadmap](superpowers/plans/2026-09-11-00-roadmap.md). Code
-> samples here show the intended API; once the samples project compiles in CI, they are included from it and can
-> no longer drift.
+> **Status: implemented, not released.** These pages describe the library, and the code is built against them —
+> the plans in the [roadmap](superpowers/plans/2026-09-11-00-roadmap.md) are all written and validated. Most code
+> samples here are included from the compiled samples project, so they cannot drift; the rest are checked to
+> parse. Nothing is on NuGet yet; [releasing](releasing.md) says what happens when it is.
 
 ## Start here
 
@@ -40,4 +40,5 @@ generator writes the machine as straight-line code.
 
 - [Generated API](reference/generated-api.md) — every member the generator adds to a machine.
 - [Diagnostics](reference/diagnostics.md) — every `SALCH` diagnostic, with its cause and fix.
+- [Releasing](releasing.md) — for maintainers: how a version is decided and what the release workflow does.
 - [Design specification](superpowers/specs/2026-09-11-statealchemist-design.md) — every decision and why.

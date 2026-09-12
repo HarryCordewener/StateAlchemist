@@ -15,6 +15,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/StateAlchemist.Contracts/StateAlchemist.Contracts.csproj" />
+    <Project Path="tests/StateAlchemist.ExportingLibrary/StateAlchemist.ExportingLibrary.csproj" />
     <Project Path="tests/StateAlchemist.Generated.Tests/StateAlchemist.Generated.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Generators.Tests/StateAlchemist.Generators.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Model.Tests/StateAlchemist.Model.Tests.csproj" />

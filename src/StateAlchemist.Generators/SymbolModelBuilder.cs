@@ -104,6 +104,7 @@ internal static class SymbolModelBuilder
                 .OfType<INamedTypeSymbol>()
                 .Where(module => IsModule(module, machineLocation))
                 .ToList();
+            AddExported(modules, machineLocation);
             return Build(modules, machineLocation);
         }
 
@@ -147,6 +148,56 @@ internal static class SymbolModelBuilder
             var model = new MachineModel(machine.Name, _options, states, transitions, actions, _diagnostics);
             return new SymbolMachine(machine, model, _stateTypes, _methods, _events, _value, _context, _config, _locations, machineLocation,
                 modules.Select(m => MetadataName(m)).ToList());
+        }
+
+        /// <summary>
+        /// What this assembly and its references offer with <c>[assembly: ExportsModule]</c>, for a machine that
+        /// asked with <c>[IncludeExported]</c> (D25). Only assembly attributes are read — never the types in a
+        /// reference, which is a scan the compiler cannot do incrementally.
+        /// </summary>
+        private void AddExported(List<INamedTypeSymbol> modules, SourceSpan machineLocation)
+        {
+            if (known.IncludeExported is null || machine.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.IncludeExported)) is not { } asked)
+            {
+                return;
+            }
+
+            var except = asked.NamedArguments.FirstOrDefault(a => a.Key == "Except").Value;
+            var excluded = except.Kind == TypedConstantKind.Array
+                ? except.Values.Select(v => v.Value).OfType<INamedTypeSymbol>().ToList()
+                : [];
+
+            var found = 0;
+            var assemblies = new[] { known.Compilation.Assembly }.Concat(known.Compilation.SourceModule.ReferencedAssemblySymbols);
+            foreach (var assembly in assemblies)
+            {
+                foreach (var export in assembly.GetAttributes().Where(a => Is(a.AttributeClass, known.ExportsModule)))
+                {
+                    if (export.ConstructorArguments.Length == 0 || export.ConstructorArguments[0].Value is not INamedTypeSymbol module)
+                    {
+                        continue;
+                    }
+
+                    found++;
+                    if (!module.GetAttributes().Any(a => Is(a.AttributeClass, known.Module)))
+                    {
+                        _diagnostics.Add(new(DiagnosticCatalog.ExportedTypeIsNotAModule, machineLocation, assembly.Name, DisplayName(module)));
+                        continue;
+                    }
+
+                    if (excluded.Any(type => Is(type, module)) || modules.Any(included => Is(included, module)))
+                    {
+                        continue;
+                    }
+
+                    modules.Add(module);
+                }
+            }
+
+            if (found == 0)
+            {
+                _diagnostics.Add(new(DiagnosticCatalog.NothingExported, machineLocation, machine.Name));
+            }
         }
 
         private bool IsModule(INamedTypeSymbol module, SourceSpan at)

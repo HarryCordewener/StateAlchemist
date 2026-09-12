@@ -11,6 +11,7 @@
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
     <PackageVersion Include="Stateless" Version="5.20.0" />
     <PackageVersion Include="PolySharp" Version="1.16.0" />
+    <PackageVersion Include="MinVer" Version="8.0.0" />
     <PackageVersion Include="TUnit" Version="1.66.27" />
     <PackageVersion Include="TUnit.Core" Version="1.66.27" />
     <PackageVersion Include="TUnit.Assertions" Version="1.66.27" />

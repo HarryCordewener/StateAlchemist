@@ -1,0 +1,162 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        required: true
+        type: string
+        description: Example - v0.1.0
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        framework: [ net8.0, net10.0, net11.0 ]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - run: dotnet restore
+      - run: dotnet build --configuration Release --no-restore
+      - run: dotnet test --solution StateAlchemist.slnx --no-build --configuration Release --framework ${{ matrix.framework }}
+
+  # What the package is for: an application that references nothing else gets a generated machine and the
+  # analyzers' diagnostics. Nothing is published if this fails.
+  package:
+    name: Check the package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          dotnet-version: 8.0.x
+      - run: eng/check-package.sh
+
+  build:
+    name: Pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [ test, package ]
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      # MinVer reads the version from the tag on this commit, so the tags and the commits between them have to be
+      # present — a shallow clone would build 0.0.0-preview.0.x.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - run: dotnet restore
+
+      # A tag on a commit that never reached main would otherwise ship as a release.
+      - name: Verify commit exists in origin/main
+        run: |
+          git fetch --no-tags --prune --depth=100 origin +refs/heads/*:refs/remotes/origin/*
+          git branch --remote --contains | grep origin/main
+
+      # Only to confirm the tag and the built version agree; the version itself comes from MinVer.
+      - name: Set VERSION variable
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tags }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "VERSION=${TAG#v}" >> $GITHUB_ENV
+
+      - name: Pack
+        run: dotnet pack src/StateAlchemist --configuration Release -o packages
+        env:
+          CI: true
+
+      - name: Verify the packed version matches the tag
+        run: |
+          if ! ls packages/StateAlchemist.${VERSION}.nupkg >/dev/null 2>&1; then
+            echo "::error::Expected packages/StateAlchemist.${VERSION}.nupkg; MinVer produced:"
+            ls packages
+            exit 1
+          fi
+
+      # The generator and the code fixes are what make the package more than a few attributes.
+      - name: Verify both Roslyn components are in the package
+        run: |
+          for entry in analyzers/dotnet/cs/StateAlchemist.Generators.dll analyzers/dotnet/cs/StateAlchemist.CodeFixes.dll; do
+            if ! unzip -Z1 packages/StateAlchemist.${VERSION}.nupkg | grep -qx "$entry"; then
+              echo "::error::$entry is missing from the package"
+              unzip -Z1 packages/StateAlchemist.${VERSION}.nupkg
+              exit 1
+            fi
+          done
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: "packages/*.nupkg"
+
+      - name: Upload NuGet packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-packages
+          path: packages
+
+  release:
+    name: Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - name: Download NuGet packages
+        uses: actions/download-artifact@v8
+        with:
+          name: nuget-packages
+          path: packages
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Push to GitHub Packages
+        run: dotnet nuget push "packages/*.nupkg" --skip-duplicate --source https://nuget.pkg.github.com/HarryCordewener/index.json --api-key ${GITHUB_TOKEN}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Trusted publishing: the OIDC token minted by `id-token: write` is exchanged for a short-lived NuGet key.
+      # No long-lived secret exists to leak or rotate. It requires a trusted-publishing policy on nuget.org for
+      # this repository — see docs/releasing.md.
+      - name: NuGet Login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: harrycordewener
+
+      - name: Push to NuGet
+        run: dotnet nuget push "packages/*.nupkg" --skip-duplicate --source https://api.nuget.org/v3/index.json -k ${{ steps.login.outputs.NUGET_API_KEY }}
