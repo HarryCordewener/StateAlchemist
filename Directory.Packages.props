@@ -9,13 +9,13 @@
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
-    <PackageVersion Include="Stateless" Version="5.20.0" />
+    <PackageVersion Include="Stateless" Version="5.20.1" />
     <PackageVersion Include="PolySharp" Version="1.16.0" />
     <PackageVersion Include="MinVer" Version="8.0.0" />
     <PackageVersion Include="TUnit" Version="1.66.27" />
     <PackageVersion Include="TUnit.Core" Version="1.66.27" />
     <PackageVersion Include="TUnit.Assertions" Version="1.66.27" />
     <PackageVersion Include="PublicApiGenerator" Version="11.5.4" />
-    <PackageVersion Include="Verify.TUnit" Version="32.0.0" />
+    <PackageVersion Include="Verify.TUnit" Version="32.0.1" />
   </ItemGroup>
 </Project>
