@@ -63,9 +63,27 @@ For telnet this covers the two hot paths:
 | reading text | `[OnAny]`, appending to the line | `{ IAC, LF }` |
 | a GMCP, MSDP or MSSP payload | `[OnAny]`, appending to the payload | `{ IAC }` |
 
+### What an ancestor handles does not stop the run
+
+Resolution starts at the active leaf, so a state's own trigger beats an ancestor's — that is what makes `[OnAny]`
+a state's "or else". A run makes the ordinary rule sharp: the ancestor's value does not merely lose to the run,
+it is taken *into* the run, and nothing ends it.
+
+```csharp
+[Transition(From = typeof(Line), To = typeof(Idle)), On((byte)'\n')]   // on the parent
+public static void EndOfLine() { }
+
+[Transition(From = typeof(Reading)), OnAny, Run]                       // in the child: the newline vanishes
+public static void Text(ref Reading self, ReadOnlySpan<byte> run) => self.Length += run.Length;
+```
+
+`Reading`'s stop set is empty, and the machine never leaves it. Declare the trigger on the run's own state as
+well and it stops the run there; [`SALCH0702`](../reference/diagnostics.md#salch0702) says so at compile time.
+
 ## Rules
 
-- A run is a **stay** on `[OnAny]` or a range.
+- A run is a [**stay**](transitions.md#three-kinds) on `[OnAny]` or a range — it cannot change state, because
+  the bytes after the first are only the same trigger for as long as the state has not changed.
 - Its transform takes exactly `(ref TState self, ReadOnlySpan<TValue> run)`, optionally followed by
   `in TConfig` and the context.
 - It has no `Guard`: a guard per value would defeat the point.

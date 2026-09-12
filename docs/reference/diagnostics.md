@@ -300,9 +300,31 @@ choice is made.
 
 > [Run] on '{0}' is invalid: {1}
 
-A run is a stay on `[OnAny]` or a range, without a guard, whose transform takes
+A run is a [stay](../concepts/transitions.md#three-kinds) on `[OnAny]` or a range, without a guard, whose transform takes
 `(ref TState self, ReadOnlySpan<TValue> run)` and optionally the configuration and context. See
 [runs](../concepts/runs.md).
+
+## SALCH0702
+
+**Run shadows an inherited trigger** · warning · app
+
+> Run '{0}' shadows '{1}' on '{2}': {3} is taken into the run instead of ending it; declare it on '{4}' too
+
+A state's trigger beats an ancestor's, which is what makes `[OnAny]` a state's "or else". A run makes that
+ordinary rule expensive: the run takes a whole stretch of input in one call, so the value the ancestor handles does
+not merely lose to the run — it disappears into it, and nothing ever ends the run.
+
+```csharp
+[Transition(From = typeof(Line), To = typeof(Idle)), On((byte)'\n')]   // on the parent
+public static void EndOfLine() { }
+
+[Transition(From = typeof(Reading)), OnAny, Run]                       // in the child: swallows the newline
+public static void Text(ref Reading self, ReadOnlySpan<byte> run) => self.Length += run.Length;
+```
+
+Declare the trigger on the run's own state as well, and it ends the run there. Where a run really is meant to take
+everything — a state left only by an event, or by a decision — suppress it with `NoWarn` for that project;
+`#pragma warning disable` does not reach a generator's diagnostics.
 
 ## SALCH0801
 

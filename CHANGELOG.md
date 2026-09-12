@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+- `SALCH0702`: a run that shadows a value one of its ancestors handles. A state's trigger beats an ancestor's,
+  which is what makes `[OnAny]` a state's "or else" — but a run takes a stretch of input in one call, so the
+  ancestor's value is swallowed by the run rather than ending it, and the machine never leaves the state. Found by
+  declaring TelnetNegotiationCore's core framing as a machine, where it ate every newline.
+
+### Changed
+- The documentation says what a stay is where the word is first used, and every other page links to it.
+
 ## [1.0.1] — 2026-09-11
 
 Four races in the inbox, each found by review and each now covered by a test that fails without its fix.

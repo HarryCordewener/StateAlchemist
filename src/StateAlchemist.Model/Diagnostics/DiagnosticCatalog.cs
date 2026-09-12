@@ -99,6 +99,9 @@ public static class DiagnosticCatalog
     public static readonly DiagnosticDescriptor InvalidRun = new("SALCH0701", Severity.Error, "Invalid run transition",
         "[Run] on '{0}' is invalid: {1}", App);
 
+    public static readonly DiagnosticDescriptor RunShadowsTrigger = new("SALCH0702", Severity.Warning, "Run shadows an inherited trigger",
+        "Run '{0}' shadows '{1}' on '{2}': {3} is taken into the run instead of ending it; declare it on '{4}' too", App);
+
     public static readonly DiagnosticDescriptor FiredBeforeStarted = new("SALCH0801", Severity.Warning, "Fired before started",
         "'{0}' is fired before StartAsync on some path", Anywhere);
 
@@ -119,7 +122,7 @@ public static class DiagnosticCatalog
         OutcomeCompletions, UnknownOutcome,
         UnhandledValues, UnreachableState,
         SyncFireOnAsyncMachine,
-        InvalidRun,
+        InvalidRun, RunShadowsTrigger,
         FiredBeforeStarted,
         NoPhases, PhaseCanBeAdded,
     ];

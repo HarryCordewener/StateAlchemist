@@ -61,7 +61,13 @@ async methods. Every method is optional. A method in the class that is not a pha
 | another state | **move** | exits up to the lowest common ancestor, enters down to the target |
 | the source itself | **re-entry** | exits and re-enters the source, clearing its data |
 
-A stay is how a state consumes input without leaving:
+A **stay** is a transition that does not change state: omit `To`, and the trigger is handled where it is. Nothing
+is exited and nothing is entered, so the state's data survives the transition and the transform edits it in place —
+which is why a stay takes its own state as `ref`. It is Stateless's `InternalTransition`, and it is what a
+[run](runs.md) has to be: a run covers a stretch of input in one call, which is only the same trigger for as long
+as the state has not changed.
+
+This is how a state consumes input without leaving:
 
 <!-- snippet: sample-capture -->
 <a id='snippet-sample-capture'></a>
