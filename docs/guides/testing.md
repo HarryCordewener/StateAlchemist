@@ -64,10 +64,9 @@ itself.
 
 ## How StateAlchemist tests itself
 
-The library ships with a **reference interpreter**: a slow, reflection-based `IMachine<TValue>` that runs the same
+The library ships with a **reference interpreter**: Stateless, a reflection-based `IMachine<TValue>` that runs the same
 declarations by the book. The semantics in these docs are written as a **contract test suite** against
 `IMachine<TValue>`, and the suite runs twice: against the reference interpreter, and against the generated
 machine. A generated machine that behaves differently from the interpreter fails the same test.
 
-The reference interpreter exists for testing StateAlchemist and your declarations, not for production. It
-allocates freely and runs orders of magnitude slower than generated code.
+The reference interpreter exists for testing StateAlchemist and your declarations, not for production.
