@@ -35,6 +35,7 @@ build provenance, so a `.nupkg` can be checked back to the workflow and commit t
 - **[Roadmap](docs/superpowers/plans/2026-09-11-00-roadmap.md)** — the order of work and how it is tested.
 - **[Design specification](docs/superpowers/specs/2026-09-11-statealchemist-design.md)** — every decision and why.
 - **[Discord](https://discord.gg/SK2cWERJF7)** — the TelnetNegotiationCore server, where this is discussed.
+- **[Contributing](CONTRIBUTING.md)** — how to build it, where the tests live, and what a change has to do.
 
 ## Why
 
@@ -114,6 +115,14 @@ Adding a protocol is adding a package reference: a library offers its modules wi
 
 The first consumer is [TelnetNegotiationCore](https://github.com/HarryCordewener/TelnetNegotiationCore) 4.0; the
 [migration design](docs/superpowers/specs/2026-09-11-tnc-4.0-migration-design.md) says how.
+
+## Contributing
+
+Bug reports, ideas and pull requests are all welcome, and there is nothing to sign.
+[CONTRIBUTING.md](CONTRIBUTING.md) says how to build it, where the tests live, and what a change has to do before
+it can merge — the short version being that everything which adds or fixes behaviour comes with a test.
+
+Anything exploitable goes to [SECURITY.md](SECURITY.md) and a private advisory, not to a public issue.
 
 ## License
 

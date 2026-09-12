@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): how to build the repository, where each kind of test belongs, and what a
+  change has to do before it can merge. Issue and pull request templates go with it, and
+  [`docs/releasing.md`](docs/releasing.md) now states that a release fixing a publicly known vulnerability names
+  it in the changelog. Together these are the [OpenSSF Best Practices](https://www.bestpractices.dev/) criteria
+  the repository did not yet meet.
+
+### Added
 - `TransitionDefinition.Outcomes`: a decision's outcome cases and the state each one moves to, as
   `OutcomeDefinition`. A decision has no target — which one it takes is not known when the trigger arrives — so
   without these the states only a decision reaches were named by nothing in `MachineDefinition`. Purely additive;

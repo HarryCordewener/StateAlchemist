@@ -1,0 +1,46 @@
+name: Bug report
+description: Something the library does that it should not — a wrong diagnostic, generated code that misbehaves, a machine that takes the wrong transition.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Anything **exploitable** does not belong here. Report it privately through a
+        [security advisory](https://github.com/HarryCordewener/StateAlchemist/security/advisories/new);
+        [`SECURITY.md`](https://github.com/HarryCordewener/StateAlchemist/blob/main/SECURITY.md) says what counts.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: declarations
+    attributes:
+      label: The declarations
+      description: >
+        The machine is generated from what you wrote, so the states, the transitions and the module or machine
+        declaration are usually the whole reproduction. Trim it to the smallest thing that still misbehaves.
+      render: csharp
+    validations:
+      required: true
+  - type: input
+    id: trigger
+    attributes:
+      label: What you fired
+      description: The trigger or the sequence of them, and where the machine was when you did.
+      placeholder: "FireAsync(255), then FireAsync(250) from Idle"
+  - type: input
+    id: diagnostic
+    attributes:
+      label: Diagnostic id
+      description: If the compiler said something, which one.
+      placeholder: SALCH0301
+  - type: input
+    id: version
+    attributes:
+      label: Version and target framework
+      placeholder: StateAlchemist 1.2.0, net8.0, .NET 8 SDK
+    validations:
+      required: true
