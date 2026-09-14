@@ -93,3 +93,14 @@ Anything else is [`SALCH0701`](../reference/diagnostics.md#salch0701).
 
 A single value fired with `FireAsync(TValue)` still reaches a run transition, as a run of length one: runs change
 how fast a batch is consumed, never what it does.
+
+## Cooperative batch boundaries
+
+`FireUntilBoundaryAsync(values)` returns how many values it consumed. Normally that is `values.Length`. An action
+or hook may call `RequestBatchBoundary()` when it changes an outside condition that governs how later values must
+be decoded. The call returns after the current transition and every event it queued; its caller retains the
+unconsumed suffix and decides how to process it.
+
+A boundary cannot split a run after scanning has chosen it. If a run's completed action requests one, the entire
+run counts as consumed. The existing `FireAsync(values)` deliberately ignores cooperative boundaries and always
+processes the complete batch, preserving its contract.

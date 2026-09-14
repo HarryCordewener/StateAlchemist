@@ -8,7 +8,8 @@ For a machine declared as
 public sealed partial class MudTelnet;
 ```
 
-the generator adds the members below to `MudTelnet`, which also implements `IMachine<byte>`. Nothing it
+the generator adds the members below to `MudTelnet`, which also implements `IMachine<byte>` and
+`IBoundaryMachine<byte>`. Nothing it
 generates uses a dictionary, a hash lookup, or reflection: dispatch is a `switch` on the active state, then on the
 trigger; storage is fields; the definition is static arrays. The generated code is plain C# 7.3, so a
 `netstandard2.0` project compiles it on its default language version.
@@ -45,9 +46,11 @@ where the module is written, by the [analyzer](diagnostics.md#which-component-re
 |---|---|
 | `ValueTask FireAsync(byte value)` | Fires one value. Every `FireAsync` completes when its input has been processed — including waiting for any [decision](../concepts/decisions.md#deferral-and-backpressure) it started — so awaiting it is the backpressure. |
 | `ValueTask FireAsync(ReadOnlyMemory<byte> values)` | Fires values in order, consuming [runs](../concepts/runs.md) in one call. |
+| `ValueTask<int> FireUntilBoundaryAsync(ReadOnlyMemory<byte> values)` | Fires until every value is consumed or an action calls `RequestBatchBoundary()`, then returns the consumed count. |
 | `ValueTask FireAsync(in {Event} e)` | One per event type the machine handles. |
 | `void Fire(byte value)`, `void Fire(ReadOnlyMemory<byte> values)`, `void Fire(in {Event} e)` | The same calls without the `await`, for a machine whose actions and decisions are all synchronous. Using one on a machine that can suspend is [`SALCH0601`](diagnostics.md#salch0601): the call would block the calling thread until the action came back. On a `Serialized` machine the call also blocks while another thread holds the pump, which is what serialising means. The batch takes `ReadOnlyMemory` rather than a span because it is the same code path as `FireAsync`, where a suspended [run](../concepts/runs.md) needs a buffer that outlives the call. |
 | `void Enqueue(in {Event} e)` | Queues an event for after the current transition. |
+| `void RequestBatchBoundary()` | Asks a consumption-reporting batch to return after the current transition and its queued events. Calls outside the machine throw. Ordinary `FireAsync` batches continue to completion. |
 
 ## The pure layer
 
@@ -73,4 +76,5 @@ Generated `partial` methods, removed by the compiler unless the application impl
 machine's shape: `StateType` instead of `StateId State`, `IsIn<TState>()`, `TryGetState<TState>(out TState)`,
 `FireAsync<TEvent>(TEvent)`, `Enqueue<TEvent>(TEvent)` and `Plan<TEvent>(TEvent)`. The generic members compare
 `typeof` constants that the JIT folds away, so they cost no more than the typed ones — except on
-`netstandard2.0`, where `TryGetState<TState>` boxes.
+`netstandard2.0`, where `TryGetState<TState>` boxes. `IBoundaryMachine<TValue>` adds the cooperative batch members
+without requiring existing `IMachine<TValue>` implementations to provide them.

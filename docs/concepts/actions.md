@@ -91,3 +91,8 @@ A transition finishes — through every awaited action — before the next trigg
 `InvalidOperationException`; use `FireAsync` there. The queue is a small buffer inside the machine, and allocates
 only if more than four events queue at once. Values are
 never queued this way; see [decisions](decisions.md#deferral-and-backpressure).
+
+An action or hook may call `RequestBatchBoundary()` when an outside condition changes how the rest of the input
+must be interpreted. `FireUntilBoundaryAsync` then returns after step 9 with the number of values consumed. A run
+is one transition, so a request from its completed action returns after the whole run. Calling the method outside
+the machine throws, like `Enqueue`; calling it during an ordinary `FireAsync` batch does not shorten that batch.

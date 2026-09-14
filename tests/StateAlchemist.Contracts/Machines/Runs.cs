@@ -18,6 +18,8 @@ public struct Text : IState<RunRoot>
 
 public struct Escape : IState<RunRoot>;
 
+public readonly struct AfterBoundary : IEvent;
+
 /// <summary>Text arrives in runs: everything up to the next line feed, bell or IAC is one call.</summary>
 [Module]
 public static class RunModule
@@ -32,7 +34,14 @@ public static class RunModule
             context.Record($"run {run.Length}");
         }
 
-        public static void Completed(RecordingContext context, ReadOnlyMemory<byte> run) => context.Record($"appended {run.Length}");
+        public static void Completed(RecordingContext context, ReadOnlyMemory<byte> run)
+        {
+            context.Record($"appended {run.Length}");
+            if (context.Allow.Contains("BoundaryAfterRun"))
+            {
+                ((IBoundaryMachine<byte>)context.Machine!).RequestBatchBoundary();
+            }
+        }
     }
 
     /// <summary>A line feed ends the line.</summary>
@@ -51,6 +60,25 @@ public static class RunModule
 
         public static void Completed(RecordingContext context) => context.Record("bell");
     }
+
+    /// <summary>A completed action can yield the rest of the current batch back to its caller.</summary>
+    [Transition(From = typeof(Text)), On((byte)'|')]
+    public static class Boundary
+    {
+        public static void Completed(RecordingContext context)
+        {
+            context.Record("boundary");
+            context.Machine!.Enqueue(new AfterBoundary());
+            ((IBoundaryMachine<byte>)context.Machine!).RequestBatchBoundary();
+            if (context.Allow.Contains("ThrowAfterBoundary"))
+            {
+                throw new InvalidOperationException("after boundary");
+            }
+        }
+    }
+
+    [Transition(From = typeof(RunRoot)), OnEvent(typeof(AfterBoundary))]
+    public static void BoundaryEvent(RecordingContext context) => context.Record("queued after boundary");
 
     /// <summary>IAC leaves the text.</summary>
     [Transition(From = typeof(Text), To = typeof(Escape)), On(255)]

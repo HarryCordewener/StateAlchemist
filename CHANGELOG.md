@@ -5,6 +5,10 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- `FireUntilBoundaryAsync` and `RequestBatchBoundary`: an action or hook can return a consumption-reporting batch
+  after its current transition and queued events. The caller receives the consumed count and retains the suffix,
+  for stream protocols where a transition changes how following bytes must be decoded. Existing `FireAsync`
+  batches continue through such requests and retain their complete-consumption contract.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md): how to build the repository, where each kind of test belongs, and what a
   change has to do before it can merge. Issue and pull request templates go with it, and
   [`docs/releasing.md`](docs/releasing.md) now states that a release fixing a publicly known vulnerability names

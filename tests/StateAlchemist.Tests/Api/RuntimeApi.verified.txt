@@ -51,6 +51,12 @@
         public ExportsModuleAttribute(System.Type module) { }
         public System.Type Module { get; }
     }
+    public interface IBoundaryMachine<TValue> : StateAlchemist.IMachine<TValue>, System.IAsyncDisposable
+        where TValue :  struct
+    {
+        System.Threading.Tasks.ValueTask<int> FireUntilBoundaryAsync(System.ReadOnlyMemory<TValue> values);
+        void RequestBatchBoundary();
+    }
     public interface IEvent { }
     public interface IMachine<TValue> : System.IAsyncDisposable
         where TValue :  struct

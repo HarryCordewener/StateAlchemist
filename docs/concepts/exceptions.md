@@ -22,6 +22,9 @@ When a transition throws out of `FireAsync(ReadOnlyMemory<TValue>)`, the rest of
 your loop had stopped at that value — and a decision the batch started is cancelled. Events already queued are
 kept, and run before the next trigger.
 
+`FireUntilBoundaryAsync` has the same exception behavior. A propagated exception wins over a requested boundary;
+because the call did not complete, it does not return a consumed count.
+
 ## Choosing the recovery
 
 Each phase has an optional hook: a generated `partial` method the application can implement. Implemented, it
