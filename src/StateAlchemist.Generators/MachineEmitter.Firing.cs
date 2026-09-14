@@ -450,7 +450,6 @@ internal sealed partial class MachineEmitter
             _w.Line("fired.AsTask().GetAwaiter().GetResult();");
         }
 
-
         _w.Line();
         using (_w.Block("private static int Await(global::System.Threading.Tasks.ValueTask<int> fired)"))
         {
