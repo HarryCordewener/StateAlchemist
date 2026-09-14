@@ -205,6 +205,7 @@ internal sealed partial class MachineEmitter
                 _w.Line("if (input.HoldsBusy) { lock (_sync) { _busy = false; } }");
             }
 
+            _w.Line("if (input.StopAtBoundary) { lock (_sync) { _boundaryRequested = false; } }");
             _w.Line("if (input.BoundaryDone != null) input.BoundaryDone.TrySetException(exception);");
             _w.Line("if (input.HasCaller) input.Core.SetException(exception); else Return(input);");
         }

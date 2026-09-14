@@ -263,6 +263,7 @@ public sealed partial class ReferenceMachine<TValue>
             if (ReferenceEquals(input, _current))
             {
                 _current = null;
+                _boundaryRequested = false;
             }
 
             if (_pending is { } pending && ReferenceEquals(pending.Owner, input))

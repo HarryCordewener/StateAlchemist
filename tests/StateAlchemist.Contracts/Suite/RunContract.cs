@@ -124,4 +124,18 @@ public abstract class RunContract : MachineContract
         await Assert.That(consumed).IsEqualTo(6);
         await Assert.That(context.Trace).IsEqualTo("run 6 | appended 6");
     }
+
+    [Test]
+    public async Task AFailedBoundaryBatchDoesNotPoisonTheNextBatch()
+    {
+        var (machine, context) = await Started("ThrowAfterBoundary");
+        var boundaryMachine = (IBoundaryMachine<byte>)machine;
+
+        await Assert.That(async () => await boundaryMachine.FireUntilBoundaryAsync("ab|"u8.ToArray()))
+            .Throws<InvalidOperationException>();
+
+        context.Allow.Remove("ThrowAfterBoundary");
+        await Assert.That(await boundaryMachine.FireUntilBoundaryAsync("cd"u8.ToArray())).IsEqualTo(2);
+        await Assert.That(machine.TryGetState(out Text text) ? text.Length : -1).IsEqualTo(4);
+    }
 }

@@ -70,6 +70,10 @@ public static class RunModule
             context.Record("boundary");
             context.Machine!.Enqueue(new AfterBoundary());
             ((IBoundaryMachine<byte>)context.Machine!).RequestBatchBoundary();
+            if (context.Allow.Contains("ThrowAfterBoundary"))
+            {
+                throw new InvalidOperationException("after boundary");
+            }
         }
     }
 
