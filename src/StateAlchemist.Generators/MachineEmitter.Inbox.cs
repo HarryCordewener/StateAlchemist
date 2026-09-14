@@ -82,6 +82,8 @@ internal sealed partial class MachineEmitter
 
             _w.Line($"public {TypeType} Unknown;");
             _w.Line("public bool HasCaller;");
+            _w.Line("public bool StopAtBoundary;");
+            _w.Line("public global::System.Threading.Tasks.TaskCompletionSource<int> BoundaryDone;");
             _w.Line("public int Settled;");
             _w.Line("/// <summary>Bumped on every return to the pool: a reference taken before that one must not settle this input.</summary>");
             _w.Line("public int Generation;");
@@ -160,6 +162,8 @@ internal sealed partial class MachineEmitter
 
             _w.Line("input.Unknown = null;");
             _w.Line("input.HasCaller = false;");
+            _w.Line("input.StopAtBoundary = false;");
+            _w.Line("input.BoundaryDone = null;");
             _w.Line("input.Settled = 0;");
             if (IsChecked)
             {
@@ -188,6 +192,7 @@ internal sealed partial class MachineEmitter
                 _w.Line("if (input.HoldsBusy) { lock (_sync) { _busy = false; } }");
             }
 
+            _w.Line("if (input.BoundaryDone != null) input.BoundaryDone.TrySetResult(input.Next);");
             _w.Line("if (input.HasCaller) input.Core.SetResult(true); else Return(input);");
         }
 
@@ -200,6 +205,7 @@ internal sealed partial class MachineEmitter
                 _w.Line("if (input.HoldsBusy) { lock (_sync) { _busy = false; } }");
             }
 
+            _w.Line("if (input.BoundaryDone != null) input.BoundaryDone.TrySetException(exception);");
             _w.Line("if (input.HasCaller) input.Core.SetException(exception); else Return(input);");
         }
     }
@@ -272,6 +278,13 @@ internal sealed partial class MachineEmitter
             _w.Line("if (!result.IsCompletedSuccessfully) return result;");
             _w.Line("result.GetAwaiter().GetResult();");
             _w.Line($"return default({ValueTaskType});");
+        }
+
+        _w.Line();
+        using (_w.Block($"private async global::System.Threading.Tasks.ValueTask<int> SubmitUntilBoundary(Input input, global::System.Threading.Tasks.TaskCompletionSource<int> completion)"))
+        {
+            _w.Line("await Submit(input);");
+            _w.Line("return await completion.Task;");
         }
 
         if (!Bounded)
@@ -450,6 +463,14 @@ internal sealed partial class MachineEmitter
             if (Deciding)
             {
                 _w.Line("_owner = input; _started = null;");
+            }
+
+            using (_w.Block("if (input.StopAtBoundary && _boundaryRequested)"))
+            {
+                _w.Line("_boundaryRequested = false;");
+                _w.Line("lock (_sync) { _current = null; }");
+                _w.Line("Succeed(input);");
+                _w.Line($"return default({ValueTaskType});");
             }
 
             _w.Line("_inside = true;");

@@ -130,6 +130,14 @@ public sealed partial class ReferenceMachine<TValue> : IMachine<TValue>
     public ValueTask FireAsync(ReadOnlyMemory<TValue> values) => SubmitAsync(Work.ForValues(values));
 
     /// <inheritdoc/>
+    public async ValueTask<int> FireUntilBoundaryAsync(ReadOnlyMemory<TValue> values)
+    {
+        var work = Work.ForValues(values, stopAtBoundary: true);
+        await SubmitAsync(work);
+        return work.Next;
+    }
+
+    /// <inheritdoc/>
     public ValueTask FireAsync<TEvent>(TEvent e)
         where TEvent : struct, IEvent =>
         SubmitAsync(Work.ForEvent(e));
@@ -168,6 +176,20 @@ public sealed partial class ReferenceMachine<TValue> : IMachine<TValue>
                 }
 
                 return;
+        }
+    }
+
+    /// <inheritdoc/>
+    public void RequestBatchBoundary()
+    {
+        if (_inside.Value is null)
+        {
+            throw new InvalidOperationException("RequestBatchBoundary is for code running inside the machine, such as an action or a hook.");
+        }
+
+        lock (_sync)
+        {
+            _boundaryRequested = _current?.StopAtBoundary == true;
         }
     }
 

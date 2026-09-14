@@ -75,4 +75,50 @@ public abstract class RunContract : MachineContract
             await Assert.That(machine.TryGetState(out RunRoot root) ? root.Lines : -1).IsEqualTo(1);
         }
     }
+
+    [Test]
+    public async Task ACompletedActionCanReturnTheUnconsumedSuffixToTheCaller()
+    {
+        var (machine, context) = await Started();
+        var input = "ab|cd"u8.ToArray();
+
+        var consumed = await machine.FireUntilBoundaryAsync(input);
+
+        await Assert.That(consumed).IsEqualTo(3);
+        await Assert.That(context.Trace).IsEqualTo("run 2 | appended 2 | boundary | queued after boundary");
+        await Assert.That(machine.TryGetState(out Text text) ? text.Length : -1).IsEqualTo(2);
+
+        await Assert.That(await machine.FireUntilBoundaryAsync(input.AsMemory(consumed))).IsEqualTo(2);
+        await Assert.That(machine.TryGetState(out text) ? text.Length : -1).IsEqualTo(4);
+    }
+
+    [Test]
+    public async Task TheExistingBatchApiContinuesAcrossACooperativeBoundary()
+    {
+        var (machine, context) = await Started();
+
+        await machine.FireAsync("ab|cd"u8.ToArray());
+
+        await Assert.That(context.Trace).IsEqualTo("run 2 | appended 2 | boundary | queued after boundary | run 2 | appended 2");
+        await Assert.That(machine.TryGetState(out Text text) ? text.Length : -1).IsEqualTo(4);
+    }
+
+    [Test]
+    public async Task RequestingABatchBoundaryOutsideTheMachineIsRejected()
+    {
+        var (machine, _) = await Started();
+
+        await Assert.That(() => machine.RequestBatchBoundary()).Throws<InvalidOperationException>();
+    }
+
+    [Test]
+    public async Task ARunCanRequestABoundaryAfterTheWholeRun()
+    {
+        var (machine, context) = await Started("BoundaryAfterRun");
+
+        var consumed = await machine.FireUntilBoundaryAsync("abcdef"u8.ToArray());
+
+        await Assert.That(consumed).IsEqualTo(6);
+        await Assert.That(context.Trace).IsEqualTo("run 6 | appended 6");
+    }
 }

@@ -30,6 +30,7 @@ public sealed partial class ReferenceMachine<TValue>
     private Pending? _pending;
     private bool _pumping;
     private bool _busy;
+    private bool _boundaryRequested;
 
     private async ValueTask SubmitAsync(Work work)
     {
@@ -185,6 +186,23 @@ public sealed partial class ReferenceMachine<TValue>
     {
         _inside.Value = Inside.Transition;
         Trigger trigger;
+        if (input.StopAtBoundary && _boundaryRequested)
+        {
+            lock (_sync)
+            {
+                _boundaryRequested = false;
+                _current = null;
+            }
+
+            input.Done!.TrySetResult(true);
+            return;
+        }
+
+        if (!input.StopAtBoundary)
+        {
+            _boundaryRequested = false;
+        }
+
         if (input.Event is { } e && input.Next == 0)
         {
             trigger = Trigger.OfEvent(e);
@@ -308,11 +326,12 @@ public sealed partial class ReferenceMachine<TValue>
     /// <summary>One caller's input, or an event queued inside the machine (which has no caller waiting on it).</summary>
     private sealed class Work
     {
-        private Work(ReadOnlyMemory<TValue> values, object? e, bool hasCaller)
+        private Work(ReadOnlyMemory<TValue> values, object? e, bool hasCaller, bool stopAtBoundary = false)
         {
             Values = values;
             Event = e;
             Done = hasCaller ? new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously) : null;
+            StopAtBoundary = stopAtBoundary;
         }
 
         public ReadOnlyMemory<TValue> Values { get; }
@@ -328,7 +347,9 @@ public sealed partial class ReferenceMachine<TValue>
         /// <summary>An event that arrived while a decision was pending, and so waits for it to resolve.</summary>
         public bool ArrivedWhilePending { get; set; }
 
-        public static Work ForValues(ReadOnlyMemory<TValue> values) => new(values, null, hasCaller: true);
+        public bool StopAtBoundary { get; }
+
+        public static Work ForValues(ReadOnlyMemory<TValue> values, bool stopAtBoundary = false) => new(values, null, hasCaller: true, stopAtBoundary);
 
         public static Work ForEvent(object e) => new(default, e, hasCaller: true);
 

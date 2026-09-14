@@ -122,6 +122,11 @@ internal sealed partial class MachineEmitter
         _w.Line("private StateId _leaf;");
         _w.Line($"private {Rt}MachineStatus _status;");
         _w.Line("private bool _inside;");
+        _w.Line("private bool _boundaryRequested;");
+        if (!HasInbox)
+        {
+            _w.Line("private bool _boundaryEnabled;");
+        }
         _w.Line("private global::System.Threading.CancellationTokenSource _lifetime;");
         if (HasInbox)
         {

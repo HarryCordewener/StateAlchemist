@@ -47,6 +47,25 @@ internal sealed partial class MachineEmitter
             }
         }
 
+        _w.Line();
+        _w.Line("/// <inheritdoc/>");
+        using (_w.Block($"public global::System.Threading.Tasks.ValueTask<int> FireUntilBoundaryAsync(global::System.ReadOnlyMemory<{V}> values)"))
+        {
+            if (HasInbox)
+            {
+                _w.Line("var input = Rent();");
+                _w.Line("input.Values = values;");
+                _w.Line("input.StopAtBoundary = true;");
+                _w.Line("var completion = new global::System.Threading.Tasks.TaskCompletionSource<int>(global::System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);");
+                _w.Line("input.BoundaryDone = completion;");
+                _w.Line("return SubmitUntilBoundary(input, completion);");
+            }
+            else
+            {
+                _w.Line("return FireUntilBoundaryDirect(values);");
+            }
+        }
+
         for (var i = 0; i < _events.Count; i++)
         {
             _w.Line();
@@ -135,6 +154,20 @@ internal sealed partial class MachineEmitter
                 _w.Line("RefuseOutside();");
                 _w.Line("Queue().Enqueue(new QueuedEvent { Tag = -1, Unknown = typeof(TEvent) });");
             }
+        }
+
+        _w.Line();
+        _w.Line("/// <inheritdoc/>");
+        using (_w.Block("public void RequestBatchBoundary()"))
+        {
+            _w.Line("RefuseBoundaryOutside();");
+            _w.Line(HasInbox ? "lock (_sync) { _boundaryRequested = _current != null && _current.StopAtBoundary; }" : "if (_boundaryEnabled) _boundaryRequested = true;");
+        }
+
+        _w.Line();
+        using (_w.Block("private void RefuseBoundaryOutside()"))
+        {
+            _w.Line("if (!_inside) throw new global::System.InvalidOperationException(\"RequestBatchBoundary is for code running inside the machine, such as an action or a hook.\");");
         }
 
         _w.Line();
@@ -276,6 +309,32 @@ internal sealed partial class MachineEmitter
             _w.Line("await DrainQueue();");
         }
 
+        _w.Line();
+        using (_w.Block($"private async global::System.Threading.Tasks.ValueTask<int> FireUntilBoundaryDirect(global::System.ReadOnlyMemory<{V}> values)"))
+        {
+            _w.Line("var refused = Refuse();");
+            _w.Line("if (refused != null) throw refused;");
+            _w.Line("_boundaryEnabled = true;");
+            using (_w.Block("try"))
+            {
+                using (_w.Block("for (var i = 0; i < values.Length;)"))
+                {
+                    _w.Line("await DrainQueue();");
+                    _w.Line("if (_boundaryRequested) { _boundaryRequested = false; return i; }");
+                    _w.Line(HasRuns ? "var count = RunLength(values.Slice(i));" : "var count = 1;");
+                    _w.Line("_inside = true;");
+                    _w.Line("try { await DispatchAt(values, i, count); } finally { _inside = false; }");
+                    _w.Line("i += count;");
+                    _w.Line("await DrainQueue();");
+                    _w.Line("if (_boundaryRequested) { _boundaryRequested = false; return i; }");
+                }
+
+                _w.Line("return values.Length;");
+            }
+
+            _w.Line("finally { _boundaryRequested = false; _boundaryEnabled = false; Release(); }");
+        }
+
         for (var i = 0; i < _events.Count; i++)
         {
             _w.Line();
@@ -370,6 +429,9 @@ internal sealed partial class MachineEmitter
         _w.Line();
         _w.Line("/// <summary>Fires every value of <paramref name=\"values\"/>, in order, and returns when they have been processed.</summary>");
         _w.Line($"public void Fire(global::System.ReadOnlyMemory<{V}> values) {{ Await(FireAsync(values)); }}");
+        _w.Line();
+        _w.Line("/// <summary>Fires values through the next cooperative batch boundary and returns the count consumed.</summary>");
+        _w.Line($"public int FireUntilBoundary(global::System.ReadOnlyMemory<{V}> values) {{ return Await(FireUntilBoundaryAsync(values)); }}");
         for (var i = 0; i < _events.Count; i++)
         {
             _w.Line();
@@ -386,6 +448,14 @@ internal sealed partial class MachineEmitter
             // AsTask consumes the source properly, and blocking on the task is what the caller asked for.
             _w.Line("if (fired.IsCompleted) { fired.GetAwaiter().GetResult(); return; }");
             _w.Line("fired.AsTask().GetAwaiter().GetResult();");
+        }
+
+
+        _w.Line();
+        using (_w.Block("private static int Await(global::System.Threading.Tasks.ValueTask<int> fired)"))
+        {
+            _w.Line("if (fired.IsCompleted) return fired.GetAwaiter().GetResult();");
+            _w.Line("return fired.AsTask().GetAwaiter().GetResult();");
         }
     }
 
