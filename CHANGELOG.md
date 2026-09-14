@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-14
+
 ### Added
 - `FireUntilBoundaryAsync` and `RequestBatchBoundary`: an action or hook can return a consumption-reporting batch
   after its current transition and queued events. The caller receives the consumed count and retains the suffix,
@@ -15,7 +17,6 @@ All notable changes to this project are documented here.
   it in the changelog. Together these are the [OpenSSF Best Practices](https://www.bestpractices.dev/) criteria
   the repository did not yet meet.
 
-### Added
 - `TransitionDefinition.Outcomes`: a decision's outcome cases and the state each one moves to, as
   `OutcomeDefinition`. A decision has no target — which one it takes is not known when the trigger arrives — so
   without these the states only a decision reaches were named by nothing in `MachineDefinition`. Purely additive;

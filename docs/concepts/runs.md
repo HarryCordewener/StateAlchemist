@@ -101,6 +101,26 @@ or hook may call `RequestBatchBoundary()` when it changes an outside condition t
 be decoded. The call returns after the current transition and every event it queued; its caller retains the
 unconsumed suffix and decides how to process it.
 
+```csharp
+ReadOnlyMemory<byte> remaining = input;
+
+while (!remaining.IsEmpty)
+{
+    var consumed = await machine.FireUntilBoundaryAsync(remaining);
+    remaining = remaining[consumed..];
+
+    if (!remaining.IsEmpty)
+    {
+        // An action requested the boundary after changing the decoder's mode.
+        remaining = decoder.Decode(remaining);
+    }
+}
+```
+
+Use the consumption-reporting member through `IBoundaryMachine<TValue>` when code accepts either a generated
+machine or another implementation. Keep using `IMachine<TValue>.FireAsync` when the complete batch is already in
+the representation the machine consumes and no caller work is needed at a boundary.
+
 A boundary cannot split a run after scanning has chosen it. If a run's completed action requests one, the entire
 run counts as consumed. The existing `FireAsync(values)` deliberately ignores cooperative boundaries and always
 processes the complete batch, preserving its contract.

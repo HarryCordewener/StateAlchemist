@@ -102,7 +102,8 @@ public sealed partial class MudTelnet;
 - Hierarchical states whose data is reset on entry and cleared on exit, with no allocation per entry.
 - Value triggers (a byte, a `char`, a small enum) matched exactly, by range, or by `OnAny` for whatever a state
   does not otherwise handle; and typed events with their own payload.
-- Run transitions: one call takes a whole stretch of input, found by a vectorised scan.
+- Run transitions: one call takes a whole stretch of input, found by a vectorised scan; cooperative batch
+  boundaries return the unconsumed suffix when a transition changes how the rest must be decoded.
 - Async actions and decisions with a synchronous fast path, run-to-completion semantics, and backpressure.
 - Compile-time diagnostics for conflicts between plugins, role violations, and uncovered decision outcomes, with
   code fixes for the ones a fix can write.
