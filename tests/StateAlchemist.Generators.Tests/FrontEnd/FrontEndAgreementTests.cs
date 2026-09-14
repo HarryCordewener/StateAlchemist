@@ -27,7 +27,7 @@ public class FrontEndAgreementTests
     private static readonly Dictionary<string, MachineShape> ShapesByName = new[]
     {
         Shapes.Recorder, Shapes.Guards, Shapes.GuardsThatThrow, Shapes.Failures, Shapes.RecorderSerialized,
-        Shapes.Deciding, Shapes.Runs, Shapes.Telnet,
+        Shapes.Deciding, Shapes.Runs, Shapes.RunsSerialized, Shapes.Telnet,
     }.ToDictionary(s => s.Name);
 
     /// <summary>The Roslyn front-end's model of <paramref name="machine"/>, as text.</summary>

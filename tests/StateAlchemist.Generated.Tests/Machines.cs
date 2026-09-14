@@ -125,3 +125,10 @@ public sealed partial class RunsMachine
 {
     public ContractHooks? Hooks { get; set; }
 }
+
+[Machine(Root = typeof(RunRoot), Value = typeof(byte), Context = typeof(RecordingContext), Concurrency = Concurrency.Serialized)]
+[Include(typeof(RunModule))]
+public sealed partial class RunsSerializedMachine
+{
+    public ContractHooks? Hooks { get; set; }
+}

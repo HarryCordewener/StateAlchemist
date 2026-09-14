@@ -8,7 +8,8 @@ For a machine declared as
 public sealed partial class MudTelnet;
 ```
 
-the generator adds the members below to `MudTelnet`, which also implements `IMachine<byte>`. Nothing it
+the generator adds the members below to `MudTelnet`, which also implements `IMachine<byte>` and
+`IBoundaryMachine<byte>`. Nothing it
 generates uses a dictionary, a hash lookup, or reflection: dispatch is a `switch` on the active state, then on the
 trigger; storage is fields; the definition is static arrays. The generated code is plain C# 7.3, so a
 `netstandard2.0` project compiles it on its default language version.
@@ -75,4 +76,5 @@ Generated `partial` methods, removed by the compiler unless the application impl
 machine's shape: `StateType` instead of `StateId State`, `IsIn<TState>()`, `TryGetState<TState>(out TState)`,
 `FireAsync<TEvent>(TEvent)`, `Enqueue<TEvent>(TEvent)` and `Plan<TEvent>(TEvent)`. The generic members compare
 `typeof` constants that the JIT folds away, so they cost no more than the typed ones — except on
-`netstandard2.0`, where `TryGetState<TState>` boxes.
+`netstandard2.0`, where `TryGetState<TState>` boxes. `IBoundaryMachine<TValue>` adds the cooperative batch members
+without requiring existing `IMachine<TValue>` implementations to provide them.

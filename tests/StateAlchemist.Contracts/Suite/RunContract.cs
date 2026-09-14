@@ -9,11 +9,13 @@ namespace StateAlchemist.Contracts.Suite;
 /// <summary>docs/concepts/runs.md: a run is taken in one call, ends at its stop set, and changes speed, never results.</summary>
 public abstract class RunContract : MachineContract
 {
+    protected virtual MachineShape Shape => Shapes.Runs;
+
     private async Task<(IMachine<byte> Machine, RecordingContext Context)> Started(params string[] allow)
     {
         var context = new RecordingContext();
         context.Allow.UnionWith(allow);
-        var machine = await StartAsync(Shapes.Runs, context);
+        var machine = await StartAsync(Shape, context);
         context.Log.Clear();
         return (machine, context);
     }

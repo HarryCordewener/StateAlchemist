@@ -28,5 +28,7 @@ public static class Shapes
 
     public static readonly MachineShape Runs = new("Runs", typeof(RunRoot), [typeof(RunModule)], typeof(RecordingContext));
 
+    public static readonly MachineShape RunsSerialized = Runs with { Name = "RunsSerialized", Concurrency = Concurrency.Serialized };
+
     public static readonly MachineShape Telnet = new("SampleTelnet", typeof(Connected), [typeof(TelnetCore), typeof(GmcpModule), typeof(NawsModule)], typeof(TelnetContext));
 }

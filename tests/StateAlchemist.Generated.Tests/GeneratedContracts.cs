@@ -1,4 +1,5 @@
 using StateAlchemist.Contracts;
+using StateAlchemist.Contracts.Machines;
 using StateAlchemist.Contracts.Suite;
 using TUnit.Core;
 
@@ -81,6 +82,13 @@ public sealed class GeneratedBackpressure : BackpressureContract
 [InheritsTests]
 public sealed class GeneratedRuns : RunContract
 {
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class GeneratedSerializedRuns : RunContract
+{
+    protected override MachineShape Shape => Shapes.RunsSerialized;
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
 }
 
