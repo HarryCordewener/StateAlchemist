@@ -72,7 +72,7 @@ internal sealed partial class MachineEmitter
             scopes.Add(_w.Block($"partial {Keyword(outer)} {outer.Name}"));
         }
 
-        using (_w.Block($"partial class {_machine.Machine.Name} : {Rt}IMachine<{V}>"))
+        using (_w.Block($"partial class {_machine.Machine.Name} : {Rt}IBoundaryMachine<{V}>"))
         {
             WriteStorage();
             WriteQueries();

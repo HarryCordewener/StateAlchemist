@@ -39,7 +39,7 @@ public static class RunModule
             context.Record($"appended {run.Length}");
             if (context.Allow.Contains("BoundaryAfterRun"))
             {
-                context.Machine!.RequestBatchBoundary();
+                ((IBoundaryMachine<byte>)context.Machine!).RequestBatchBoundary();
             }
         }
     }
@@ -69,7 +69,7 @@ public static class RunModule
         {
             context.Record("boundary");
             context.Machine!.Enqueue(new AfterBoundary());
-            context.Machine!.RequestBatchBoundary();
+            ((IBoundaryMachine<byte>)context.Machine!).RequestBatchBoundary();
         }
     }
 

@@ -19,7 +19,7 @@ namespace StateAlchemist.Reference;
 /// what a half-run transform left behind.
 /// </remarks>
 /// <typeparam name="TValue">The value-trigger type.</typeparam>
-public sealed partial class ReferenceMachine<TValue> : IMachine<TValue>
+public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     where TValue : struct
 {
     private readonly ReflectedMachine _machine;

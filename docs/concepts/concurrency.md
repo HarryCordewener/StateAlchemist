@@ -72,3 +72,8 @@ regions a call passes through, claiming the pump and releasing it.
 
 Every guard is paid per call, not per value. The batch `FireAsync(ReadOnlyMemory<TValue>)` pays it once for a
 whole read, so a machine reading a socket should hand the buffer over whole.
+
+`FireUntilBoundaryAsync` has the same concurrency and inbox rules as `FireAsync`. A cooperative boundary completes
+that one input after its current transition and queued events, returning the consumed count; a serialized caller
+may submit the unconsumed suffix as a new input. The boundary never exposes a half-finished transition or jumps
+ahead of events it queued.

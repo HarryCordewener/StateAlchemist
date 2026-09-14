@@ -55,11 +55,6 @@ public interface IMachine<TValue> : IAsyncDisposable
     /// <exception cref="MachineNotRunningException">The machine is not running, or was stopped while waiting on a decision.</exception>
     ValueTask FireAsync(ReadOnlyMemory<TValue> values);
 
-    /// <summary>Fires values until all are consumed or an action requests a cooperative batch boundary.</summary>
-    /// <param name="values">The values. The machine holds them until the returned task completes; nothing is copied.</param>
-    /// <returns>The number of values consumed.</returns>
-    ValueTask<int> FireUntilBoundaryAsync(ReadOnlyMemory<TValue> values);
-
     /// <summary>
     /// Fires an event. While a decision is pending, the machine accepts events from any caller: one the pending state
     /// handles is processed at once, and any other is queued until the decision resolves.
@@ -78,10 +73,6 @@ public interface IMachine<TValue> : IAsyncDisposable
     /// </exception>
     void Enqueue<TEvent>(TEvent e)
         where TEvent : struct, IEvent;
-
-    /// <summary>Returns the current consumption-reporting batch after the current transition and its queued events.</summary>
-    /// <exception cref="InvalidOperationException">Called from code not running inside the machine.</exception>
-    void RequestBatchBoundary();
 
     /// <summary>What <paramref name="value"/> would do now, evaluating guards, without doing it.</summary>
     /// <param name="value">The value.</param>

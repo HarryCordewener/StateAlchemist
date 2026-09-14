@@ -51,6 +51,12 @@
         public ExportsModuleAttribute(System.Type module) { }
         public System.Type Module { get; }
     }
+    public interface IBoundaryMachine<TValue> : StateAlchemist.IMachine<TValue>, System.IAsyncDisposable
+        where TValue :  struct
+    {
+        System.Threading.Tasks.ValueTask<int> FireUntilBoundaryAsync(System.ReadOnlyMemory<TValue> values);
+        void RequestBatchBoundary();
+    }
     public interface IEvent { }
     public interface IMachine<TValue> : System.IAsyncDisposable
         where TValue :  struct
@@ -64,13 +70,11 @@
         System.Threading.Tasks.ValueTask FireAsync(TValue value);
         System.Threading.Tasks.ValueTask FireAsync<TEvent>(TEvent e)
             where TEvent :  struct, StateAlchemist.IEvent;
-        System.Threading.Tasks.ValueTask<int> FireUntilBoundaryAsync(System.ReadOnlyMemory<TValue> values);
         bool IsIn<TState>()
             where TState :  struct;
         StateAlchemist.TransitionPlan Plan(TValue value);
         StateAlchemist.TransitionPlan Plan<TEvent>(TEvent e)
             where TEvent :  struct, StateAlchemist.IEvent;
-        void RequestBatchBoundary();
         System.Threading.Tasks.ValueTask StartAsync();
         System.Threading.Tasks.ValueTask StopAsync();
         bool TryGetState<TState>(out TState value)

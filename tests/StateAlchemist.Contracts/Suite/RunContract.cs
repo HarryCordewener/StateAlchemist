@@ -82,13 +82,14 @@ public abstract class RunContract : MachineContract
         var (machine, context) = await Started();
         var input = "ab|cd"u8.ToArray();
 
-        var consumed = await machine.FireUntilBoundaryAsync(input);
+        var boundaryMachine = (IBoundaryMachine<byte>)machine;
+        var consumed = await boundaryMachine.FireUntilBoundaryAsync(input);
 
         await Assert.That(consumed).IsEqualTo(3);
         await Assert.That(context.Trace).IsEqualTo("run 2 | appended 2 | boundary | queued after boundary");
         await Assert.That(machine.TryGetState(out Text text) ? text.Length : -1).IsEqualTo(2);
 
-        await Assert.That(await machine.FireUntilBoundaryAsync(input.AsMemory(consumed))).IsEqualTo(2);
+        await Assert.That(await boundaryMachine.FireUntilBoundaryAsync(input.AsMemory(consumed))).IsEqualTo(2);
         await Assert.That(machine.TryGetState(out text) ? text.Length : -1).IsEqualTo(4);
     }
 
@@ -108,7 +109,7 @@ public abstract class RunContract : MachineContract
     {
         var (machine, _) = await Started();
 
-        await Assert.That(() => machine.RequestBatchBoundary()).Throws<InvalidOperationException>();
+        await Assert.That(() => ((IBoundaryMachine<byte>)machine).RequestBatchBoundary()).Throws<InvalidOperationException>();
     }
 
     [Test]
@@ -116,7 +117,7 @@ public abstract class RunContract : MachineContract
     {
         var (machine, context) = await Started("BoundaryAfterRun");
 
-        var consumed = await machine.FireUntilBoundaryAsync("abcdef"u8.ToArray());
+        var consumed = await ((IBoundaryMachine<byte>)machine).FireUntilBoundaryAsync("abcdef"u8.ToArray());
 
         await Assert.That(consumed).IsEqualTo(6);
         await Assert.That(context.Trace).IsEqualTo("run 6 | appended 6");
