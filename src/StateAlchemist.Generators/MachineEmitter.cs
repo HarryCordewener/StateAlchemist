@@ -127,6 +127,9 @@ internal sealed partial class MachineEmitter
         {
             _w.Line("private bool _boundaryEnabled;");
         }
+        // Created on the first action that asks for a token, cancelled by StopAsync, and not disposed: the
+        // [Exited] actions running under that stop still read it, and so may an action the stop abandoned. It
+        // holds no wait handle and no timer, so it is ordinary garbage once the machine is.
         _w.Line("private global::System.Threading.CancellationTokenSource _lifetime;");
         if (HasInbox)
         {

@@ -30,6 +30,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     private readonly object? _context;
     private readonly object? _config;
     private readonly ReferenceHooks<TValue> _hooks;
+    // Cancelled by StopAsync, and deliberately not disposed: an [Exited] action running under the stop still
+    // reads its token, and so may an action the machine abandoned. Nothing here allocates a wait handle or a
+    // timer, so the source is ordinary garbage once the machine is.
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Lazy<MachineDefinition> _definition;
     private int _leaf;
