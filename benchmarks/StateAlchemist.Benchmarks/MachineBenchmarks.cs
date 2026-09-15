@@ -29,6 +29,10 @@ public class MachineBenchmarks
         _stateless = new StatelessMachine(new Counters());
     }
 
+    // The machine is IAsyncDisposable: stopping it runs its [Exited] actions, after the measurements are in.
+    [GlobalCleanup]
+    public void Cleanup() => _generated.DisposeAsync().GetAwaiter().GetResult();
+
     // Every benchmark returns state the firing changed, so nothing measured here can be optimised away: a
     // hand-written switch whose result is unused compiles to nothing, and then there is no baseline to be within.
     [Benchmark(Baseline = true), BenchmarkCategory("Stay")]
@@ -118,6 +122,8 @@ public class ConcurrencyBenchmarks
     private SerializedMachine _serialized = null!;
     private DecidingMachine _deciding = null!;
 
+    private IMachine<byte>[] Machines => [_checked, _unchecked, _serialized, _deciding];
+
     [GlobalSetup]
     public void Setup()
     {
@@ -125,9 +131,18 @@ public class ConcurrencyBenchmarks
         _unchecked = new UncheckedMachine(new Counters());
         _serialized = new SerializedMachine(new Counters());
         _deciding = new DecidingMachine(new Counters());
-        foreach (var machine in new IMachine<byte>[] { _checked, _unchecked, _serialized, _deciding })
+        foreach (var machine in Machines)
         {
             machine.StartAsync().GetAwaiter().GetResult();
+        }
+    }
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        foreach (var machine in Machines)
+        {
+            machine.DisposeAsync().GetAwaiter().GetResult();
         }
     }
 

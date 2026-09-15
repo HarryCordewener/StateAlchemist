@@ -16,7 +16,7 @@ public static class Program
     public static async Task<int> Main()
     {
         var context = new TelnetContext();
-        var machine = new AotTelnet(context);
+        await using var machine = new AotTelnet(context);
         await machine.StartAsync();
 
         // IAC SB NAWS 0 80 0 24 IAC SE: a window of 80×24, read byte by byte.

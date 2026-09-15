@@ -34,6 +34,9 @@ internal sealed partial class MachineEmitter
         _w.Line("private bool _pumping;");
         if (Bounded)
         {
+            // Not disposed when the machine stops: Abandon releases the inbox's room but cannot reach a producer
+            // already inside WaitAsync, and disposing under one of those is how a semaphore hangs its waiters.
+            // Nothing takes its AvailableWaitHandle, so there is no unmanaged resource to reclaim.
             _w.Line($"private readonly global::System.Threading.SemaphoreSlim _room = new global::System.Threading.SemaphoreSlim({_model.Options.InboxCapacity}, {_model.Options.InboxCapacity});");
         }
 
@@ -131,6 +134,8 @@ internal sealed partial class MachineEmitter
                 _w.Line("public object Event;");
             }
 
+            // Cancelled when the decision ends, never disposed: a decision still running may yet look at its
+            // token. ReferenceMachine.Decisions.cs says the same of its own.
             _w.Line("public readonly global::System.Threading.CancellationTokenSource Cancellation = new global::System.Threading.CancellationTokenSource();");
             _w.Line("public bool HasResult;");
             _w.Line("public object Outcome;");
