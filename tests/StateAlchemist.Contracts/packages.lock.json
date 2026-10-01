@@ -10,15 +10,15 @@
       },
       "TUnit.Assertions": {
         "type": "Direct",
-        "requested": "[1.66.27, )",
-        "resolved": "1.66.27",
-        "contentHash": "tjkydsBhXIm5N5CTHmagRwtzy9wYphuO3PXKYr8rba8VVk96cLuI7SlG3KPYQcIiRKPwpzpv1TpOxDEEkj9P9g=="
+        "requested": "[1.69.16, )",
+        "resolved": "1.69.16",
+        "contentHash": "ZaReBU8NluB0/6NTgyR8he9VArAksA7DH79gy7fmE3eBSmVdOdsMiIWBTpn8By1O4q+0fTHeGflc8/LQY2+M+A=="
       },
       "TUnit.Core": {
         "type": "Direct",
-        "requested": "[1.66.27, )",
-        "resolved": "1.66.27",
-        "contentHash": "vh3sk+ezfKn9KuAH23Cr6DqWdx+eJj5yvDeHpVsfYrOFytiI2veY/w3ZJI5NG+Prt4g4rx9Y8i30T9oKJrjAYg=="
+        "requested": "[1.69.16, )",
+        "resolved": "1.69.16",
+        "contentHash": "QGQilMtDtoOMDocs1/ecnncUvzUbCIAQIfRb38GbJQBKlJy3GUVjN0rVfQ0Vfx9wfiLLv9tqjOwEuBUuOPBCsQ=="
       },
       "statealchemist": {
         "type": "Project"
@@ -39,15 +39,15 @@
       },
       "TUnit.Assertions": {
         "type": "Direct",
-        "requested": "[1.66.27, )",
-        "resolved": "1.66.27",
-        "contentHash": "tjkydsBhXIm5N5CTHmagRwtzy9wYphuO3PXKYr8rba8VVk96cLuI7SlG3KPYQcIiRKPwpzpv1TpOxDEEkj9P9g=="
+        "requested": "[1.69.16, )",
+        "resolved": "1.69.16",
+        "contentHash": "ZaReBU8NluB0/6NTgyR8he9VArAksA7DH79gy7fmE3eBSmVdOdsMiIWBTpn8By1O4q+0fTHeGflc8/LQY2+M+A=="
       },
       "TUnit.Core": {
         "type": "Direct",
-        "requested": "[1.66.27, )",
-        "resolved": "1.66.27",
-        "contentHash": "vh3sk+ezfKn9KuAH23Cr6DqWdx+eJj5yvDeHpVsfYrOFytiI2veY/w3ZJI5NG+Prt4g4rx9Y8i30T9oKJrjAYg=="
+        "requested": "[1.69.16, )",
+        "resolved": "1.69.16",
+        "contentHash": "QGQilMtDtoOMDocs1/ecnncUvzUbCIAQIfRb38GbJQBKlJy3GUVjN0rVfQ0Vfx9wfiLLv9tqjOwEuBUuOPBCsQ=="
       },
       "statealchemist": {
         "type": "Project"
@@ -68,15 +68,15 @@
       },
       "TUnit.Assertions": {
         "type": "Direct",
-        "requested": "[1.66.27, )",
-        "resolved": "1.66.27",
-        "contentHash": "tjkydsBhXIm5N5CTHmagRwtzy9wYphuO3PXKYr8rba8VVk96cLuI7SlG3KPYQcIiRKPwpzpv1TpOxDEEkj9P9g=="
+        "requested": "[1.69.16, )",
+        "resolved": "1.69.16",
+        "contentHash": "ZaReBU8NluB0/6NTgyR8he9VArAksA7DH79gy7fmE3eBSmVdOdsMiIWBTpn8By1O4q+0fTHeGflc8/LQY2+M+A=="
       },
       "TUnit.Core": {
         "type": "Direct",
-        "requested": "[1.66.27, )",
-        "resolved": "1.66.27",
-        "contentHash": "vh3sk+ezfKn9KuAH23Cr6DqWdx+eJj5yvDeHpVsfYrOFytiI2veY/w3ZJI5NG+Prt4g4rx9Y8i30T9oKJrjAYg=="
+        "requested": "[1.69.16, )",
+        "resolved": "1.69.16",
+        "contentHash": "QGQilMtDtoOMDocs1/ecnncUvzUbCIAQIfRb38GbJQBKlJy3GUVjN0rVfQ0Vfx9wfiLLv9tqjOwEuBUuOPBCsQ=="
       },
       "statealchemist": {
         "type": "Project"

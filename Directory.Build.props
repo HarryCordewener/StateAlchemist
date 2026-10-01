@@ -41,6 +41,16 @@
   </PropertyGroup>
 
   <!--
+    Verify 33 fails the build (SponsorCheck SC021) until its maintenance-fee status is declared. StateAlchemist is
+    non-revenue open source, which the publisher exempts — but only for up to 12 months at a time, so this date has
+    to be renewed before it lapses or every test project stops building.
+  -->
+  <PropertyGroup>
+    <Verify_SponsorshipExemption>OpenSource</Verify_SponsorshipExemption>
+    <Verify_SponsorshipExemptionUntil>2027-09</Verify_SponsorshipExemptionUntil>
+  </PropertyGroup>
+
+  <!--
     MinVer is the single source of the version: a `v1.2.3` tag builds 1.2.3, and any other commit builds the next
     patch as `-preview.0.N`. The release workflow therefore does NOT pass /p:Version — it only needs
     `fetch-depth: 0` so the tag is there to be read. A source tree with no git history at all (one extracted from
