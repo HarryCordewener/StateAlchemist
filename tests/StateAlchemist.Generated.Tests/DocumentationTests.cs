@@ -156,7 +156,8 @@ public class DocumentationTests
     private static IEnumerable<Block> Blocks(string markdown)
     {
         var withoutSnippets = Regex.Replace(markdown, @"<!-- snippet:.*?<!-- endSnippet -->", string.Empty, RegexOptions.Singleline);
-        var pattern = @"(?:^[ \t]*<!-- not compiled: (?<why>[^\n]*?) -->\n)?^[ \t]*```csharp\n(?<code>.*?)```";
+        // Either fence label, and a closing fence on a line of its own, so a ``` inside the code does not end it.
+        var pattern = @"(?:^[ \t]*<!-- not compiled: (?<why>[^\n]*?) -->\n)?^[ \t]*```(?:csharp|cs)[ \t]*\n(?<code>.*?)^[ \t]*```[ \t]*$";
         foreach (Match block in Regex.Matches(withoutSnippets, pattern, RegexOptions.Singleline | RegexOptions.Multiline))
         {
             var why = block.Groups["why"];

@@ -174,7 +174,7 @@ while (true)
     }
 
     reader.AdvanceTo(read.Buffer.End);
-    if (read.IsCompleted) break;
+    if (read.IsCompleted || read.IsCanceled) break;
 }
 ```
 <sup><a href='/samples/StateAlchemist.Samples/Illustrations/Loops.cs#L23-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-backpressure-loop' title='Start of snippet'>anchor</a></sup>

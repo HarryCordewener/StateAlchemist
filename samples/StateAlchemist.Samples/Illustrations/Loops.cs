@@ -30,7 +30,7 @@ public static class Loops
             }
 
             reader.AdvanceTo(read.Buffer.End);
-            if (read.IsCompleted) break;
+            if (read.IsCompleted || read.IsCanceled) break;
         }
         // end-snippet
     }
