@@ -63,7 +63,7 @@ public struct NawsEscaping : IState<SubNegotiation>
     public Naws Captured;
 }
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Telnet/States.cs#L3-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-states' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/States.cs#L3-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-states' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## The tree
@@ -112,7 +112,7 @@ public struct Naws : IState<SubNegotiation>
     public void Reset() => Index = 0;
 }
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Telnet/States.cs#L45-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-naws-state' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/States.cs#L46-L56' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-naws-state' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The first transition into `Naws` allocates the array (`to.Bytes ??= new byte[4]`); every later one reuses it. A

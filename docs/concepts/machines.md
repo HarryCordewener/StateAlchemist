@@ -32,11 +32,13 @@ method is written.
 
 A library can offer its modules to any machine that asks. It says so once, in its own assembly:
 
+<!-- not compiled: an assembly attribute; samples must not export, and tests/StateAlchemist.ExportingLibrary compiles one -->
 ```csharp
 // In the library, in AssemblyInfo.cs: an assembly attribute must precede every type in its file.
 [assembly: ExportsModule(typeof(GmcpModule))]
 ```
 
+<!-- not compiled: the application side of an export; tests/StateAlchemist.Generated.Tests/ExportedModuleMachine.cs compiles one -->
 ```csharp
 // In the application:
 [Machine(Root = typeof(Connected), Value = typeof(byte), Context = typeof(TelnetContext))]
@@ -109,10 +111,14 @@ instance. Creating a machine for a new connection builds nothing.
 
 Every machine carries its own picture, as constants:
 
-```csharp
+<!-- snippet: sample-diagrams -->
+<a id='snippet-sample-diagrams'></a>
+```cs
 Console.WriteLine(MudTelnet.Mermaid);   // a Mermaid stateDiagram-v2
 File.WriteAllText("telnet.dot", MudTelnet.Dot);   // a Graphviz digraph
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Illustrations/Loops.cs#L61-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-diagrams' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Both are written at compile time from the model the machine runs: a composite state for every parent with its
 `[Initial]` child marked, and one arrow per transition, labelled with its trigger and with `run` or `decide` where

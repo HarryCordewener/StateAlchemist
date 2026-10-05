@@ -54,10 +54,14 @@ Several modules may attach actions to the same state and phase. Within one modul
 Across modules, give each an `Order`; two with the same `Order` from different modules are
 [`SALCH0103`](../reference/diagnostics.md#salch0103), because nothing else would decide between them.
 
-```csharp
+<!-- snippet: sample-action-order -->
+<a id='snippet-sample-action-order'></a>
+```cs
 [Exited(typeof(Naws), Order = 1)]
 public static void Trace(TelnetContext context, Naws naws) => context.Log.Add($"left NAWS at {naws.Index}");
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Illustrations/TriggerForms.cs#L48-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-action-order' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## What an action can take
 

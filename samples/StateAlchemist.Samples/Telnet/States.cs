@@ -42,6 +42,7 @@ public struct AwaitingOption : IState<SubNegotiation>
 {
 }
 
+// begin-snippet: sample-naws-states
 // begin-snippet: sample-naws-state
 /// <summary>Collecting NAWS's four bytes.</summary>
 public struct Naws : IState<SubNegotiation>
@@ -59,4 +60,5 @@ public struct NawsEscaping : IState<SubNegotiation>
 {
     public Naws Captured;
 }
+// end-snippet
 // end-snippet

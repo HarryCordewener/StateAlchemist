@@ -314,6 +314,7 @@ A state's trigger beats an ancestor's, which is what makes `[OnAny]` a state's "
 ordinary rule expensive: the run takes a whole stretch of input in one call, so the value the ancestor handles does
 not merely lose to the run — it disappears into it, and nothing ever ends the run.
 
+<!-- not compiled: the mistake SALCH0702 reports, which does not build -->
 ```csharp
 [Transition(From = typeof(Line), To = typeof(Idle)), On((byte)'\n')]   // on the parent
 public static void EndOfLine() { }

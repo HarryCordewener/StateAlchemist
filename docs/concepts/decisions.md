@@ -162,7 +162,9 @@ You do not have to do anything about a pending decision. **`FireAsync` completes
 processed** — every value in the batch, including waiting for any decision one of them started. While you await
 it, you are not reading more input, and that is the backpressure:
 
-```csharp
+<!-- snippet: sample-backpressure-loop -->
+<a id='snippet-sample-backpressure-loop'></a>
+```cs
 while (true)
 {
     var read = await reader.ReadAsync(ct);
@@ -175,6 +177,8 @@ while (true)
     if (read.IsCompleted) break;
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Illustrations/Loops.cs#L23-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-backpressure-loop' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 This is the ordinary `PipeReader` loop, with nothing added. While a decision is pending the loop waits on
 `FireAsync`, bytes that arrive collect in the pipe, and once the pipe passes its pause threshold it stops reading
@@ -190,6 +194,7 @@ While a decision is pending, the machine accepts **events** from any caller, wha
 - Events the decision lists in `Handle` are handled at once, from the pending state. A transition out of it
   cancels the decision:
 
+  <!-- not compiled: one attribute of a sign-in decision the page imagines; the door example compiles the same shape -->
   ```csharp
   [Decision(From = typeof(AuthRequested), Handle = new[] { typeof(Disconnect), typeof(Timeout) }), On(Se)]
   ```
@@ -197,6 +202,7 @@ While a decision is pending, the machine accepts **events** from any caller, wha
 - Other events wait until the decision resolves. Then they run first, in the order they arrived, before the rest of
   your input; their callers' `FireAsync` completes once they have run.
 
+<!-- not compiled: an event of a sign-in decision the page imagines; the door example compiles the same shape -->
 ```csharp
 // In whatever notices the connection closing — not the read loop, which is waiting:
 await machine.FireAsync(new Disconnect());

@@ -21,20 +21,24 @@ public class SampleTests
     public async Task ThePhoneCallConnectsAndHangsUp()
     {
         var log = new PhoneLog();
+        // begin-snippet: sample-phone-run
         await using var phone = new PhoneCall(log);
         await phone.StartAsync();
-
         await phone.FireAsync(Button.Lift);
-        await phone.FireAsync(Button.Answered);
-        await phone.FireAsync(Button.Second);
-        await phone.FireAsync(Button.Second);
-        await phone.FireAsync(Button.Second);
-        await phone.FireAsync(Button.Hold);
-        await phone.FireAsync(Button.Hold);
-        await phone.FireAsync(Button.Second);
-        await phone.FireAsync(Button.HangUp);
+        await phone.FireAsync(Button.Answered);       // log: "connected (call 1)"
+        phone.TryGetPhone(out var state);             // state.Calls == 1
 
-        phone.TryGetPhone(out var state);
+        await phone.FireAsync(Button.Second);
+        await phone.FireAsync(Button.Second);
+        await phone.FireAsync(Button.Second);
+        await phone.FireAsync(Button.Hold);           // log: "talked for 3s"
+        await phone.FireAsync(Button.Hold);           // log: "connected (call 1)"
+        await phone.FireAsync(Button.Second);
+        await phone.FireAsync(Button.HangUp);         // log: "talked for 1s"
+        // end-snippet
+
+        await Assert.That(state.Calls).IsEqualTo(1);
+        phone.TryGetPhone(out state);
         await Assert.That(state.Calls).IsEqualTo(1);
         await Assert.That(phone.IsIn<OnHook>()).IsTrue();
         // Hold leaves Talking, so its actions run again when the call resumes — and the seconds start over,
@@ -146,7 +150,9 @@ public class SampleTests
         await using var door = new CardDoor(access);
         await door.StartAsync();
 
-        await door.FireAsync(new Badge(7));
+        // begin-snippet: sample-door-fire
+        await door.FireAsync(new Badge(7));           // completes when the reader has answered and the door has opened
+        // end-snippet
 
         await Assert.That(door.IsIn<Unlocked>()).IsTrue();
         door.TryGetUnlocked(out var unlocked);

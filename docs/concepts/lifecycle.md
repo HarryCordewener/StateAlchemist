@@ -2,12 +2,16 @@
 
 A machine is constructed, started, fired, and stopped.
 
-```csharp
+<!-- snippet: sample-lifecycle -->
+<a id='snippet-sample-lifecycle'></a>
+```cs
 await using var telnet = new SampleTelnet(context);   // not started: nothing has run
 await telnet.StartAsync();                            // [Entered] actions on the initial path, root first
 await telnet.FireAsync(bytes);                        // running
 await telnet.StopAsync();                             // [Exited] actions from the leaf to the root
 ```
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L39-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-lifecycle' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 | Status | How it gets there | Firing |
 |---|---|---|
