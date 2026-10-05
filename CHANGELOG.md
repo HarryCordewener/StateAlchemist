@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Changed
+- The documentation's code is compiled. Eighteen blocks that were written into the prose, and only checked to
+  parse, are now snippets of the samples and the tests, so a renamed member or a changed signature fails the build
+  instead of leaving a page that shows code which no longer works. The usage blocks — getting started, the
+  lifecycle, the testing guide, the phone and door examples — are tests, and run. The six that cannot compile, such
+  as the mistake `SALCH0702` reports, say why above the block, and a test fails on any block that does neither.
+- `MudTelnet`, the machine the module guide and the generated API reference describe, is a real sample machine.
+  The reference's constructor row now shows it without a `Config`, and says what a `Config` adds.
+- Package validation diffs every build against 1.3.0, the latest release, rather than 1.0.0.
+
 ## [1.3.0] — 2026-09-14
 
 ### Added

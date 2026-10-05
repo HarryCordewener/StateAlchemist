@@ -31,7 +31,9 @@ Each phase has an optional hook: a generated `partial` method the application ca
 receives the exception and the transition, and chooses what the machine does. Not implemented, it does not exist
 — the compiler removes it — and the generator emits no `try`/`catch` for that phase at all.
 
-```csharp
+<!-- snippet: sample-exception-hook -->
+<a id='snippet-sample-exception-hook'></a>
+```cs
 public sealed partial class SampleTelnet
 {
     partial void OnCompletedException(Exception exception, in TransitionInfo<byte> transition, ref ExceptionResolution resolution)
@@ -41,6 +43,8 @@ public sealed partial class SampleTelnet
     }
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/SampleTelnet.Hooks.cs#L15-L24' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-exception-hook' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 The hooks are `OnGuardException`, `OnTransformException`, `OnExitedException`, `OnEnteredException` and
 `OnCompletedException`. `TransitionInfo<TValue>` names the transition, its source, target and active leaf, the

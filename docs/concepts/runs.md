@@ -69,6 +69,7 @@ Resolution starts at the active leaf, so a state's own trigger beats an ancestor
 a state's "or else". A run makes the ordinary rule sharp: the ancestor's value does not merely lose to the run,
 it is taken *into* the run, and nothing ends it.
 
+<!-- not compiled: the mistake SALCH0702 reports, which does not build -->
 ```csharp
 [Transition(From = typeof(Line), To = typeof(Idle)), On((byte)'\n')]   // on the parent
 public static void EndOfLine() { }
@@ -101,7 +102,9 @@ or hook may call `RequestBatchBoundary()` when it changes an outside condition t
 be decoded. The call returns after the current transition and every event it queued; its caller retains the
 unconsumed suffix and decides how to process it.
 
-```csharp
+<!-- snippet: sample-boundary-loop -->
+<a id='snippet-sample-boundary-loop'></a>
+```cs
 ReadOnlyMemory<byte> remaining = input;
 
 while (!remaining.IsEmpty)
@@ -116,6 +119,8 @@ while (!remaining.IsEmpty)
     }
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Illustrations/Loops.cs#L41-L55' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-boundary-loop' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Use the consumption-reporting member through `IBoundaryMachine<TValue>` when code accepts either a generated
 machine or another implementation. Keep using `IMachine<TValue>.FireAsync` when the complete batch is already in

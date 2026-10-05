@@ -48,7 +48,9 @@ dotnet tool restore
 dotnet mdsnippets
 ```
 
-CI fails on any `.md` that step would have changed.
+CI fails on any `.md` that step would have changed. A C# block in `docs/` comes from a sample or a test, marked
+`// begin-snippet: name` and quoted with `snippet: name`; one that cannot compile — a mistake a diagnostic reports,
+say — is preceded by `<!-- not compiled: why -->`, and a test fails on a block that does neither.
 
 ## What a change has to do
 

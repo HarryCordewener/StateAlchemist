@@ -15,7 +15,9 @@ generator emits a dense `switch` over it, and [runs](runs.md) scan it with vecto
 
 ## Declaring triggers
 
-```csharp
+<!-- snippet: sample-trigger-forms -->
+<a id='snippet-sample-trigger-forms'></a>
+```cs
 [Transition(From = typeof(Idle)), On(LineFeed)]              // one value
 public static void EndOfLine(ref Idle self) => self.LineLength = 0;
 
@@ -28,6 +30,8 @@ public static void Text(ref Idle self, byte value) => self.LineLength++;
 [Transition(From = typeof(Connected), To = typeof(Idle)), OnEvent(typeof(Error))]
 public static void Recover(in Error error) { }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Illustrations/TriggerForms.cs#L13-L25' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-trigger-forms' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 `[On]` and `[OnRange]` may repeat on one transition — `[On(1), On(2)]` fires on either. A transition fires on
 values or on one event type, never both ([`SALCH0106`](../reference/diagnostics.md#salch0106)). A value must fit
@@ -55,7 +59,9 @@ A class-form transition with a `Guard` fires only when the guard returns `true`.
 state and a trigger if at most one is unguarded. Guarded ones are tried in their `Order` (lowest first), the
 unguarded one last:
 
-```csharp
+<!-- snippet: sample-guard-fallback -->
+<a id='snippet-sample-guard-fallback'></a>
+```cs
 [Transition(From = typeof(Idle), To = typeof(Command), Order = 1), On(Iac)]
 public static class CommandWhenNegotiating
 {
@@ -65,6 +71,8 @@ public static class CommandWhenNegotiating
 [Transition(From = typeof(Idle)), On(Iac)]                    // unguarded: the fallback
 public static void LiteralIac(ref Idle self) => self.LineLength++;
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Illustrations/TriggerForms.cs#L32-L41' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-guard-fallback' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 If every guard at a level fails, resolution continues with the next category, then the parent. Two unguarded
 transitions for the same state and trigger are [`SALCH0101`](../reference/diagnostics.md#salch0101) — including
@@ -78,9 +86,13 @@ implements it, and is then ignored. `[Machine(Unhandled = Unhandled.Throw)]` thr
 instead. Warning [`SALCH0501`](../reference/diagnostics.md#salch0501) names every leaf that leaves some values
 unhandled with no `[OnAny]` on its path.
 
-```csharp
+<!-- snippet: sample-unhandled-hook -->
+<a id='snippet-sample-unhandled-hook'></a>
+```cs
 public sealed partial class SampleTelnet
 {
     partial void OnUnhandled(StateId state, byte value) => Enqueue(new Error());
 }
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/SampleTelnet.Hooks.cs#L8-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-unhandled-hook' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->

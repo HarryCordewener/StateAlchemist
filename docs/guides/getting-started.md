@@ -70,7 +70,7 @@ public struct NawsEscaping : IState<SubNegotiation>
     public Naws Captured;
 }
 ```
-<sup><a href='/samples/StateAlchemist.Samples/Telnet/States.cs#L3-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-states' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/States.cs#L3-L64' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-states' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The tree:
@@ -194,7 +194,9 @@ in the [generated API](../reference/generated-api.md).
 
 ## 4. Run it
 
-```csharp
+<!-- snippet: sample-getting-started-run -->
+<a id='snippet-sample-getting-started-run'></a>
+```cs
 var context = new TelnetContext();
 await using var telnet = new SampleTelnet(context);
 await telnet.StartAsync();                       // runs [Entered] actions on the initial path
@@ -202,6 +204,8 @@ await telnet.StartAsync();                       // runs [Entered] actions on th
 await telnet.FireAsync(new byte[] { Iac, Will, GmcpOption });
 // context.Sent now holds IAC DO GMCP, and telnet.TryGetConnected(out var root) shows root.GmcpEnabled == true.
 ```
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L19-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-getting-started-run' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 On a socket, feed the machine whole reads and await each one: `FireAsync` completes when the bytes have been
 processed, waiting through any [decision](../concepts/decisions.md) they start, so the ordinary read loop gets

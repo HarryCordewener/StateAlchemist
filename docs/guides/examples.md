@@ -188,19 +188,25 @@ public sealed partial class PhoneCall;
 <sup><a href='/samples/StateAlchemist.Samples/Phone/PhoneCall.cs#L131-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-machine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-```csharp
+<!-- snippet: sample-phone-run -->
+<a id='snippet-sample-phone-run'></a>
+```cs
 await using var phone = new PhoneCall(log);
 await phone.StartAsync();
 await phone.FireAsync(Button.Lift);
 await phone.FireAsync(Button.Answered);       // log: "connected (call 1)"
 phone.TryGetPhone(out var state);             // state.Calls == 1
 
-await phone.FireAsync(Button.Second);         // three times
+await phone.FireAsync(Button.Second);
+await phone.FireAsync(Button.Second);
+await phone.FireAsync(Button.Second);
 await phone.FireAsync(Button.Hold);           // log: "talked for 3s"
 await phone.FireAsync(Button.Hold);           // log: "connected (call 1)"
-await phone.FireAsync(Button.Second);         // once
+await phone.FireAsync(Button.Second);
 await phone.FireAsync(Button.HangUp);         // log: "talked for 1s"
 ```
+<sup><a href='/tests/StateAlchemist.Generated.Tests/SampleTests.cs#L24-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-run' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Three seconds before the hold and one after: holding the call leaves `Talking`, so the seconds it counts start
 again, while `Phone.Calls` — one state up, and never left — still reads 1. Data that has to survive belongs in a
@@ -574,9 +580,13 @@ Three things are worth reading twice:
 - Leaving cancels the `CancellationToken` the reader was given.
 - A reader that throws fires `DecisionFailed`, which is an ordinary trigger to recover from.
 
-```csharp
+<!-- snippet: sample-door-fire -->
+<a id='snippet-sample-door-fire'></a>
+```cs
 await door.FireAsync(new Badge(7));           // completes when the reader has answered and the door has opened
 ```
+<sup><a href='/tests/StateAlchemist.Generated.Tests/SampleTests.cs#L153-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-door-fire' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 ## Reading a pipe
 

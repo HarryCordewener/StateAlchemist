@@ -9,6 +9,9 @@ public sealed class TelnetContext
     /// <summary>Lines the actions logged, in order.</summary>
     public List<string> Log { get; } = [];
 
+    /// <summary>Whether option negotiation is under way; the guards in the documentation read it.</summary>
+    public bool Negotiating { get; set; }
+
     /// <summary>Byte sequences the actions sent, in order.</summary>
     public List<byte[]> Sent { get; } = [];
 

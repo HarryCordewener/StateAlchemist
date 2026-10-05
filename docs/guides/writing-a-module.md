@@ -7,16 +7,27 @@ to the telnet machine without changing `TelnetCore`.
 
 NAWS happens inside a subnegotiation, so its states are children of `SubNegotiation`, which the core declares:
 
-```csharp
+<!-- snippet: sample-naws-states -->
+<a id='snippet-sample-naws-states'></a>
+```cs
+/// <summary>Collecting NAWS's four bytes.</summary>
 public struct Naws : IState<SubNegotiation>
 {
     public byte[]? Bytes;
     public int Index;
+
+    /// <summary>Rewinds but keeps the buffer, so entering NAWS again allocates nothing.</summary>
     public void Reset() => Index = 0;
 }
 
-public struct NawsEscaping : IState<SubNegotiation> { public Naws Captured; }
+/// <summary>After IAC inside NAWS: SE ends it.</summary>
+public struct NawsEscaping : IState<SubNegotiation>
+{
+    public Naws Captured;
+}
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/States.cs#L45-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-naws-states' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 Your states can live in your own library. The machine includes them because your transitions name them.
 
@@ -70,11 +81,15 @@ Nothing in `TelnetCore` changes. The core never needed to know NAWS exists.
 
 ## 3. Let the application include it
 
-```csharp
+<!-- snippet: sample-mud-telnet -->
+<a id='snippet-sample-mud-telnet'></a>
+```cs
 [Machine(Root = typeof(Connected), Value = typeof(byte), Context = typeof(TelnetContext))]
 [Include(typeof(TelnetCore)), Include(typeof(NawsModule))]
 public sealed partial class MudTelnet;
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/MudTelnet.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-mud-telnet' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 To save applications that line, offer the module from your assembly — `[assembly: ExportsModule(typeof(NawsModule))]`
 — and a machine written with `[IncludeExported]` picks it up from the package reference. See

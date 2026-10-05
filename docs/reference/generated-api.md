@@ -2,11 +2,15 @@
 
 For a machine declared as
 
-```csharp
-[Machine(Root = typeof(Connected), Value = typeof(byte), Context = typeof(TelnetContext), Config = typeof(TelnetConfig))]
+<!-- snippet: sample-mud-telnet -->
+<a id='snippet-sample-mud-telnet'></a>
+```cs
+[Machine(Root = typeof(Connected), Value = typeof(byte), Context = typeof(TelnetContext))]
 [Include(typeof(TelnetCore)), Include(typeof(NawsModule))]
 public sealed partial class MudTelnet;
 ```
+<sup><a href='/samples/StateAlchemist.Samples/Telnet/MudTelnet.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-mud-telnet' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
 
 the generator adds the members below to `MudTelnet`, which also implements `IMachine<byte>` and
 `IBoundaryMachine<byte>`. Nothing it
@@ -26,7 +30,7 @@ where the module is written, by the [analyzer](diagnostics.md#which-component-re
 
 | Member | |
 |---|---|
-| `MudTelnet(TelnetContext context, in TelnetConfig config)` | Resets every state and sets the initial leaf. Runs no actions. Without `Config`, the constructor takes only the context; without `Context`, nothing. |
+| `MudTelnet(TelnetContext context)` | Resets every state and sets the initial leaf. Runs no actions. A machine with a `Config` also takes `in TConfig config` after the context; one without a `Context` takes nothing. |
 | `ValueTask StartAsync()` | Runs the initial path's `[Entered]` actions once. See [lifecycle](../concepts/lifecycle.md). |
 | `ValueTask StopAsync()` | Cancels a pending decision; runs `[Exited]` actions from the leaf to the root. |
 | `ValueTask DisposeAsync()` | Stops the machine if it was started. |
