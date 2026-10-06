@@ -10,7 +10,7 @@ namespace StateAlchemist.Model;
 /// </summary>
 public static class ShapeValidator
 {
-    private static readonly string[] AsyncPhasesThatMayNotBe = ["GuardAsync", "TransformAsync", "CompleteAsync"];
+    private static readonly string[] AsyncPhasesThatMayNotBe = ["GuardAsync", "TransformAsync", "DelayAsync", "CompleteAsync"];
 
     /// <summary>Every shape problem.</summary>
     public static IReadOnlyList<ModelDiagnostic> Validate(MachineModel model)
@@ -67,6 +67,18 @@ public static class ShapeValidator
             diagnostics.Add(new(DiagnosticCatalog.InvalidPhaseSignature, transform.Location, transform.FullName, "return void synchronously"));
         }
 
+        if (transition.Delay is { } delay)
+        {
+            if (!transition.IsTimer)
+            {
+                diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, delay.Location, transition.Name, "declares a Delay method but does not fire on [After]"));
+            }
+            else if (delay.Returns != ReturnShape.TimeSpan)
+            {
+                diagnostics.Add(new(DiagnosticCatalog.InvalidPhaseSignature, delay.Location, delay.FullName, "return TimeSpan synchronously"));
+            }
+        }
+
         foreach (var completed in transition.Completed)
         {
             CheckSuffix(completed, "Completed", "CompletedAsync", diagnostics);
@@ -97,7 +109,7 @@ public static class ShapeValidator
 
         if (model.Options.Purity == PurityMode.Strict)
         {
-            var pure = new[] { transition.Guard, transition.Transform }
+            var pure = new[] { transition.Guard, transition.Transform, transition.Delay }
                 .Concat(transition.Decision?.Completions.Select(c => c.Complete) ?? [])
                 .OfType<MethodModel>();
             foreach (var method in pure.Where(m => m.Parameters.Any(p => p.Kind == ParameterKind.Context)))

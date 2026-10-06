@@ -89,3 +89,16 @@ public sealed class ReferenceSerialized : SerializedContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class ReferenceTimers : TimerContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceSerializedTimers : TimerContract
+{
+    protected override MachineShape Shape => StateAlchemist.Contracts.Machines.Shapes.TimingSerialized;
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}

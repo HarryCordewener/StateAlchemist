@@ -27,7 +27,7 @@ public class FrontEndAgreementTests
     private static readonly Dictionary<string, MachineShape> ShapesByName = new[]
     {
         Shapes.Recorder, Shapes.Guards, Shapes.GuardsThatThrow, Shapes.Failures, Shapes.RecorderSerialized,
-        Shapes.Deciding, Shapes.Runs, Shapes.RunsSerialized, Shapes.Telnet,
+        Shapes.Deciding, Shapes.Runs, Shapes.RunsSerialized, Shapes.Telnet, Shapes.Timing, Shapes.TimingSerialized,
     }.ToDictionary(s => s.Name);
 
     /// <summary>The Roslyn front-end's model of <paramref name="machine"/>, as text.</summary>
@@ -50,6 +50,8 @@ public class FrontEndAgreementTests
     [Arguments("Deciding")]
     [Arguments("Runs")]
     [Arguments("SampleTelnet")]
+    [Arguments("Timing")]
+    [Arguments("TimingSerialized")]
     public async Task EveryContractMachineIsModelledAlike(string name)
     {
         var shape = ShapesByName[name];
@@ -74,6 +76,15 @@ public class FrontEndAgreementTests
     [Arguments(typeof(NoTriggerModule))]
     [Arguments(typeof(RivalGmcpModule))]
     [Arguments(typeof(NotAModule))]
+    [Arguments(typeof(TimerBothUnitsModule))]
+    [Arguments(typeof(TimerNoDelayModule))]
+    [Arguments(typeof(TimerTwoDelaysModule))]
+    [Arguments(typeof(TimerMixedModule))]
+    [Arguments(typeof(TimerDecisionModule))]
+    [Arguments(typeof(StrayDelayModule))]
+    [Arguments(typeof(TimerNegativeModule))]
+    [Arguments(typeof(TimerTooLongModule))]
+    [Arguments(typeof(DelayReadsLeftStateModule))]
     public async Task EveryBadDeclarationIsDiagnosedAlike(Type module)
     {
         Type[] modules = [typeof(TelnetCore), typeof(GmcpModule), typeof(NawsModule), module];

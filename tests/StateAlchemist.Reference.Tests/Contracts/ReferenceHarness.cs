@@ -13,7 +13,7 @@ internal static class ReferenceHarness
     {
         var machine = Reflected.GetOrAdd(shape, static s => ReflectionModelBuilder.Build(new MachineSpec(
             s.Name, s.Root, typeof(byte), s.Modules, s.Context, null, s.Concurrency, 0, s.Purity, s.Unhandled)));
-        return ReferenceMachine<byte>.Create(machine, context, hooks: hooks is null ? null : Adapt(hooks));
+        return ReferenceMachine<byte>.Create(machine, context, hooks: hooks is null ? null : Adapt(hooks), time: (context as StateAlchemist.Contracts.Machines.RecordingContext)?.Clock);
     }
 
     private static ReferenceHooks<byte> Adapt(ContractHooks hooks) => new()
@@ -25,5 +25,6 @@ internal static class ReferenceHarness
             ? (System.Exception exception, in TransitionInfo<byte> transition, ref ExceptionResolution resolution) =>
                 resolution = hooks.Exception(exception, transition)
             : null,
+        TimerException = hooks.HandleTimerExceptions ? hooks.TimerException : null,
     };
 }

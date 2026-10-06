@@ -30,9 +30,9 @@ where the module is written, by the [analyzer](diagnostics.md#which-component-re
 
 | Member | |
 |---|---|
-| `MudTelnet(TelnetContext context)` | Resets every state and sets the initial leaf. Runs no actions. A machine with a `Config` also takes `in TConfig config` after the context; one without a `Context` takes nothing. |
+| `MudTelnet(TelnetContext context)` | Resets every state and sets the initial leaf. Runs no actions. A machine with a `Config` also takes `in TConfig config` after the context; one without a `Context` takes nothing. A machine with a [timer](../concepts/timers.md) also takes `TimeProvider timeProvider = null` last; without one it uses `TimeProvider.System`. |
 | `ValueTask StartAsync()` | Runs the initial path's `[Entered]` actions once. See [lifecycle](../concepts/lifecycle.md). |
-| `ValueTask StopAsync()` | Cancels a pending decision; runs `[Exited]` actions from the leaf to the root. |
+| `ValueTask StopAsync()` | Cancels a pending decision and every timer; runs `[Exited]` actions from the leaf to the root. |
 | `ValueTask DisposeAsync()` | Stops the machine if it was started. |
 | `MachineStatus Status` | `NotStarted`, `Running` or `Stopped`. |
 
@@ -73,6 +73,7 @@ Generated `partial` methods, removed by the compiler unless the application impl
 | `partial void OnTransitioned(in TransitionInfo<byte> transition)` | After every transition. |
 | `partial void OnUnhandled(StateId state, byte value)`, and one per event type | When nothing handles a trigger. |
 | `partial void On{Phase}Exception(Exception exception, in TransitionInfo<byte> transition, ref ExceptionResolution resolution)` | For `Guard`, `Transform`, `Exited`, `Entered` and `Completed`; see [exceptions](../concepts/exceptions.md). |
+| `partial void OnTimerException(Exception exception, string transition)` | In a machine with a [timer](../concepts/timers.md): what a timer's transition throws, which has no caller to reach. `transition` is its name. |
 
 With `[Machine(Telemetry = true)]` the machine also reports to an `ActivitySource` and a `Meter` named
 `StateAlchemist`, alongside these hooks rather than in them; see [telemetry](../guides/telemetry.md).

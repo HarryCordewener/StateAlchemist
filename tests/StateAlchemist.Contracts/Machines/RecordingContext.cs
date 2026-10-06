@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Time.Testing;
 
 namespace StateAlchemist.Contracts.Machines;
 
@@ -31,6 +32,9 @@ public sealed class RecordingContext
 
     /// <summary>Completed when an async decision starts, with the token it was given.</summary>
     public TaskCompletionSource<CancellationToken> Deciding { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>The clock a machine with timers runs on: a test moves it with <c>Advance</c>.</summary>
+    public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 10, 6, 0, 0, 0, TimeSpan.Zero));
 
     /// <summary>The machine, for actions that enqueue or fire.</summary>
     public IMachine<byte>? Machine { get; set; }

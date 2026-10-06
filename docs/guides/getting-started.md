@@ -204,7 +204,7 @@ await telnet.StartAsync();                       // runs [Entered] actions on th
 await telnet.FireAsync(new byte[] { Iac, Will, GmcpOption });
 // context.Sent now holds IAC DO GMCP, and telnet.TryGetConnected(out var root) shows root.GmcpEnabled == true.
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L19-L26' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-getting-started-run' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L22-L29' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-getting-started-run' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 On a socket, feed the machine whole reads and await each one: `FireAsync` completes when the bytes have been

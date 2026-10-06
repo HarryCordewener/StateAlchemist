@@ -10,6 +10,8 @@ A trigger is what makes a transition fire. There are two kinds, dispatched diffe
 | Fired with | `FireAsync(value)`, or a batch `FireAsync(ReadOnlyMemory<TValue>)` | a generated `FireAsync(in E)` per event type |
 | Typical use | a byte stream | `Error`, `Timeout`, `Disconnect`, decision results |
 
+A third trigger, `[After]`, fires when a state has been active for a set time; see [timers](timers.md).
+
 A machine has one value type, of 16 bits or fewer ([`SALCH0105`](../reference/diagnostics.md#salch0105)): the
 generator emits a dense `switch` over it, and [runs](runs.md) scan it with vector instructions.
 

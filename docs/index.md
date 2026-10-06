@@ -26,6 +26,7 @@ generator writes the machine as straight-line code.
 | [Triggers](concepts/triggers.md) | Values and events; which transition wins; guards; unhandled triggers |
 | [Actions](concepts/actions.md) | Code that runs after the state changes, and the exact order of a transition |
 | [Decisions](concepts/decisions.md) | When outside code chooses the outcome; pending states, deferral, backpressure |
+| [Timers](concepts/timers.md) | Transitions that fire when a state has been active for a set time |
 | [Runs](concepts/runs.md) | Consuming a stretch at once, or stopping at a boundary and retaining the suffix |
 | [Machines](concepts/machines.md) | Modules, the machine declaration, and its options |
 | [Lifecycle](concepts/lifecycle.md) | Starting, stopping, disposing |

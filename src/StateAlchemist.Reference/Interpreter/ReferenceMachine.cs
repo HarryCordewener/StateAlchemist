@@ -37,7 +37,7 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     private readonly Lazy<MachineDefinition> _definition;
     private int _leaf;
 
-    private ReferenceMachine(ReflectedMachine machine, object? context, object? config, ReferenceHooks<TValue>? hooks)
+    private ReferenceMachine(ReflectedMachine machine, object? context, object? config, ReferenceHooks<TValue>? hooks, TimeProvider? time)
     {
         _machine = machine;
         _model = machine.Model;
@@ -49,11 +49,19 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
         _slots = machine.StateTypes.Select(t => Activator.CreateInstance(t)).ToArray();
         _leaf = _hierarchy.InitialLeaf(_hierarchy.Root);
         _definition = new Lazy<MachineDefinition>(() => DefinitionBuilder.Build(machine));
+        _time = time ?? TimeProvider.System;
+        _timers = Timers.Of(_model);
+        _armed = new Armed?[_timers.Count];
     }
 
     /// <summary>Interprets <paramref name="machine"/>.</summary>
+    /// <param name="machine">The machine.</param>
+    /// <param name="context">Its context.</param>
+    /// <param name="config">Its configuration.</param>
+    /// <param name="hooks">Its hooks.</param>
+    /// <param name="time">The clock its <c>[After]</c> timers run on; the system clock when <see langword="null"/>.</param>
     /// <exception cref="InvalidMachineException">The machine has errors.</exception>
-    public static ReferenceMachine<TValue> Create(ReflectedMachine machine, object? context = null, object? config = null, ReferenceHooks<TValue>? hooks = null)
+    public static ReferenceMachine<TValue> Create(ReflectedMachine machine, object? context = null, object? config = null, ReferenceHooks<TValue>? hooks = null, TimeProvider? time = null)
     {
         if (machine.Spec.Value != typeof(TValue))
         {
@@ -66,7 +74,7 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
             throw new InvalidMachineException(machine.Model.Name, errors);
         }
 
-        return new ReferenceMachine<TValue>(machine, context, config, hooks);
+        return new ReferenceMachine<TValue>(machine, context, config, hooks, time);
     }
 
     /// <inheritdoc/>
@@ -105,8 +113,14 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
             throw new InvalidOperationException("The machine has already been started.");
         }
 
-        await RunLifecycleAsync(ActionPhase.Entered, _hierarchy.PathFromRoot(_leaf));
-        Status = MachineStatus.Running;
+        var path = _hierarchy.PathFromRoot(_leaf);
+        await RunLifecycleAsync(ActionPhase.Entered, path);
+        var delays = Delays(path);
+        lock (_sync)
+        {
+            Status = MachineStatus.Running;
+            Rearm([], delays);
+        }
     }
 
     /// <inheritdoc/>
@@ -221,7 +235,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
         }
     }
 
-    private IReadOnlyList<TransitionModel> Candidates(Trigger trigger) => trigger.HasValue
+    private IReadOnlyList<TransitionModel> Candidates(Trigger trigger) => trigger.Timer is { } timer
+        ? timer.Candidates
+        : trigger.HasValue
         ? _resolver.ForValue(_leaf, ToInt64(trigger.Value))
         : _resolver.ForEvent(_leaf, trigger.Event!.GetType().FullName!);
 
@@ -240,15 +256,17 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
 
     private static long ToInt64(TValue value) => Convert.ToInt64(value);
 
-    /// <summary>What fired: a value (with the run it starts, one value long unless a run transition takes more) or an event.</summary>
-    private readonly record struct Trigger(TValue Value, bool HasValue, ReadOnlyMemory<TValue> Run, object? Event)
+    /// <summary>What fired: a value (with the run it starts, one value long unless a run transition takes more), an event, or a timer.</summary>
+    private readonly record struct Trigger(TValue Value, bool HasValue, ReadOnlyMemory<TValue> Run, object? Event, TimerModel? Timer = null)
     {
+        public static Trigger OfTimer(TimerModel timer) => new(default, false, default, null, timer);
+
         public static Trigger OfValue(TValue value) => new(value, true, new[] { value }, null);
 
         public static Trigger OfRun(ReadOnlyMemory<TValue> run) => new(run.Span[0], true, run, null);
 
         public static Trigger OfEvent(object e) => new(default, false, default, e);
 
-        public override string ToString() => HasValue ? Value.ToString()! : "event " + Event!.GetType().Name;
+        public override string ToString() => HasValue ? Value.ToString()! : Timer is { } timer ? timer.Trigger.ToString() : "event " + Event!.GetType().Name;
     }
 }

@@ -20,6 +20,7 @@ namespace StateAlchemist.Model;
 /// <param name="UnknownMembers">Class-form method names that are not phases.</param>
 /// <param name="Module">The declaring module's full name.</param>
 /// <param name="Location">Where it is declared.</param>
+/// <param name="Delay">Its <c>Delay</c>, for a timer whose delay is computed.</param>
 public sealed record TransitionModel(
     int Index,
     string Name,
@@ -34,13 +35,17 @@ public sealed record TransitionModel(
     DecisionModel? Decision,
     IReadOnlyList<UnknownMember> UnknownMembers,
     string Module,
-    SourceSpan Location)
+    SourceSpan Location,
+    MethodModel? Delay = null)
 {
     /// <summary>Stay, move or re-entry.</summary>
     public MoveKind Kind => Target < 0 ? MoveKind.Stay : Target == Source ? MoveKind.Reenter : MoveKind.Move;
 
     /// <summary>Whether it declares a guard.</summary>
     public bool IsGuarded => Guard is not null;
+
+    /// <summary>Whether it fires on a timer.</summary>
+    public bool IsTimer => Trigger.Kind == MatchKind.Timer;
 
     /// <summary>Whether it is a decision.</summary>
     public bool IsDecision => Decision is not null;
@@ -58,6 +63,11 @@ public sealed record TransitionModel(
             if (Transform is not null)
             {
                 yield return Transform;
+            }
+
+            if (Delay is not null)
+            {
+                yield return Delay;
             }
 
             if (Decision?.Decide is not null)

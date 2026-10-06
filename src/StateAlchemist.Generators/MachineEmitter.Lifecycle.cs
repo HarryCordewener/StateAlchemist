@@ -20,7 +20,17 @@ internal sealed partial class MachineEmitter
             _w.Line("return Start();");
         }
 
-        WriteLifecycleActions("Start", starting, $"_status = {Rt}MachineStatus.Running;", null);
+        // The initial path's timers are armed once the machine is running, so a firing is never refused as early.
+        var started = $"_status = {Rt}MachineStatus.Running;";
+        var initialTimers = TimersOn(initialPath);
+        if (initialTimers.Count > 0)
+        {
+            started = string.Concat(initialTimers.Select(t => $"var delay{Num(t.Index)} = Delay{Num(t.Index)}(); "))
+                      + $"lock (_sync) {{ {started} "
+                      + string.Concat(initialTimers.Select(t => $"Arm{Num(t.Index)}(delay{Num(t.Index)}); ")) + "}";
+        }
+
+        WriteLifecycleActions("Start", starting, started, null);
 
         _w.Line();
         _w.Line("/// <summary>Whether a stop has already been claimed: two threads must not both run the exit actions.</summary>");

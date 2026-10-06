@@ -31,6 +31,7 @@ public static class ModelValidator
         diagnostics.AddRange(ConflictValidator.Validate(model));
         diagnostics.AddRange(BindingValidator.Validate(model));
         diagnostics.AddRange(RoleValidator.Validate(model, hierarchy));
+        diagnostics.AddRange(TimerValidator.Validate(model, hierarchy));
         diagnostics.AddRange(RunValidator.Validate(model, hierarchy));
         diagnostics.AddRange(CoverageValidator.Validate(model, hierarchy));
         diagnostics.AddRange(ReachabilityValidator.Validate(model, hierarchy));

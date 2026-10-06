@@ -97,3 +97,16 @@ public sealed class GeneratedSerialized : SerializedContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class GeneratedTimers : TimerContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class GeneratedSerializedTimers : TimerContract
+{
+    protected override MachineShape Shape => Shapes.TimingSerialized;
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}

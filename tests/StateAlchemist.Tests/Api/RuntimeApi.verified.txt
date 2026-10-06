@@ -1,5 +1,12 @@
 ﻿namespace StateAlchemist
 {
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
+    public sealed class AfterAttribute : System.Attribute
+    {
+        public AfterAttribute() { }
+        public int Milliseconds { get; set; }
+        public int Seconds { get; set; }
+    }
     public enum Concurrency
     {
         Checked = 0,
@@ -188,6 +195,7 @@
         public const string CompletedAsync = "CompletedAsync";
         public const string Decide = "Decide";
         public const string DecideAsync = "DecideAsync";
+        public const string Delay = "Delay";
         public const string Guard = "Guard";
         public const string Transform = "Transform";
         public static System.Collections.Generic.IReadOnlyList<string> All { get; }
@@ -284,6 +292,7 @@
     }
     public readonly struct TriggerDefinition : System.IEquatable<StateAlchemist.TriggerDefinition>
     {
+        public System.TimeSpan? Delay { get; }
         public System.Type? EventType { get; }
         public long High { get; }
         public StateAlchemist.TriggerKind Kind { get; }
@@ -296,6 +305,7 @@
         public static StateAlchemist.TriggerDefinition ForAny() { }
         public static StateAlchemist.TriggerDefinition ForEvent(System.Type eventType) { }
         public static StateAlchemist.TriggerDefinition ForRange(long low, long high) { }
+        public static StateAlchemist.TriggerDefinition ForTimer(System.TimeSpan? delay) { }
         public static StateAlchemist.TriggerDefinition ForValue(long value) { }
         public static bool operator !=(StateAlchemist.TriggerDefinition left, StateAlchemist.TriggerDefinition right) { }
         public static bool operator ==(StateAlchemist.TriggerDefinition left, StateAlchemist.TriggerDefinition right) { }
@@ -306,6 +316,7 @@
         Range = 1,
         Any = 2,
         Event = 3,
+        Timer = 4,
     }
     public enum Unhandled
     {

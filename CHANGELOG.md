@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- Timers that belong to a state: `[After(Seconds = 30)]` fires a transition when its source state has been active
+  that long, and a `Delay` method sets a delay known only at runtime. The timer starts when the state is entered,
+  is cancelled when it is exited or the machine stops, and fires through the machine's inbox, so it never races a
+  caller. A machine with a timer takes an optional `TimeProvider`, and reports what a timer's transition throws to
+  a new `OnTimerException` hook. `TriggerKind.Timer`, `TriggerDefinition.ForTimer` and `TriggerDefinition.Delay`
+  describe one in `MachineDefinition`. The `netstandard2.0` build of the package now depends on
+  `Microsoft.Bcl.TimeProvider`. See [timers](docs/concepts/timers.md).
+  ([#19](https://github.com/HarryCordewener/StateAlchemist/issues/19))
 - `TransitionPlan.Refused`: the guarded transitions whose guard returned `false` while `Plan` looked for one to
   fire, in the order they were tried. A plan for a trigger nothing handles lists them too, so an interface can say
   why a trigger would not fire. The generated `Plan` returns a static plan for each combination, so it still

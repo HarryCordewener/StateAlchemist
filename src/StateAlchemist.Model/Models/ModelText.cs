@@ -27,6 +27,7 @@ public static class ModelText
             text.AppendLine($"transition {t.Index} {t.Name} {t.Source}->{t.Target} on {t.Trigger} order={t.Order} run={t.IsRun} module={t.Module} unknown=[{string.Join(",", t.UnknownMembers)}]");
             Method(text, "guard", t.Guard);
             Method(text, "transform", t.Transform);
+            Method(text, "delay", t.Delay);
             foreach (var completed in t.Completed)
             {
                 Method(text, "completed", completed);

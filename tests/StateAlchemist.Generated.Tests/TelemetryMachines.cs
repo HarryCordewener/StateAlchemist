@@ -6,6 +6,7 @@ using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
 using StateAlchemist.Contracts.Machines.Recording;
 using StateAlchemist.Contracts.Machines.Runs;
+using StateAlchemist.Contracts.Machines.Timing;
 using StateAlchemist.Samples.Telnet;
 
 namespace StateAlchemist.Generated.Tests;
@@ -131,4 +132,32 @@ public sealed partial class TelemetryRunsMachine
 public sealed partial class TelemetryRunsSerializedMachine
 {
     public ContractHooks? Hooks { get; set; }
+}
+
+[Machine(Root = typeof(TimeRoot), Value = typeof(byte), Context = typeof(RecordingContext), Telemetry = true)]
+[Include(typeof(TimingModule))]
+public sealed partial class TelemetryTimingMachine
+{
+    public ContractHooks? Hooks { get; set; }
+
+    partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
+
+    partial void OnTimerException(Exception exception, string transition)
+    {
+        if (Hooks is { HandleTimerExceptions: true })
+        {
+            Hooks.TimerException(exception, transition);
+        }
+    }
+}
+
+[Machine(Root = typeof(TimeRoot), Value = typeof(byte), Context = typeof(RecordingContext), Concurrency = Concurrency.Serialized, Telemetry = true)]
+[Include(typeof(TimingModule))]
+public sealed partial class TelemetryTimingSerializedMachine
+{
+    public ContractHooks? Hooks { get; set; }
+
+    partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
+
+    partial void OnTimerException(Exception exception, string transition) => Hooks?.TimerException(exception, transition);
 }

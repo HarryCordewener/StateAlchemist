@@ -16,7 +16,7 @@ public static class ReflectionModelBuilder
 {
     private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;
 
-    private static readonly string[] TransitionPhases = ["Guard", "Transform", "Completed", "CompletedAsync"];
+    private static readonly string[] TransitionPhases = ["Guard", "Transform", "Delay", "Completed", "CompletedAsync"];
     private static readonly string[] DecisionPhases = ["Guard", "Decide", "DecideAsync", "Complete", "Completed", "CompletedAsync"];
 
     /// <summary>Builds the model of a <c>[Machine]</c> class.</summary>
@@ -240,7 +240,8 @@ public static class ReflectionModelBuilder
                 yield break;
             }
 
-            var triggers = Triggers(member, name);
+            var hasDelay = declaration.Class?.GetMethods(Declared).Any(m => m.Name == "Delay") == true;
+            var triggers = Triggers(member, name, declaration.IsDecision, hasDelay);
             if (triggers.Count == 0)
             {
                 yield break;
@@ -285,11 +286,12 @@ public static class ReflectionModelBuilder
             foreach (var trigger in triggers)
             {
                 yield return new TransitionModel(0, name, source, target, trigger, declaration.Order, isRun, Phase("Guard"), transform,
-                    Phases("Completed", "CompletedAsync"), decision, unknown, declaration.Module.FullName!, SourceSpan.None);
+                    Phases("Completed", "CompletedAsync"), decision, unknown, declaration.Module.FullName!, SourceSpan.None,
+                    declaration.IsDecision ? null : Phase("Delay"));
             }
         }
 
-        private List<TriggerModel> Triggers(MemberInfo member, string name)
+        private List<TriggerModel> Triggers(MemberInfo member, string name, bool isDecision, bool hasDelay)
         {
             var triggers = new List<TriggerModel>();
             foreach (var on in member.GetCustomAttributes<OnAttribute>())
@@ -335,6 +337,31 @@ public static class ReflectionModelBuilder
             if (onEvent is not null)
             {
                 triggers.Add(TriggerModel.Event(onEvent.EventType.FullName!));
+            }
+
+            if (member.GetCustomAttribute<AfterAttribute>() is { } after)
+            {
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, "mixes [After] with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, "is a decision, which cannot fire on [After]"));
+                    return [];
+                }
+
+                if (Timers.Trigger(name, after.Milliseconds, after.Seconds, hasDelay, out var problem) is { } timer)
+                {
+                    triggers.Add(timer);
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, problem!));
+                    return [];
+                }
             }
 
             if (triggers.Count == 0)
@@ -447,6 +474,7 @@ public static class ReflectionModelBuilder
             _ when type == typeof(bool) => ReturnShape.Bool,
             _ when type == typeof(ValueTask) => ReturnShape.ValueTask,
             _ when type == typeof(Task) => ReturnShape.Task,
+            _ when type == typeof(TimeSpan) => ReturnShape.TimeSpan,
             { IsGenericType: true } when type.GetGenericTypeDefinition() == typeof(ValueTask<>) => ReturnShape.ValueTaskOfResult,
             { IsGenericType: true } when type.GetGenericTypeDefinition() == typeof(Task<>) => ReturnShape.TaskOfResult,
             _ => ReturnShape.Other,

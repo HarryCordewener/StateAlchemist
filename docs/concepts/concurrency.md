@@ -56,6 +56,8 @@ While a [decision](decisions.md) is pending, the caller whose input started it i
 the decision completes on another thread. The machine therefore accepts **events** from other callers in every
 mode, `Checked` and `Unchecked` included, through the same inbox — which is why a machine with an async decision
 has an inbox whatever its concurrency mode. This is how a disconnect or a timeout reaches a pending decision.
+A machine with a [timer](timers.md) has an inbox for the same reason: the timer fires on a thread no caller
+controls.
 
 Events that waited run as soon as the decision resolves, in the order they arrived, before the rest of the paused
 input.
@@ -65,7 +67,7 @@ mode: `Checked` throws, `Serialized` queues them behind the waiting batch.
 
 ## What the inbox costs
 
-A machine with an inbox — `Serialized`, or any mode with an async decision — costs about 65 ns per call more than
+A machine with an inbox — `Serialized`, or any mode with an async decision or a timer — costs about 65 ns per call more than
 one without, for the same stay. That buys the guarantee: every call is an object whose identity outlives the
 calling stack, so it can be queued, completed later, and completed exactly once. Most of the cost is the two lock
 regions a call passes through, claiming the pump and releasing it.

@@ -58,3 +58,93 @@ public static class RivalGmcpModule
 public static class NotAModule
 {
 }
+
+[Module]
+public static class TimerBothUnitsModule
+{
+    [Transition(From = typeof(Idle)), After(Milliseconds = 500, Seconds = 1)]
+    public static void Both()
+    {
+    }
+}
+
+[Module]
+public static class TimerNoDelayModule
+{
+    [Transition(From = typeof(Idle)), After]
+    public static void Never()
+    {
+    }
+}
+
+[Module]
+public static class TimerTwoDelaysModule
+{
+    [Transition(From = typeof(Idle)), After(Seconds = 1)]
+    public static class Twice
+    {
+        public static System.TimeSpan Delay() => System.TimeSpan.FromSeconds(2);
+    }
+}
+
+[Module]
+public static class TimerMixedModule
+{
+    [Transition(From = typeof(Idle)), After(Seconds = 1), On(1)]
+    public static void Mixed()
+    {
+    }
+}
+
+[Module]
+public static class TimerDecisionModule
+{
+    [Decision(From = typeof(Idle)), After(Seconds = 1)]
+    public static class Wait
+    {
+        public static ValueTask<Willing> DecideAsync(System.Threading.CancellationToken cancellation) => default;
+
+        [To(typeof(Idle))]
+        public static void Complete(Willing outcome)
+        {
+        }
+    }
+}
+
+[Module]
+public static class StrayDelayModule
+{
+    [Transition(From = typeof(Idle)), On(1)]
+    public static class Stray
+    {
+        public static System.TimeSpan Delay() => System.TimeSpan.FromSeconds(1);
+    }
+}
+
+[Module]
+public static class DelayReadsLeftStateModule
+{
+    [Transition(From = typeof(Idle)), After]
+    public static class Late
+    {
+        public static System.TimeSpan Delay(in Naws other, ref Idle self) => System.TimeSpan.FromSeconds(1);
+    }
+}
+
+[Module]
+public static class TimerNegativeModule
+{
+    [Transition(From = typeof(Idle)), After(Seconds = -1)]
+    public static void Back()
+    {
+    }
+}
+
+[Module]
+public static class TimerTooLongModule
+{
+    [Transition(From = typeof(Idle)), After(Seconds = 5000000)]
+    public static void Forever()
+    {
+    }
+}

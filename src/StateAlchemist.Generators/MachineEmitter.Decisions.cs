@@ -202,6 +202,11 @@ internal sealed partial class MachineEmitter
         _w.Line("/// <summary>Whether the pending decision lists the event in <c>Handle</c>: it runs at once instead of waiting.</summary>");
         using (_w.Block("private static bool Handles(int decision, int tag)"))
         {
+            if (HasTimers)
+            {
+                _w.Line($"if (tag == {TimerTag}) return true;");
+            }
+
             using (_w.Block("switch (decision)"))
             {
                 foreach (var decision in _model.Transitions.Where(t => t.Decision?.DecideAsync is not null))

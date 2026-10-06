@@ -13,6 +13,7 @@ public static class BindingValidator
     {
         Guard,
         Transform,
+        Delay,
         Complete,
         Decide,
         Completed,
@@ -33,6 +34,11 @@ public static class BindingValidator
             if (transition.Transform is not null)
             {
                 Check(model, transition, transition.Transform, Use.Transform, diagnostics);
+            }
+
+            if (transition.Delay is not null)
+            {
+                Check(model, transition, transition.Delay, Use.Delay, diagnostics);
             }
 
             if (transition.Decision?.Decider is { } decider)
@@ -87,8 +93,13 @@ public static class BindingValidator
                 return null;
             case ParameterKind.Config:
                 return parameter.Passing == Passing.Ref ? "the configuration is read-only: take it as in" : null;
+            case ParameterKind.Value or ParameterKind.Event or ParameterKind.Run or ParameterKind.RunMemory or ParameterKind.Outcome
+                or ParameterKind.CancellationToken or ParameterKind.TransitionInfo when use == Use.Delay:
+                return "a Delay may take only states, the configuration and the context";
             case ParameterKind.Value when use is Use.StateAction or Use.Complete:
                 return $"{Describe(use)} cannot take the value";
+            case ParameterKind.Value when trigger is { Kind: MatchKind.Timer }:
+                return "this transition fires on a timer, not a value";
             case ParameterKind.Value when trigger is { IsValue: false }:
                 return "this transition fires on an event, not a value";
             case ParameterKind.Value when transition is { IsRun: true }:
@@ -122,6 +133,7 @@ public static class BindingValidator
     {
         Use.Guard => "a Guard",
         Use.Transform => "a Transform",
+        Use.Delay => "a Delay",
         Use.Complete => "a Complete",
         Use.Decide => "a Decide",
         Use.Completed => "a Completed",

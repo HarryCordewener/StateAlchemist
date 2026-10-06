@@ -12,6 +12,9 @@ namespace StateAlchemist.Contracts;
 /// <param name="log">The log to record into, usually the context's.</param>
 public sealed class ContractHooks(List<string> log)
 {
+    /// <summary>Whether <c>OnTimerException</c> is implemented.</summary>
+    public bool HandleTimerExceptions { get; init; }
+
     /// <summary>Whether the exception hooks are implemented.</summary>
     public bool HandleExceptions { get; init; }
 
@@ -32,6 +35,9 @@ public sealed class ContractHooks(List<string> log)
 
     /// <summary><c>OnUnhandled</c> for an event.</summary>
     public void UnhandledEvent(Type state, object e) => log.Add($"unhandled {e.GetType().Name} in {state.Name}");
+
+    /// <summary><c>OnTimerException</c>.</summary>
+    public void TimerException(Exception exception, string transition) => log.Add($"timer hook {transition}: {exception.Message}");
 
     /// <summary><c>On{Phase}Exception</c>.</summary>
     public ExceptionResolution Exception(Exception exception, in TransitionInfo<byte> transition)
