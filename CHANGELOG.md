@@ -15,7 +15,7 @@ All notable changes to this project are documented here.
 - Package validation diffs every build against 1.3.0, the latest release, rather than 1.0.0.
 - The inbox of a `Serialized` machine, or of one with an async decision, locks a `System.Threading.Lock` when the
   application's framework has the type and its language is C# 13 or later, and an `object` otherwise. On net11.0
-  the `Serialized` benchmark measured 88–96 ns per call with it against 98–103 ns without.
+  the `Serialized` benchmark measured 88–93 ns per call with it against 98–103 ns without.
 - The benchmarks run the suspending action, a suspending `FireAsync` and a suspending async decision under two
   net11.0 jobs, one compiled with `runtime-async=on`. BenchmarkDotNet is 0.16.0-preview.2: 0.15.8 has no
   net11.0 runtime and stops before running an out-of-process job on it.
