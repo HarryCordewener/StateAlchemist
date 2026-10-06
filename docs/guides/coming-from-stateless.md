@@ -31,7 +31,7 @@ StateAlchemist.
 |---|---|
 | `OnEntry` / `OnExit` | `[Entered(typeof(S))]` / `[Exited(typeof(S))]` on a module method; see [actions](../concepts/actions.md) |
 | `OnEntryAsync` / `OnExitAsync` | the same attributes on a method returning `ValueTask` |
-| `OnEntryFrom(trigger, action)` | the transition's `Completed`, which can take the value or event that fired it |
+| `OnEntryFrom(trigger, action)` | the transition's `Completed`, which can take the value or event that fired it; it runs after every `[Exited]` and `[Entered]` action, not during entry |
 | `OnTransitioned(...)` | `partial void OnTransitioned(in TransitionInfo<TValue> transition)` |
 | `OnUnhandledTrigger(...)` | `partial void OnUnhandled(StateId state, TValue value)`, and one per event type |
 
@@ -44,7 +44,7 @@ StateAlchemist.
 | `Fire(trigger)` | `Fire(value)`, when nothing in the machine is async |
 | `State` | `State`, a generated `StateId` enum |
 | `IsInState(state)` | `IsIn(StateId.S)` |
-| `PermittedTriggers` | `Plan(value)`: what one trigger would do, without doing it |
+| `PermittedTriggers` | no list counterpart; `Plan(value)` says what one value would do, without firing it |
 | `GetInfo()` | the static `Definition` |
 | `UmlDotGraph.Format(...)` / `MermaidGraph.Format(...)` | the generated `Dot` and `Mermaid` constants |
 

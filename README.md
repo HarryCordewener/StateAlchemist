@@ -131,9 +131,10 @@ StateAlchemist stands on the work of others.
   [Pure.DI](https://github.com/DevTeam/Pure.DI)**: a machine's modules are named where the machine is declared,
   as these containers name theirs.
 - **.NET's `Dictionary`, Channels and [Orleans](https://github.com/dotnet/orleans)**: the three
-  [concurrency](docs/concepts/concurrency.md) modes. `Checked` detects concurrent use and throws, as `Dictionary`
-  does; `Unchecked` takes a single caller's promise, as a channel's `SingleReader` and `SingleWriter` do; and
-  `Serialized` processes calls one turn at a time, as Orleans grains do.
+  [concurrency](docs/concepts/concurrency.md) modes. `Checked` throws on concurrent use rather than corrupting
+  state, following `Dictionary`, which throws when it detects a concurrent update; `Unchecked` takes a single
+  caller's promise, as a channel's `SingleReader` and `SingleWriter` do; and `Serialized` processes calls one turn
+  at a time, as Orleans grains do.
 
 The [design specification](docs/superpowers/specs/2026-09-11-statealchemist-design.md) records where each idea is
 used: §1 for Stateless and FunctionalStateMachine, D25 for the modules, and §6.10 for concurrency.
