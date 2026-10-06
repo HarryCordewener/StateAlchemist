@@ -135,7 +135,10 @@ or names a trigger value that is not an integral constant.
 
 > Machine '{0}' {1}
 
-A `[Machine]` without `Root` or `Value`, or an `[Include]` of a type that is not a `[Module]`.
+A `[Machine]` without `Root` or `Value`, or an `[Include]` of a type that is not a `[Module]`. Also a `[Machine]`
+that sets `Telemetry` in an application where `System.Diagnostics.Metrics.Meter` or
+`System.Diagnostics.ActivitySource` is missing, such as a `netstandard2.0` one without the
+`System.Diagnostics.DiagnosticSource` package: add the package.
 
 ## SALCH0108
 

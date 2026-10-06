@@ -75,6 +75,11 @@ internal sealed partial class MachineEmitter
         using (_w.Block($"partial class {_machine.Machine.Name} : {Rt}IBoundaryMachine<{V}>"))
         {
             WriteStorage();
+            if (Telemetry)
+            {
+                WriteTelemetryStorage();
+            }
+
             WriteQueries();
             WriteDefinition();
             WriteDiagrams();

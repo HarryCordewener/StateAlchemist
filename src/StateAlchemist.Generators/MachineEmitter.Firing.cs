@@ -546,6 +546,11 @@ internal sealed partial class MachineEmitter
         _w.Line();
         using (_w.Block($"private {ValueTaskType} UnhandledValue({V} value)"))
         {
+            if (Telemetry)
+            {
+                WriteUnhandledCount();
+            }
+
             _w.Line("OnUnhandled(_leaf, value);");
             Unhandled("value.ToString()");
         }
@@ -555,6 +560,11 @@ internal sealed partial class MachineEmitter
             _w.Line();
             using (_w.Block($"private {ValueTaskType} UnhandledEvent{i}({Name(_events[i])} e)"))
             {
+                if (Telemetry)
+                {
+                    WriteUnhandledCount();
+                }
+
                 _w.Line("OnUnhandled(_leaf, in e);");
                 Unhandled(Literal("event " + _events[i].Name));
             }
@@ -563,6 +573,11 @@ internal sealed partial class MachineEmitter
         _w.Line();
         using (_w.Block($"private void UnhandledUnknown({TypeType} type)"))
         {
+            if (Telemetry)
+            {
+                WriteUnhandledCount();
+            }
+
             if (_model.Options.Unhandled == UnhandledMode.Throw)
             {
                 _w.Line($"throw new {Rt}UnhandledTriggerException(StateType, \"event \" + type.Name);");

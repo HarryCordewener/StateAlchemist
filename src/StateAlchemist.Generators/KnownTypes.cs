@@ -67,6 +67,11 @@ internal sealed class KnownTypes(Compilation compilation)
     public INamedTypeSymbol? ReadOnlyMemory { get; } = compilation.GetTypeByMetadataName("System.ReadOnlyMemory`1");
 
     public INamedTypeSymbol? CancellationToken { get; } = compilation.GetTypeByMetadataName("System.Threading.CancellationToken");
+
+    /// <summary>What <c>Telemetry</c> writes against: in the framework from .NET 6, and in System.Diagnostics.DiagnosticSource 6.0 and later.</summary>
+    public INamedTypeSymbol? Meter { get; } = compilation.GetTypeByMetadataName("System.Diagnostics.Metrics.Meter");
+
+    public INamedTypeSymbol? ActivitySource { get; } = compilation.GetTypeByMetadataName("System.Diagnostics.ActivitySource");
 }
 
 /// <summary>Compares by reference: the model's records compare their lists by reference anyway, and two equal methods are still two methods.</summary>

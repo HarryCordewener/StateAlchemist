@@ -90,6 +90,7 @@ server, say) declares several machine types.
 | `InboxCapacity` | 0 | For `Serialized`: a bounded inbox, so event producers wait instead of queueing without limit. |
 | `Purity` | `Permissive` | `Strict` forbids guards, transforms and completions from taking the context. |
 | `Unhandled` | `Ignore` | `Throw` throws `UnhandledTriggerException` when nothing handles a trigger. |
+| `Telemetry` | `false` | `true` generates an `ActivitySource` and a `Meter`; see [telemetry](../guides/telemetry.md). |
 
 A missing `Root` or `Value` is [`SALCH0107`](../reference/diagnostics.md#salch0107).
 

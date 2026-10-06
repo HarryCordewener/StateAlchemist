@@ -61,6 +61,11 @@ internal sealed partial class MachineEmitter
 
             var path = PathPlanner.Stay(leaf);
             _w.Line("object outcome;");
+            if (Telemetry)
+            {
+                WriteDecisionTelemetryStart(decision);
+            }
+
             using (_w.Block("try"))
             {
                 _w.Line($"outcome = {Owner(parts.Decide!)}({Arguments(parts.Decide!, Use.Decide, decision, path, [])}).Value;");
@@ -69,7 +74,17 @@ internal sealed partial class MachineEmitter
 
             using (_w.Block($"catch ({Exception} exception)"))
             {
+                if (Telemetry)
+                {
+                    WriteDecisionTelemetryEnd(decision, "exception");
+                }
+
                 _w.Line($"return DispatchEvent{DecisionFailedTag}(new {Rt}DecisionFailed({Literal(decision.Name)}, exception));");
+            }
+
+            if (Telemetry)
+            {
+                WriteDecisionTelemetryEnd(decision, "null");
             }
 
             WriteOutcomeSwitch(decision, leaf, "outcome", argument);
@@ -119,6 +134,11 @@ internal sealed partial class MachineEmitter
             _w.Line(decision.Trigger.Kind == MatchKind.Event ? $"var e = ({Event(decision.Trigger.EventType!)})pending.Event;" : "var value = pending.Value;");
             _w.Line("object outcome = null;");
             _w.Line($"{Exception} failure = null;");
+            if (Telemetry)
+            {
+                WriteDecisionTelemetryStart(decision);
+            }
+
             using (_w.Block("try"))
             {
                 _w.Line($"outcome = (await {Owner(decide)}({Arguments(decide, Use.Decide, decision, PathPlanner.Stay(decision.Source), [])})).Value;");
@@ -126,6 +146,11 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line($"catch ({Exception} exception) {{ failure = exception; }}");
+            if (Telemetry)
+            {
+                WriteDecisionTelemetryEnd(decision, "failure");
+            }
+
             _w.Line("_flow.Value = null;");
             using (_w.Block("lock (_sync)"))
             {

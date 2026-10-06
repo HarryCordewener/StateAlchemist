@@ -48,6 +48,7 @@ internal static class SymbolModelBuilder
         private ITypeSymbol? _value;
         private ITypeSymbol? _context;
         private ITypeSymbol? _config;
+        private bool _telemetry;
 
         /// <summary>One module, with no machine around it: its states are the ones its own declarations name.</summary>
         public SymbolMachine RunModule()
@@ -92,6 +93,9 @@ internal static class SymbolModelBuilder
                     case "Unhandled":
                         unhandled = (UnhandledMode)(int)argument.Value.Value!;
                         break;
+                    case "Telemetry":
+                        _telemetry = (bool)argument.Value.Value!;
+                        break;
                 }
             }
 
@@ -104,6 +108,12 @@ internal static class SymbolModelBuilder
             if (_value is null)
             {
                 _diagnostics.Add(new(DiagnosticCatalog.IncompleteMachine, machineLocation, machine.Name, "does not name a Value type"));
+            }
+
+            if (_telemetry && (known.Meter is null || known.ActivitySource is null))
+            {
+                _diagnostics.Add(new(DiagnosticCatalog.IncompleteMachine, machineLocation, machine.Name,
+                    "sets Telemetry, which needs System.Diagnostics.Metrics.Meter and System.Diagnostics.ActivitySource: reference the System.Diagnostics.DiagnosticSource package"));
             }
 
             _options = Options(concurrency, inbox, purity, unhandled);
@@ -156,7 +166,7 @@ internal static class SymbolModelBuilder
 
             var model = new MachineModel(machine.Name, _options, states, transitions, actions, _diagnostics);
             return new SymbolMachine(machine, model, _stateTypes, _methods, _events, _value, _context, _config, _locations, machineLocation,
-                modules.Select(m => MetadataName(m)).ToList());
+                modules.Select(m => MetadataName(m)).ToList(), _telemetry);
         }
 
         /// <summary>

@@ -41,6 +41,9 @@ public class GeneratedCodeTests
     [Arguments("DecidingSerialized")]
     [Arguments("RecorderSerialized")]
     [Arguments("Runs")]
+    [Arguments("RecorderWithTelemetry")]
+    [Arguments("DecidingWithTelemetry")]
+    [Arguments("RunsWithTelemetry")]
     public async Task TheGeneratedCodeIsCSharp73AndCompilesWithoutAWarning(string machine)
     {
         var source = machine switch
@@ -54,6 +57,11 @@ public class GeneratedCodeTests
             "RecorderSerialized" => TestCompilation.Machine("M", typeof(Root), typeof(byte), typeof(RecordingContext), [typeof(RecorderModule), typeof(RecorderExtras)],
                 ", Concurrency = global::StateAlchemist.Concurrency.Serialized", " { }"),
             "Runs" => TestCompilation.Machine("M", typeof(RunRoot), typeof(byte), typeof(RecordingContext), [typeof(RunModule)], body: " { }"),
+            "RecorderWithTelemetry" => TestCompilation.Machine("M", typeof(Root), typeof(byte), typeof(RecordingContext), [typeof(RecorderModule), typeof(RecorderExtras)],
+                ", Telemetry = true", " { }"),
+            "DecidingWithTelemetry" => TestCompilation.Machine("M", typeof(DecideRoot), typeof(byte), typeof(RecordingContext), [typeof(DecidingModule)],
+                ", Telemetry = true", " { }"),
+            "RunsWithTelemetry" => TestCompilation.Machine("M", typeof(RunRoot), typeof(byte), typeof(RecordingContext), [typeof(RunModule)], ", Telemetry = true", " { }"),
             _ => TestCompilation.Machine("M", typeof(FailRoot), typeof(byte), typeof(RecordingContext), [typeof(FailureModule)], body: """
                  {
                      partial void OnGuardException(global::System.Exception e, in global::StateAlchemist.TransitionInfo<byte> t, ref global::StateAlchemist.ExceptionResolution r) { }

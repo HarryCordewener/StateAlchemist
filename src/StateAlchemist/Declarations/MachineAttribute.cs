@@ -40,4 +40,12 @@ public sealed class MachineAttribute : Attribute
 
     /// <summary>What to do with a trigger nothing handles. Defaults to <see cref="StateAlchemist.Unhandled.Ignore"/>.</summary>
     public Unhandled Unhandled { get; set; } = Unhandled.Ignore;
+
+    /// <summary>
+    /// Whether the generated machine reports to an <c>ActivitySource</c> and a <c>Meter</c>, both named
+    /// <c>StateAlchemist</c>: an activity and a duration for each transition and each decision, and counts of
+    /// completed transitions and unhandled triggers. Defaults to <see langword="false"/>, which generates none of it.
+    /// A <c>netstandard2.0</c> application that sets it references the <c>System.Diagnostics.DiagnosticSource</c> package.
+    /// </summary>
+    public bool Telemetry { get; set; }
 }

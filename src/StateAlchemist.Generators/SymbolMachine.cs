@@ -16,6 +16,7 @@ namespace StateAlchemist.Generators;
 /// <param name="Locations">The source location behind each span the model records.</param>
 /// <param name="MachineLocation">Where the <c>[Machine]</c> attribute is: diagnostics with no location of their own go here.</param>
 /// <param name="Modules">The included modules' metadata names, in include order: actions from different modules with equal <c>Order</c> run in this order.</param>
+/// <param name="Telemetry">Whether <c>[Machine(Telemetry = true)]</c> asks for an <c>ActivitySource</c> and a <c>Meter</c>.</param>
 internal sealed record SymbolMachine(
     INamedTypeSymbol Machine,
     MachineModel Model,
@@ -27,4 +28,5 @@ internal sealed record SymbolMachine(
     ITypeSymbol? Config,
     IReadOnlyDictionary<SourceSpan, Location> Locations,
     SourceSpan MachineLocation,
-    IReadOnlyList<string> Modules);
+    IReadOnlyList<string> Modules,
+    bool Telemetry = false);

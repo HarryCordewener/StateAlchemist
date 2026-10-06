@@ -74,6 +74,9 @@ Generated `partial` methods, removed by the compiler unless the application impl
 | `partial void OnUnhandled(StateId state, byte value)`, and one per event type | When nothing handles a trigger. |
 | `partial void On{Phase}Exception(Exception exception, in TransitionInfo<byte> transition, ref ExceptionResolution resolution)` | For `Guard`, `Transform`, `Exited`, `Entered` and `Completed`; see [exceptions](../concepts/exceptions.md). |
 
+With `[Machine(Telemetry = true)]` the machine also reports to an `ActivitySource` and a `Meter` named
+`StateAlchemist`, alongside these hooks rather than in them; see [telemetry](../guides/telemetry.md).
+
 ## Through the interface
 
 `IMachine<TValue>` exposes the same machine without its generated types, for code that must not depend on one

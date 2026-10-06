@@ -110,6 +110,7 @@
         public int InboxCapacity { get; set; }
         public StateAlchemist.Purity Purity { get; set; }
         public System.Type? Root { get; set; }
+        public bool Telemetry { get; set; }
         public StateAlchemist.Unhandled Unhandled { get; set; }
         public System.Type? Value { get; set; }
     }
