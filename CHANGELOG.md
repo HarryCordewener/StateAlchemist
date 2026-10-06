@@ -5,6 +5,15 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- History states. `History = History.Deep` on a `[Transition]` or a decision's `[To]` enters the leaf that was
+  active when the target was last exited; `History.Shallow` enters the child that was, then its `[Initial]` path.
+  Before the target has been exited, and on any move without `History`, the `[Initial]` path is entered as before.
+  History restores which state is active, not its data. The machine keeps one `StateId` per parent some move enters
+  by history; recording it is a field store and recalling it a `switch`, so nothing allocates. `Plan` names the leaf
+  the move would enter, `TransitionDefinition.History` and `OutcomeDefinition.History` say which moves use it, and
+  the diagrams draw an `H` or `H*` node. `SALCH0210` reports history on a stay, a leaf or the root. See
+  [going back with history](docs/concepts/states.md#going-back-with-history).
+  ([#23](https://github.com/HarryCordewener/StateAlchemist/issues/23))
 - `TransitionPlan.Refused`: the guarded transitions whose guard returned `false` while `Plan` looked for one to
   fire, in the order they were tried. A plan for a trigger nothing handles lists them too, so an interface can say
   why a trigger would not fire. The generated `Plan` returns a static plan for each combination, so it still

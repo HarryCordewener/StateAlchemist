@@ -120,4 +120,24 @@ public class DiagramTests
     }
 
     private static string Name(string type) => type;
+
+    /// <summary>A move by history points at an <c>H</c> or <c>H*</c> node inside its target, which leads to the initial child.</summary>
+    [Test]
+    public async Task AMoveByHistoryIsDrawnToAHistoryNodeInsideItsTarget()
+    {
+        var mermaid = RecallingMachine.Mermaid;
+        await Assert.That(mermaid).Contains("state \"H\" as Player_History\n");
+        await Assert.That(mermaid).Contains("state \"H*\" as Player_DeepHistory\n");
+        await Assert.That(mermaid).Contains("Player_DeepHistory --> Stopped\n");
+        await Assert.That(mermaid).Contains("Idle --> Player_History : 4\n");
+        await Assert.That(mermaid).Contains("Idle --> Player_DeepHistory : 5\n");
+        await Assert.That(mermaid).Contains("Idle --> Player : 3\n");
+        await Assert.That(mermaid).Contains("Idle --> Player_DeepHistory : 7 decide / Resume\n");
+        await Assert.That(mermaid.Split('\n').Count(line => line.Contains("-->") && line.Contains(':'))).IsEqualTo(Expected(RecallingMachine.Definition));
+
+        var dot = RecallingMachine.Dot;
+        await Assert.That(dot).Contains("Player_DeepHistory [label=\"H*\", shape=circle];");
+        await Assert.That(dot).Contains("Player_DeepHistory -> Stopped [style=dashed];");
+        await Assert.That(dot).Contains("Idle -> Player_History [label=\"4\"];");
+    }
 }

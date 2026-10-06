@@ -10,7 +10,7 @@ await telnet.StartAsync();                            // [Entered] actions on th
 await telnet.FireAsync(bytes);                        // running
 await telnet.StopAsync();                             // [Exited] actions from the leaf to the root
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L39-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-lifecycle' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L40-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-lifecycle' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 | Status | How it gets there | Firing |

@@ -69,12 +69,14 @@ public static class RoleValidator
             foreach (var completed in transition.Completed)
             {
                 var outcome = completed.Parameters.FirstOrDefault(p => p.Kind == ParameterKind.Outcome)?.TypeName;
-                var after = transition.Decision is { } made
-                    ? MovesTo(made.Completions.Where(c => outcome is null || c.OutcomeType == outcome))
-                    : paths;
+                var taken = transition.Decision?.Completions.Where(c => outcome is null || c.OutcomeType == outcome).ToList();
+                var after = taken is null ? paths : MovesTo(taken);
+                var recalledAfter = taken is null ? recalled
+                    : taken.Count == 1 && taken[0].History != HistoryKind.None ? taken[0].Target
+                    : -1;
                 if (after.Count > 0)
                 {
-                    Check(model, hierarchy, completed, Use.Action, after, diagnostics);
+                    Check(model, hierarchy, completed, Use.Action, after, diagnostics, recalledAfter);
                 }
             }
 
