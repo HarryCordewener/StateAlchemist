@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>StateAlchemist.Hosting</RootNamespace>
+    <IsPackable>true</IsPackable>
+    <PackageId>StateAlchemist.Hosting</PackageId>
+    <Title>StateAlchemist.Hosting</Title>
+    <Description>Runs a StateAlchemist machine for the lifetime of a .NET Generic Host: started with the host, fed from a channel, stopped on shutdown.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PackageTags>state-machine;statemachine;hosting;dependency-injection;backgroundservice</PackageTags>
+    <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
+    <PackageIcon Condition="Exists('..\..\docs\images\StateAlchemist.png')">StateAlchemist.png</PackageIcon>
+    <!-- Checked for compatibility across its target frameworks. There is no published version yet to diff against;
+         the first release becomes the baseline. -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+  </PropertyGroup>
+
+  <!-- The core package stays free of dependencies; hosting is what brings Microsoft.Extensions in. The lowest
+       version with a net8.0 build, so an application is never made to upgrade its own. On net11.0 the shared
+       framework carries these assemblies and NuGet prunes the dependency.
+       PrivateAssets="none" lets the core package's generator and analyzers flow through: an application that
+       references only this package still gets its machines generated. -->
+  <ItemGroup>
+    <ProjectReference Include="..\StateAlchemist\StateAlchemist.csproj" PrivateAssets="none" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="PACKAGE.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\docs\images\StateAlchemist.png" Condition="Exists('..\..\docs\images\StateAlchemist.png')" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The version comes from the git tag, as the core package's does; see docs/releasing.md. -->
+    <PackageReference Include="MinVer" PrivateAssets="all" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);MINVER1001</MSBuildWarningsAsMessages>
+  </PropertyGroup>
+</Project>

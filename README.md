@@ -31,6 +31,9 @@ One package reference brings the runtime, the generator, the analyzers and the c
 from GitHub Actions by [trusted publishing](docs/releasing.md) — no long-lived key exists — and carry attested
 build provenance, so a `.nupkg` can be checked back to the workflow and commit that built it.
 
+To run a machine for the lifetime of a .NET Generic Host, fed from a queue, add
+[`StateAlchemist.Hosting`](docs/guides/hosting.md) as well.
+
 - **[Examples](docs/guides/examples.md)** — a phone call, a crossing, telnet, a card door, a pipe reader.
 - **[Documentation](docs/index.md)** — concepts, guides and reference.
 - **[Roadmap](docs/superpowers/plans/2026-09-11-00-roadmap.md)** — the order of work and how it is tested.

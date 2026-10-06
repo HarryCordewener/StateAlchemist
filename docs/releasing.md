@@ -1,7 +1,8 @@
 # Releasing
 
-For maintainers. One package, `StateAlchemist`: the runtime under `lib/`, the generator and the code fixes under
-`analyzers/dotnet/cs`.
+For maintainers. Two packages, released together at the same version: `StateAlchemist`, with the runtime under
+`lib/` and the generator and the code fixes under `analyzers/dotnet/cs`; and `StateAlchemist.Hosting`, which
+depends on it.
 
 ## How a version is decided
 

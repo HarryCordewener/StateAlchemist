@@ -5,6 +5,12 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- `StateAlchemist.Hosting`, a companion package that runs a machine for the lifetime of a .NET Generic Host
+  ([#28](https://github.com/HarryCordewener/StateAlchemist/issues/28)). `AddHostedMachine` registers the machine,
+  a `MachineInbox` to write inputs to, and a `BackgroundService` that starts the machine with the host, fires each
+  input in turn, and on shutdown fires what is still queued before stopping the machine. A `capacity` bounds the
+  inbox, so the machine's backpressure reaches whoever writes to it. The core package still has no dependencies;
+  this one depends on `Microsoft.Extensions.Hosting.Abstractions`. See [hosting a machine](docs/guides/hosting.md).
 - [Coming from Stateless](docs/guides/coming-from-stateless.md): each Stateless configuration call, action and
   member, and its StateAlchemist counterpart, with the places where the two work differently.
 - An acknowledgements section in the README, crediting the libraries the design specification names as sources:

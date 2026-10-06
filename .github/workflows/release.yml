@@ -92,17 +92,21 @@ jobs:
           echo "VERSION=${TAG#v}" >> $GITHUB_ENV
 
       - name: Pack
-        run: dotnet pack src/StateAlchemist --configuration Release -o packages
+        run: |
+          dotnet pack src/StateAlchemist --configuration Release -o packages
+          dotnet pack src/StateAlchemist.Hosting --configuration Release -o packages
         env:
           CI: true
 
       - name: Verify the packed version matches the tag
         run: |
-          if ! ls packages/StateAlchemist.${VERSION}.nupkg >/dev/null 2>&1; then
-            echo "::error::Expected packages/StateAlchemist.${VERSION}.nupkg; MinVer produced:"
-            ls packages
-            exit 1
-          fi
+          for package in StateAlchemist StateAlchemist.Hosting; do
+            if ! ls packages/${package}.${VERSION}.nupkg >/dev/null 2>&1; then
+              echo "::error::Expected packages/${package}.${VERSION}.nupkg; MinVer produced:"
+              ls packages
+              exit 1
+            fi
+          done
 
       # The generator and the code fixes are what make the package more than a few attributes.
       - name: Verify both Roslyn components are in the package
