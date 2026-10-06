@@ -15,6 +15,12 @@ All notable changes to this project are documented here.
   without the option is generated as before. A `netstandard2.0` application that sets it references the
   `System.Diagnostics.DiagnosticSource` package, or gets `SALCH0107`.
   ([#21](https://github.com/HarryCordewener/StateAlchemist/issues/21))
+- `StateAlchemist.Hosting`, a companion package that runs a machine for the lifetime of a .NET Generic Host
+  ([#28](https://github.com/HarryCordewener/StateAlchemist/issues/28)). `AddHostedMachine` registers the machine,
+  a `MachineInbox` to write inputs to, and a `BackgroundService` that starts the machine with the host, fires each
+  input in turn, and on shutdown fires what is still queued before stopping the machine. A `capacity` bounds the
+  inbox, so the machine's backpressure reaches whoever writes to it. The core package still has no dependencies;
+  this one depends on `Microsoft.Extensions.Hosting.Abstractions`. See [hosting a machine](docs/guides/hosting.md).
 
 ### Changed
 - The documentation's code is compiled. Eighteen blocks that were written into the prose, and only checked to

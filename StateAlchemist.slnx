@@ -9,6 +9,7 @@
   <Folder Name="/src/">
     <Project Path="src/StateAlchemist.CodeFixes/StateAlchemist.CodeFixes.csproj" />
     <Project Path="src/StateAlchemist.Generators/StateAlchemist.Generators.csproj" />
+    <Project Path="src/StateAlchemist.Hosting/StateAlchemist.Hosting.csproj" />
     <Project Path="src/StateAlchemist.Model/StateAlchemist.Model.csproj" />
     <Project Path="src/StateAlchemist.Reference/StateAlchemist.Reference.csproj" />
     <Project Path="src/StateAlchemist/StateAlchemist.csproj" />
@@ -18,6 +19,7 @@
     <Project Path="tests/StateAlchemist.ExportingLibrary/StateAlchemist.ExportingLibrary.csproj" />
     <Project Path="tests/StateAlchemist.Generated.Tests/StateAlchemist.Generated.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Generators.Tests/StateAlchemist.Generators.Tests.csproj" />
+    <Project Path="tests/StateAlchemist.Hosting.Tests/StateAlchemist.Hosting.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Model.Tests/StateAlchemist.Model.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Reference.Tests/StateAlchemist.Reference.Tests.csproj" />
     <Project Path="tests/StateAlchemist.Tests/StateAlchemist.Tests.csproj" />
