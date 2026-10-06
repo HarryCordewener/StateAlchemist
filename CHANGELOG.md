@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+- [Coming from Stateless](docs/guides/coming-from-stateless.md): each Stateless configuration call, action and
+  member, and its StateAlchemist counterpart, with the places where the two work differently.
+- An acknowledgements section in the README, crediting the libraries the design specification names as sources:
+  Stateless, FunctionalStateMachine, StrongInject, Jab, Pure.DI, `Dictionary`, Channels and Orleans.
+
 ### Changed
 - The documentation's code is compiled. Eighteen blocks that were written into the prose, and only checked to
   parse, are now snippets of the samples and the tests, so a renamed member or a changed signature fails the build
