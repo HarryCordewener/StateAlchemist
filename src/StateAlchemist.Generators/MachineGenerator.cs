@@ -54,9 +54,12 @@ public sealed class MachineGenerator : IIncrementalGenerator
 
     /// <summary>
     /// Whether <c>lock</c> on a <c>System.Threading.Lock</c> compiles to its <c>EnterScope</c>: the type is there
-    /// (.NET 9 on) and the language is C# 13 or later. 1300 is C# 13, which Roslyn 4.8 has no name for.
+    /// (.NET 9 on) and the application can see it, and the language is C# 13 or later. A reference can carry an
+    /// internal polyfill of the type, which the generated field could not name. 1300 is C# 13, which Roslyn 4.8 has
+    /// no name for.
     /// </summary>
-    private static bool HasLockType(Compilation compilation) =>
+    internal static bool HasLockType(Compilation compilation) =>
         compilation is CSharpCompilation { LanguageVersion: >= (LanguageVersion)1300 } &&
-        compilation.GetTypeByMetadataName("System.Threading.Lock") is not null;
+        compilation.GetTypeByMetadataName("System.Threading.Lock") is { } type &&
+        compilation.IsSymbolAccessibleWithin(type, compilation.Assembly);
 }

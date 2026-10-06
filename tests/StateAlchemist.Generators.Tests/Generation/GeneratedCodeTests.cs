@@ -87,4 +87,24 @@ public class GeneratedCodeTests
         await Assert.That(generated).Contains("private readonly object _sync = new object();");
         await Assert.That(Problems(output)).IsEqualTo("");
     }
+
+    // A Lock the application cannot name, such as an internal polyfill in a reference, is no Lock to the inbox.
+    [Test]
+    [Arguments("public", true)]
+    [Arguments("internal", false)]
+    public async Task TheInboxLocksALockOnlyWhereTheApplicationCanSeeIt(string access, bool expected)
+    {
+        var polyfill = CSharpCompilation.Create(
+            "Polyfill",
+            [CSharpSyntaxTree.ParseText($"namespace System.Threading {{ {access} sealed class Lock {{ }} }}")],
+            TestCompilation.References.Where(r => r.Display?.EndsWith("netstandard.dll", StringComparison.Ordinal) == true),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var app = CSharpCompilation.Create(
+            "App",
+            [CSharpSyntaxTree.ParseText("class C { }", new CSharpParseOptions((LanguageVersion)1300))],
+            [polyfill.ToMetadataReference()],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        await Assert.That(MachineGenerator.HasLockType(app)).IsEqualTo(expected);
+    }
 }
