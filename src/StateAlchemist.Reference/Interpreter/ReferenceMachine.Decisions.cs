@@ -123,7 +123,7 @@ public sealed partial class ReferenceMachine<TValue>
             .Where(m => m.Parameters.FirstOrDefault(p => p.Kind == ParameterKind.Outcome) is not { } taken || taken.TypeName == outcomeType)
             .ToList();
         var kind = completion.Target == decision.Source ? TransitionKind.Reenter : TransitionKind.Move;
-        await ExecuteAsync(decision, completion.Complete, completed, PathPlanner.Move(_hierarchy, _leaf, completion.Target), kind, trigger, outcome);
+        await ExecuteAsync(decision, completion.Complete, completed, PathPlanner.Move(_hierarchy, _leaf, completion.Target, completion.History, _recorded[completion.Target]), kind, trigger, outcome);
         return false;
     }
 

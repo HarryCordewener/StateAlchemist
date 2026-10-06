@@ -185,8 +185,9 @@ code fix that does the first half. See
 > Parameter '{0}' of '{1}' names '{2}', which {3}
 
 The parameter names a state the transition does not touch — a sibling, an unrelated branch — or, for a
-transition declared on a parent, a state that binds differently depending on the active leaf. For a state action,
-a state that is neither the action's state nor one of its ancestors.
+transition declared on a parent, a state that binds differently depending on the active leaf. For a move by
+[history](../concepts/states.md#going-back-with-history), a state under its target: which of those it enters is
+known only when it runs. For a state action, a state that is neither the action's state nor one of its ancestors.
 
 ## SALCH0203
 
@@ -247,6 +248,16 @@ A phase returning a task is named with `Async`; one that does not is named witho
 > Machine '{0}' is Unchecked but has async actions or decisions; await every FireAsync before calling the next
 
 See [concurrency](../concepts/concurrency.md#unchecked).
+
+## SALCH0210
+
+**History without a state to recall** · error · app
+
+> '{0}' asks for history, but {1}
+
+`History = History.Shallow` or `History.Deep` on a stay, or on a move whose target has no children in this
+machine or is the root. A leaf has nothing below it to recall, and the root is never exited. See
+[history](../concepts/states.md#going-back-with-history).
 
 ## SALCH0301
 

@@ -28,8 +28,8 @@ internal sealed partial class MachineEmitter
         foreach (var (index, leaf) in _transitions)
         {
             var transition = _model.Transitions[index];
-            WriteSteps(TransitionName(index, leaf), TriggerParameter(transition), transition, PathPlanner.Plan(_hierarchy, transition, leaf),
-                transition.Transform, transition.Completed, transition.Kind.ToString(), outcome: null);
+            WriteMove(TransitionName(index, leaf), TriggerParameter(transition), TriggerArgumentName(transition), transition, PathPlanner.Plans(_hierarchy, transition, leaf),
+                transition.Target, transition.History, transition.Transform, transition.Completed, transition.Kind.ToString(), outcome: null);
         }
     }
 
@@ -149,6 +149,7 @@ internal sealed partial class MachineEmitter
 
             // 4. commit. A move leaves any pending decision's state, which sits below the leaf: the decision ends.
             _w.Line($"_leaf = StateId.{_stateIds[path.TargetLeaf]};");
+            WriteRecording(path);
             if (Deciding && path.Exiting.Count > 0)
             {
                 _w.Line("lock (_sync) { if (_pending != null) EndPending(_pending); }");
@@ -322,7 +323,7 @@ internal sealed partial class MachineEmitter
     private string Info(TransitionModel transition, TransitionPath path, string phase, int state = -1, string? kind = null)
     {
         var isEvent = transition.Trigger.Kind == MatchKind.Event;
-        return $"new {Rt}TransitionInfo<{V}>({Literal(transition.Name)}, typeof({S(transition.Source)}), typeof({S(path.Leaf)}), typeof({S(path.TargetLeaf)}), " +
+        return $"new {Rt}TransitionInfo<{V}>({Literal(transition.Name)}, typeof({S(transition.Source)}), typeof({S(path.Leaf)}), {TargetType(transition, path, phase)}, " +
                $"{Rt}TransitionKind.{kind ?? transition.Kind.ToString()}, {Rt}Phase.{phase}, {(isEvent ? $"default({V})" : "value")}, {Bool(!isEvent)}, " +
                $"{(isEvent ? $"typeof({Event(transition.Trigger.EventType!)})" : "null")}, {(state < 0 ? "null" : $"typeof({S(state)})")})";
     }

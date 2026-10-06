@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using StateAlchemist.Samples.Radio;
 using StateAlchemist.Samples.Telnet;
 using TUnit.Core;
 using static StateAlchemist.Samples.Telnet.TelnetBytes;
@@ -90,4 +91,24 @@ public class DocumentationExampleTests
         await Assert.That(telnet.TryGetState(out Connected root) && root.GmcpEnabled).IsTrue();
     }
     // end-snippet
+
+    /// <summary>Quoted by the states page's "Going back with history".</summary>
+    [Test]
+    public async Task TheRadioComesBackOnTheBandItWasPlaying()
+    {
+        // begin-snippet: sample-radio-run
+        await using var radio = new CarRadio();
+        await radio.StartAsync();
+
+        await radio.FireAsync(Knob.Power);   // on: FM, Playing's [Initial] child
+        await radio.FireAsync(Knob.Band);    // AM
+        await radio.FireAsync(Knob.Power);   // off
+        await radio.FireAsync(Knob.Power);   // on again, by history: AM
+        // radio.State == CarRadio.StateId.Am
+        // end-snippet
+
+        await Assert.That(radio.State).IsEqualTo(CarRadio.StateId.Am);
+        await radio.FireAsync(Knob.Reset);
+        await Assert.That(radio.State).IsEqualTo(CarRadio.StateId.Fm);
+    }
 }

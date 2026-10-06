@@ -57,7 +57,7 @@ public sealed partial class ReferenceMachine<TValue>
             return true;
         }
 
-        await ExecuteAsync(chosen, chosen.Transform, chosen.Completed, PathPlanner.Plan(_hierarchy, chosen, _leaf), (TransitionKind)chosen.Kind, trigger, outcome: null);
+        await ExecuteAsync(chosen, chosen.Transform, chosen.Completed, PlanNow(chosen), (TransitionKind)chosen.Kind, trigger, outcome: null);
         return false;
     }
 
@@ -71,7 +71,7 @@ public sealed partial class ReferenceMachine<TValue>
                 return candidate;
             }
 
-            var path = PathPlanner.Plan(_hierarchy, candidate, _leaf);
+            var path = PlanNow(candidate);
             var info = Info(candidate, path, (TransitionKind)candidate.Kind, trigger, Phase.Guard);
             try
             {
@@ -160,6 +160,10 @@ public sealed partial class ReferenceMachine<TValue>
 
         // 4. commit. A move leaves the pending state below the leaf, if there is one, which ends its decision.
         _leaf = path.TargetLeaf;
+        foreach (var state in path.Exiting)
+        {
+            _recorded[state] = path.Leaf;
+        }
         if (path.Exiting.Count > 0)
         {
             lock (_sync)
@@ -370,7 +374,7 @@ public sealed partial class ReferenceMachine<TValue>
             return TransitionPlan.ForJoinArrival(chosen.Name, _machine.StateTypes[_leaf], refused);
         }
 
-        var path = PathPlanner.Plan(_hierarchy, chosen, _leaf);
+        var path = PlanNow(chosen);
         return new TransitionPlan(
             chosen.Name,
             _machine.StateTypes[path.Leaf],
@@ -381,6 +385,12 @@ public sealed partial class ReferenceMachine<TValue>
             chosen.IsDecision,
             refused);
     }
+
+    /// <summary>The path <paramref name="transition"/> takes from the active leaf now, recalling what was recorded.</summary>
+    private TransitionPath PlanNow(TransitionModel transition) =>
+        transition.Kind == MoveKind.Stay || transition.IsDecision
+            ? PathPlanner.Stay(_leaf)
+            : PathPlanner.Move(_hierarchy, _leaf, transition.Target, transition.History, _recorded[transition.Target]);
 
     /// <summary>The arrivals recorded for <paramref name="join"/>'s join, created empty on its first.</summary>
     private object?[] Arrivals(TransitionModel join)

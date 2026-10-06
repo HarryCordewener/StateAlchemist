@@ -5,6 +5,7 @@ using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
 using StateAlchemist.Contracts.Machines.Joins;
+using StateAlchemist.Contracts.Machines.Recalling;
 using StateAlchemist.Contracts.Machines.Recording;
 using StateAlchemist.Contracts.Machines.Runs;
 using StateAlchemist.Samples.Telnet;
@@ -130,6 +131,13 @@ public sealed partial class RunsMachine
 [Machine(Root = typeof(RunRoot), Value = typeof(byte), Context = typeof(RecordingContext), Concurrency = Concurrency.Serialized)]
 [Include(typeof(RunModule))]
 public sealed partial class RunsSerializedMachine
+{
+    public ContractHooks? Hooks { get; set; }
+}
+
+[Machine(Root = typeof(Jukebox), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(RecallingModule))]
+public sealed partial class RecallingMachine
 {
     public ContractHooks? Hooks { get; set; }
 }

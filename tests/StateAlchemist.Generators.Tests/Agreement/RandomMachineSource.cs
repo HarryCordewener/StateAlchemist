@@ -8,7 +8,7 @@ namespace StateAlchemist.Generators.Tests.Agreement;
 /// <summary>
 /// Writes a random, usually valid machine as C#: a random tree of states that each carry a value, transitions of
 /// every kind between random states — declared on leaves and on ancestors, exact, ranged and or-else, some guarded,
-/// some with a <c>Completed</c>, some runs — and <c>[Exited]</c>/<c>[Entered]</c> actions that log. Every transform names only
+/// some with a <c>Completed</c>, some runs, some moves by history, and a way out of every composite and back by history — and <c>[Exited]</c>/<c>[Entered]</c> actions that log. Every transform names only
 /// what it may: the target by <c>ref</c>, the root by <c>ref</c>, and a leaf source by <c>in</c>.
 /// </summary>
 internal static class RandomMachineSource
@@ -59,7 +59,8 @@ internal static class RandomMachineSource
             };
             var guarded = random.Next(4) == 0;
             var completed = random.Next(3) == 0;
-            var attribute = $"[Transition(From = typeof(S{from}){(to < 0 ? "" : $", To = typeof(S{to})")}{(guarded ? $", Order = {order++}" : "")}), {trigger}]";
+            var history = to > 0 && !IsLeaf(to) && random.Next(2) == 0 ? (random.Next(2) == 0 ? ", History = History.Deep" : ", History = History.Shallow") : "";
+            var attribute = $"[Transition(From = typeof(S{from}){(to < 0 ? "" : $", To = typeof(S{to})")}{history}{(guarded ? $", Order = {order++}" : "")}), {trigger}]";
             var k = random.Next(1, 9);
 
             string parameters;
@@ -107,6 +108,38 @@ internal static class RandomMachineSource
             }
 
             text.AppendLine("  }");
+        }
+
+        // A way out of every composite on 6, to a state beside it, and back by history on 7.
+        bool Under(int ancestor, int state)
+        {
+            for (var at = state; at >= 0; at = parents[at])
+            {
+                if (at == ancestor)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        var returnsFrom = new HashSet<int>();
+        for (var i = 1; i < count; i++)
+        {
+            var outside = Enumerable.Range(0, count).Where(s => !Under(i, s) && !Under(s, i)).ToList();
+            if (IsLeaf(i) || outside.Count == 0)
+            {
+                continue;
+            }
+
+            var away = outside[random.Next(outside.Count)];
+            text.AppendLine($"  [Transition(From = typeof(S{i}), To = typeof(S{away})), On(6)] public static void Leave{i}() {{ }}");
+            if (returnsFrom.Add(away))
+            {
+                var kind = random.Next(2) == 0 ? "Deep" : "Shallow";
+                text.AppendLine($"  [Transition(From = typeof(S{away}), To = typeof(S{i}), History = History.{kind}), On(7)] public static void Return{i}(ref S{i} to) {{ to.Value += 1; }}");
+            }
         }
 
         // Runs: stays on or-else or a range, taking the whole run (spec §6.7).

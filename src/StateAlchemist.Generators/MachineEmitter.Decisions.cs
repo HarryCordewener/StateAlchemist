@@ -115,8 +115,8 @@ internal sealed partial class MachineEmitter
                 .Where(m => m.Parameters.FirstOrDefault(p => p.Kind == ParameterKind.Outcome) is not { } taken || taken.TypeName == completion.OutcomeType)
                 .ToList();
             var kind = completion.Target == decision.Source ? "Reenter" : "Move";
-            WriteSteps(OutcomeName(decision.Index, i, leaf), $"{TriggerParameter(decision)}, {Name(type)} outcome", decision,
-                PathPlanner.Move(_hierarchy, leaf, completion.Target), completion.Complete, completed, kind, outcome: Name(type));
+            WriteMove(OutcomeName(decision.Index, i, leaf), $"{TriggerParameter(decision)}, {Name(type)} outcome", $"{TriggerArgument(decision)}, outcome", decision,
+                PathPlanner.Moves(_hierarchy, leaf, completion.Target, completion.History), completion.Target, completion.History, completion.Complete, completed, kind, outcome: Name(type));
         }
     }
 

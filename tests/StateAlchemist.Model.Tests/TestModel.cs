@@ -81,6 +81,13 @@ internal sealed class TestModel
 
     public void Replace(int state, StateModel replacement) => _states[state] = replacement;
 
+    /// <summary>Puts <paramref name="transition"/> in place of the transition at its index.</summary>
+    public TransitionModel Replace(TransitionModel transition)
+    {
+        _transitions[transition.Index] = transition;
+        return transition;
+    }
+
     public MachineModel Build(string name = "TestMachine") =>
         new(name, new MachineOptions("System.Byte", Domain, Concurrency: Concurrency, Purity: Purity), _states.ToList(), _transitions.ToList(), _actions.ToList());
 

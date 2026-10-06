@@ -16,6 +16,7 @@ namespace StateAlchemist;
 /// <param name="usesContext">Whether its guard or transform takes the context.</param>
 /// <param name="isDecision">Whether it is a decision.</param>
 /// <param name="outcomes">A decision's outcomes and where each goes; empty for anything else.</param>
+/// <param name="history">Whether a move into a state with children enters what was last active there.</param>
 public sealed class TransitionDefinition(
     int index,
     string name,
@@ -28,8 +29,39 @@ public sealed class TransitionDefinition(
     bool isRun,
     bool usesContext,
     bool isDecision,
-    IReadOnlyList<OutcomeDefinition> outcomes)
+    IReadOnlyList<OutcomeDefinition> outcomes,
+    History history)
 {
+    /// <summary>Creates a transition that enters its target's <c>[Initial]</c> path.</summary>
+    /// <param name="index">The transition's position in <see cref="MachineDefinition.Transitions"/>.</param>
+    /// <param name="name">The declaring member, such as <c>NawsModule.Capture</c>.</param>
+    /// <param name="source">The source state's index.</param>
+    /// <param name="target">The target state's index, or −1 for a stay.</param>
+    /// <param name="kind">Stay, move or re-entry.</param>
+    /// <param name="trigger">What it fires on.</param>
+    /// <param name="order">Its order among guarded transitions for the same trigger.</param>
+    /// <param name="hasGuard">Whether it declares a <c>Guard</c>.</param>
+    /// <param name="isRun">Whether it is a run transition.</param>
+    /// <param name="usesContext">Whether its guard or transform takes the context.</param>
+    /// <param name="isDecision">Whether it is a decision.</param>
+    /// <param name="outcomes">A decision's outcomes and where each goes; empty for anything else.</param>
+    public TransitionDefinition(
+        int index,
+        string name,
+        int source,
+        int target,
+        TransitionKind kind,
+        TriggerDefinition trigger,
+        int order,
+        bool hasGuard,
+        bool isRun,
+        bool usesContext,
+        bool isDecision,
+        IReadOnlyList<OutcomeDefinition> outcomes)
+        : this(index, name, source, target, kind, trigger, order, hasGuard, isRun, usesContext, isDecision, outcomes, History.None)
+    {
+    }
+
     /// <summary>Creates a transition with no outcomes.</summary>
     /// <param name="index">The transition's position in <see cref="MachineDefinition.Transitions"/>.</param>
     /// <param name="name">The declaring member, such as <c>NawsModule.Capture</c>.</param>
@@ -78,7 +110,33 @@ public sealed class TransitionDefinition(
         int order,
         bool usesContext,
         IReadOnlyList<Type> joins)
-        : this(index, name, source, target, kind, trigger, order, false, false, usesContext, false, new OutcomeDefinition[0])
+        : this(index, name, source, target, kind, trigger, order, usesContext, joins, History.None)
+    {
+    }
+
+    /// <summary>Creates one event's transition of a join (<c>[OnAll]</c>) that may enter its target by history.</summary>
+    /// <param name="index">The transition's position in <see cref="MachineDefinition.Transitions"/>.</param>
+    /// <param name="name">The declaring member, such as <c>Checkout.Ship</c>.</param>
+    /// <param name="source">The source state's index.</param>
+    /// <param name="target">The target state's index, or −1 for a stay.</param>
+    /// <param name="kind">Stay, move or re-entry.</param>
+    /// <param name="trigger">The one event of the join this transition is for.</param>
+    /// <param name="order">Its order among guarded transitions for the same trigger.</param>
+    /// <param name="usesContext">Whether its transform takes the context.</param>
+    /// <param name="joins">Every event the join waits for, as declared.</param>
+    /// <param name="history">Whether a move into a state with children enters what was last active there.</param>
+    public TransitionDefinition(
+        int index,
+        string name,
+        int source,
+        int target,
+        TransitionKind kind,
+        TriggerDefinition trigger,
+        int order,
+        bool usesContext,
+        IReadOnlyList<Type> joins,
+        History history)
+        : this(index, name, source, target, kind, trigger, order, false, false, usesContext, false, new OutcomeDefinition[0], history)
     {
         Joins = joins ?? throw new ArgumentNullException(nameof(joins));
     }
@@ -121,6 +179,12 @@ public sealed class TransitionDefinition(
     /// outcomes the front-end could not resolve.
     /// </summary>
     public IReadOnlyList<OutcomeDefinition> Outcomes { get; } = outcomes ?? throw new ArgumentNullException(nameof(outcomes));
+
+    /// <summary>
+    /// Whether a move into a state with children enters what was active when it was last exited, instead of its
+    /// <c>[Initial]</c> path. A decision's outcomes carry their own.
+    /// </summary>
+    public History History { get; } = history;
 
     /// <summary>
     /// For a join (<c>[OnAll]</c>), every event it waits for, as declared; empty for every other transition. A join

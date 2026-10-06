@@ -21,6 +21,7 @@ namespace StateAlchemist.Model;
 /// <param name="Module">The declaring module's full name.</param>
 /// <param name="Location">Where it is declared.</param>
 /// <param name="Join">For a join (<c>[OnAll]</c>), every event it waits for; this model is the one for <see cref="Trigger"/>'s event.</param>
+/// <param name="History">Whether a move into a state with children enters what was last active there.</param>
 public sealed record TransitionModel(
     int Index,
     string Name,
@@ -36,7 +37,8 @@ public sealed record TransitionModel(
     IReadOnlyList<UnknownMember> UnknownMembers,
     string Module,
     SourceSpan Location,
-    JoinModel? Join = null)
+    JoinModel? Join = null,
+    HistoryKind History = HistoryKind.None)
 {
     /// <summary>Stay, move or re-entry.</summary>
     public MoveKind Kind => Target < 0 ? MoveKind.Stay : Target == Source ? MoveKind.Reenter : MoveKind.Move;
