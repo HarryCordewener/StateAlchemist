@@ -59,6 +59,51 @@ public static class NotAModule
 {
 }
 
+public readonly struct Knock : IEvent
+{
+}
+
+public readonly struct Ring : IEvent
+{
+}
+
+[Module]
+public static class GuardedJoinModule
+{
+    [Transition(From = typeof(Idle), To = typeof(Command)), OnAll(typeof(Knock), typeof(Ring))]
+    public static class Answer
+    {
+        public static bool Guard(TelnetContext context) => true;
+    }
+}
+
+[Module]
+public static class MixedJoinModule
+{
+    [Transition(From = typeof(Idle), To = typeof(Command)), OnEvent(typeof(Error)), OnAll(typeof(Knock), typeof(Ring))]
+    public static void Answer()
+    {
+    }
+}
+
+[Module]
+public static class LonelyJoinModule
+{
+    [Transition(From = typeof(Idle), To = typeof(Command)), OnAll(typeof(Knock))]
+    public static void Answer()
+    {
+    }
+}
+
+[Module]
+public static class UnlistedJoinEventModule
+{
+    [Transition(From = typeof(Idle), To = typeof(Command)), OnAll(typeof(Knock), typeof(Ring))]
+    public static void Answer(in Error error)
+    {
+    }
+}
+
 [Module]
 public static class TimerBothUnitsModule
 {

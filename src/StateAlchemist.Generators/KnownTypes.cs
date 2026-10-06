@@ -37,6 +37,7 @@ internal sealed class KnownTypes(Compilation compilation)
     public INamedTypeSymbol? After { get; } = compilation.GetTypeByMetadataName("StateAlchemist.AfterAttribute");
 
     public INamedTypeSymbol? TimeSpan { get; } = compilation.GetTypeByMetadataName("System.TimeSpan");
+    public INamedTypeSymbol? OnAll { get; } = compilation.GetTypeByMetadataName("StateAlchemist.OnAllAttribute");
 
     public INamedTypeSymbol? Run { get; } = compilation.GetTypeByMetadataName("StateAlchemist.RunAttribute");
 

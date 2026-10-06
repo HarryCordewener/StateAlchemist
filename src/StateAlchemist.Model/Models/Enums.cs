@@ -58,6 +58,14 @@ public enum MoveKind
     Reenter,
 }
 
+/// <summary>Which child a move into a state with children enters (matches the runtime's <c>History</c>).</summary>
+public enum HistoryKind
+{
+    None,
+    Shallow,
+    Deep,
+}
+
 /// <summary>When a state action runs.</summary>
 public enum ActionPhase
 {

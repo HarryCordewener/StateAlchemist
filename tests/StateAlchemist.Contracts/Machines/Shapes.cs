@@ -1,6 +1,8 @@
 using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
+using StateAlchemist.Contracts.Machines.Joins;
+using StateAlchemist.Contracts.Machines.Recalling;
 using StateAlchemist.Contracts.Machines.Recording;
 using StateAlchemist.Contracts.Machines.Runs;
 using StateAlchemist.Contracts.Machines.Timing;
@@ -34,6 +36,9 @@ public static class Shapes
     public static readonly MachineShape Timing = new("Timing", typeof(TimeRoot), [typeof(TimingModule)], typeof(RecordingContext));
 
     public static readonly MachineShape TimingSerialized = Timing with { Name = "TimingSerialized", Concurrency = Concurrency.Serialized };
+
+    public static readonly MachineShape Recalling = new("Recalling", typeof(Jukebox), [typeof(RecallingModule)], typeof(RecordingContext));
+    public static readonly MachineShape Joins = new("Joins", typeof(JoinRoot), [typeof(JoinModule)], typeof(RecordingContext));
 
     public static readonly MachineShape Telnet = new("SampleTelnet", typeof(Connected), [typeof(TelnetCore), typeof(GmcpModule), typeof(NawsModule)], typeof(TelnetContext));
 }

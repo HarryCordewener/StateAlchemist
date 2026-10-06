@@ -29,7 +29,9 @@ public static class ModelValidator
 
         var hierarchy = new Hierarchy(model.States);
         diagnostics.AddRange(ConflictValidator.Validate(model));
+        diagnostics.AddRange(JoinValidator.Validate(model));
         diagnostics.AddRange(BindingValidator.Validate(model));
+        diagnostics.AddRange(HistoryValidator.Validate(model, hierarchy));
         diagnostics.AddRange(RoleValidator.Validate(model, hierarchy));
         diagnostics.AddRange(TimerValidator.Validate(model, hierarchy));
         diagnostics.AddRange(RunValidator.Validate(model, hierarchy));

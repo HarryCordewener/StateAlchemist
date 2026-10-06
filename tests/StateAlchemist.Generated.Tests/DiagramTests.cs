@@ -58,9 +58,10 @@ public class DiagramTests
         await Assert.That(diagram.Split('\n').Count(line => line.Contains("-->") && line.Contains(':'))).IsEqualTo(Expected(definition));
     }
 
-    /// <summary>One arrow per transition, except a decision, which is one per outcome.</summary>
+    /// <summary>One arrow per transition, except a decision, which is one per outcome, and a join, which is one for all its events.</summary>
     private static int Expected(MachineDefinition definition) =>
-        definition.Transitions.Sum(t => t.Outcomes.Count == 0 ? 1 : t.Outcomes.Count);
+        definition.Transitions.Where(t => !t.IsJoin).Sum(t => t.Outcomes.Count == 0 ? 1 : t.Outcomes.Count)
+        + definition.Transitions.Where(t => t.IsJoin).Select(t => t.Name).Distinct().Count();
 
     /// <summary>A composite state is a Mermaid block with its initial child marked.</summary>
     [Test]
@@ -120,4 +121,25 @@ public class DiagramTests
     }
 
     private static string Name(string type) => type;
+
+    /// <summary>A move by history points at an <c>H</c> or <c>H*</c> node inside its target, which leads to the initial child.</summary>
+    [Test]
+    public async Task AMoveByHistoryIsDrawnToAHistoryNodeInsideItsTarget()
+    {
+        var mermaid = RecallingMachine.Mermaid;
+        await Assert.That(mermaid).Contains("state \"H\" as Player_History\n");
+        await Assert.That(mermaid).Contains("state \"H*\" as Player_DeepHistory\n");
+        await Assert.That(mermaid).Contains("Player_DeepHistory --> Stopped\n");
+        await Assert.That(mermaid).Contains("Idle --> Player_History : 4\n");
+        await Assert.That(mermaid).Contains("Idle --> Player_DeepHistory : 5\n");
+        await Assert.That(mermaid).Contains("Idle --> Player : 3\n");
+        await Assert.That(mermaid).Contains("Idle --> Player_DeepHistory : 7 decide / Resume\n");
+        await Assert.That(mermaid).Contains("Idle --> Player_DeepHistory : all(Coin, Pick)");
+        await Assert.That(mermaid.Split('\n').Count(line => line.Contains("-->") && line.Contains(':'))).IsEqualTo(Expected(RecallingMachine.Definition));
+
+        var dot = RecallingMachine.Dot;
+        await Assert.That(dot).Contains("Player_DeepHistory [label=\"H*\", shape=circle];");
+        await Assert.That(dot).Contains("Player_DeepHistory -> Stopped [style=dashed];");
+        await Assert.That(dot).Contains("Idle -> Player_History [label=\"4\"];");
+    }
 }

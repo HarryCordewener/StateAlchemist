@@ -29,6 +29,8 @@ public class RandomMachineTests
     {
         var checkedMachines = 0;
         var withRuns = 0;
+        var withHistory = 0;
+        var recalls = 0;
         var seed = 0;
         while (checkedMachines < Machines)
         {
@@ -41,12 +43,16 @@ public class RandomMachineTests
 
             checkedMachines++;
             withRuns += source.Contains(", Run]") ? 1 : 0;
-            var disagreement = await Compare(assembly, seed);
+            withHistory += source.Contains("History = ") ? 1 : 0;
+            var (disagreement, recalled) = await Compare(assembly, seed);
             await Assert.That(disagreement).IsEqualTo("").Because($"seed {seed}:\n{source}");
+            recalls += recalled;
         }
 
         await Assert.That(seed).IsLessThan(Machines * 4).Because("most random machines should be valid");
         await Assert.That(withRuns).IsGreaterThanOrEqualTo(Machines / 6).Because("runs must be among what agrees");
+        await Assert.That(withHistory).IsGreaterThanOrEqualTo(Machines / 6).Because("moves by history must be among what agrees");
+        await Assert.That(recalls).IsGreaterThanOrEqualTo(Machines / 6).Because("moves by history must recall something other than the initial path");
     }
 
     /// <summary>Compiles <paramref name="source"/> with the generator, or returns <see langword="null"/> if the machine has errors.</summary>
@@ -71,7 +77,8 @@ public class RandomMachineTests
         return new AssemblyLoadContext(null, isCollectible: true).LoadFromStream(image);
     }
 
-    private static async Task<string> Compare(Assembly assembly, int seed)
+    /// <summary>Where the machines first disagree, or empty; and how many plans a move by history made for a leaf other than its target's initial one.</summary>
+    private static async Task<(string Disagreement, int Recalls)> Compare(Assembly assembly, int seed)
     {
         var machineType = assembly.GetType($"{RandomMachineSource.Namespace}.RandomMachine")!;
         var logType = assembly.GetType($"{RandomMachineSource.Namespace}.Log")!;
@@ -86,29 +93,58 @@ public class RandomMachineTests
 
         await generated.StartAsync();
         await interpreted.StartAsync();
+        var recalls = 0;
         var random = new Random(seed * 7919);
         for (var step = 0; step <= Triggers; step++)
         {
             if (Describe(generated, generatedLog, stateTypes) is var g && Describe(interpreted, interpretedLog, stateTypes) is var i && g != i)
             {
-                return $"after {step} triggers\n generated:   {g}\n interpreted: {i}";
+                return ($"after {step} triggers\n generated:   {g}\n interpreted: {i}", recalls);
             }
 
             // A batch of one to four values, so runs form; the plan is compared for its first value.
             var batch = Enumerable.Range(0, random.Next(1, 5)).Select(_ => (byte)random.Next(8)).ToArray();
-            if (Show(generated.Plan(batch[0])) is var gp && Show(interpreted.Plan(batch[0])) is var ip && gp != ip)
+            var plan = generated.Plan(batch[0]);
+            if (Show(plan) is var gp && Show(interpreted.Plan(batch[0])) is var ip && gp != ip)
             {
-                return $"step {step}: the plans for {batch[0]} differ: {gp} and {ip}";
+                return ($"step {step}: the plans for {batch[0]} differ: {gp} and {ip}", recalls);
             }
+
+            recalls += Recalls(generated.Definition, plan) ? 1 : 0;
 
             await generated.FireAsync(batch);
             await interpreted.FireAsync(batch);
         }
 
-        return "";
+        return ("", recalls);
     }
 
-    private static string Show(TransitionPlan plan) => $"{plan.Transition} refused [{string.Join(",", plan.Refused)}]";
+    /// <summary>Whether <paramref name="plan"/> is a move by history, from outside its target, that ends somewhere other than the target's initial leaf.</summary>
+    private static bool Recalls(MachineDefinition definition, TransitionPlan plan)
+    {
+        var transition = definition.Transitions.FirstOrDefault(t => t.Name == plan.Transition && t.History != History.None);
+        if (transition is null || plan.Target is null)
+        {
+            return false;
+        }
+
+        var initial = transition.Target;
+        while (definition.States.FirstOrDefault(s => s.Parent == initial && s.IsInitial) is { } child)
+        {
+            initial = child.Index;
+        }
+
+        var inside = definition.States.First(s => s.Type == plan.Leaf).Index;
+        while (inside >= 0 && inside != transition.Target)
+        {
+            inside = definition.States[inside].Parent;
+        }
+
+        return inside < 0 && definition.States[initial].Type != plan.Target;
+    }
+
+    private static string Show(TransitionPlan plan) =>
+        $"{plan.Transition} to {plan.Target?.Name} entering [{string.Join(",", plan.Entering.Select(t => t.Name))}] refused [{string.Join(",", plan.Refused)}]";
 
     /// <summary>The active leaf, every active state's value, and the log — everything the two machines must agree on.</summary>
     private static string Describe(IMachine<byte> machine, object log, List<Type> stateTypes)

@@ -46,6 +46,7 @@ internal sealed partial class MachineEmitter
             _w.Line($"if (global::System.Threading.Interlocked.Exchange(ref _stopping, 1) != 0) return default({ValueTaskType});");
             _w.Line(HasInbox ? "Abandon();" : $"_status = {Rt}MachineStatus.Stopped;");
             _w.Line("if (_lifetime != null) _lifetime.Cancel();");
+            WriteStopRecording();
             _w.Line("return Stop();");
         }
 

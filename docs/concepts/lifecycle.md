@@ -10,7 +10,7 @@ await telnet.StartAsync();                            // [Entered] actions on th
 await telnet.FireAsync(bytes);                        // running
 await telnet.StopAsync();                             // [Exited] actions from the leaf to the root
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L42-L47' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-lifecycle' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L43-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-lifecycle' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 | Status | How it gets there | Firing |
@@ -42,6 +42,6 @@ Forgetting to start is caught twice:
 
 ## Stopping and disposal
 
-`StopAsync` cancels a pending [decision](decisions.md) and every [timer](timers.md), then runs `[Exited]` actions from the active leaf up to the
+`StopAsync` cancels a pending [decision](decisions.md), then runs `[Exited]` actions from the active leaf up to the
 root. `DisposeAsync` stops the machine if it was started, and does nothing if it was not. Stopping twice is
 harmless.

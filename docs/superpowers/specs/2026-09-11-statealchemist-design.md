@@ -62,7 +62,7 @@ Measured on .NET 11 RC1, Release, against TNC's shape (see the investigation tha
 7. Generated code uses no dictionaries, hashing, or reflection at runtime: dispatch is `switch` statements over the
    generated `StateId` and the trigger value, storage is fields, and the definition is static arrays.
 
-**Non-goals for v1** — parallel (orthogonal) regions; history states; immutable data with FSM-style
+**Non-goals for v1** — parallel (orthogonal) regions; immutable data with FSM-style
 `ModifyData`; selecting plugins at runtime; more than one value-trigger type per machine; overlaying sibling
 states' storage.
 
@@ -92,11 +92,13 @@ Every decision below was taken or approved during design review on 2026-09-11.
 | D18 | Exception semantics (§6.9), with optional per-phase exception hooks that receive the exception and the transition and choose the recovery. | Decided |
 | D19 | Concurrency is a compile-time choice per machine: `Checked` (default; concurrent use throws), `Unchecked` (no guard), or `Serialized` (any thread may fire; an inbox, drained inline by whichever caller finds the machine idle, processes calls in turn; `InboxCapacity` makes it bounded, for backpressure on event producers). The deferring path uses the same inbox in every mode. The inbox is a list and a lock, not a `Channel`: see the Plan 6 findings in the roadmap. | Decided |
 | D20 | The library is named **StateAlchemist**; diagnostics use the prefix `SALCH` (StyleCop owns `SA`). | Decided |
-| D21 | A state with children always enters an `[Initial]` child; the machine rests only in leaves. | Decided |
+| D21 | A state with children always enters an `[Initial]` child; the machine rests only in leaves. A move that asks for history is the one exception (D27). | Decided |
 | D22 | Construction runs no actions; `StartAsync()` runs the initial path's `[Entered]` actions once, and `StopAsync()` runs `[Exited]` from the leaf to the root. Every `FireAsync` begins by comparing the machine's status: one predicted branch, below what the benchmarks can measure. An analyzer flags firing a machine that is not started on every path (`SALCH0801`). | Decided |
 | D23 | Deferral is invisible to the host: `FireAsync` completes when its input has been processed, including waiting for any decision it started, so awaiting it *is* the backpressure. There is no `IsDeferring`, `WhenReady()`, consumed count or `MachineDeferringException`. | Decided |
 | D24 | Phase names are discoverable through code fixes, which work in Rider, Visual Studio and VS Code: `SALCH0901` (info, an empty class-form transition) and `SALCH0902` (hidden, on any transition) offer **Add Guard / Transform / Completed / CompletedAsync** and **Add Complete for** an uncovered outcome, each with the exact signature the transition's roles allow; `SALCH0206` offers a rename for near-miss names. A base class with overridable phases was rejected: phase signatures depend on the tree, and instances would replace static calls. | Decided |
 | D25 | **A machine's modules are named where the machine is declared.** By default `[Include(typeof(M))]` is the only way a module joins a machine, as in StrongInject, Jab and Pure.DI; it is also the only arrangement in which a conflict between two modules can be reported to whoever chose them both. A library may additionally *export* modules with `[assembly: ExportsModule(typeof(M))]`, and a machine may take what its references export with `[IncludeExported]`, optionally `Except` some. Both ends opt in, so a package reference alone never changes a machine. Only the assembly attributes of references are read, never their types: scanning referenced types for markers cannot be done incrementally (Roslyn's guidance), while assembly attributes project to metadata names and cache. A library cannot compose the machine for its host with a generator of its own: generators all see the same input compilation and never each other's output, and Roslyn has kept it that way deliberately. | Decided |
+| D26 | **A join is a trigger.** `[OnAll(typeof(A), typeof(B))]` fires a transition once each listed event has arrived while its `From` state is active, in any order. The arrivals and the latest payload of each event are kept in a generated slot that belongs to the `From` state: entering or leaving it forgets them, and so does the join firing. It is modelled as one event transition per listed event, so resolution, conflicts and roles are those of `[OnEvent]`. A join has no `Guard` and is not a decision. Parallel regions stay a non-goal: a join waits for independent events without the machine leaving a single leaf (D21). Added 2026-10-06 for [#24](https://github.com/HarryCordewener/StateAlchemist/issues/24). | Decided |
+| D27 | **History is asked for by the move, not the state** (approved 2026-10-06, [#23](https://github.com/HarryCordewener/StateAlchemist/issues/23)). `History = History.Shallow` or `History.Deep` on `[Transition]` or a decision's `[To]` enters what was active when the target was last exited — the child and then its `[Initial]` path, or the leaf — and the `[Initial]` path before the target has ever been exited. A move without it still enters the `[Initial]` path (D21). History restores which state is active, not its data (D6). The machine keeps one `StateId` per parent some move enters by history, written at commit by every move that exits it; a move by history cannot name the states below its target (§6.3). | Decided |
 
 ## 5. The model
 
@@ -133,7 +135,8 @@ public struct Naws : IState<SubNegotiation> { public byte[]? Bytes; public int I
 - **Active configuration** is the path from the root to one leaf. The machine rests only in leaves (D21):
   every state that has children in this machine marks exactly one child `[Initial]` (`SALCH0004`), and entering
   the parent — at construction or as a transition's target — continues down the `[Initial]` children to a leaf.
-  Those states are part of the entering side (§6.3).
+  Those states are part of the entering side (§6.3). A move that asks for history (D27) continues instead to what
+  was active when the target was last exited.
 - **Lifetime.** Entering a state resets its storage slot; leaving it clears the slot. Clearing calls the state's
   `void Reset()` if it declares one (to keep buffers and their capacity), otherwise assigns `default`. Nothing
   is freed or allocated per entry: every state has one slot in the machine instance for the instance's life.
@@ -149,6 +152,8 @@ public struct Naws : IState<SubNegotiation> { public byte[]? Bytes; public int I
 - **Events.** `public readonly struct` types implementing `IEvent`, each with its own payload (`Error`,
   `Timeout`, `Disconnect`, and generated completion events). The machine gets one typed
   `FireAsync(in TEvent)` overload per event type: no boxing, no runtime type test.
+- **Joins (D26).** `[OnAll(typeof(A), typeof(B))]` fires once every listed event has arrived in the source state,
+  in any order. Each arrival is recorded in a slot that lives as long as the source state's data.
 
 ### 5.4 Transitions
 
@@ -336,7 +341,8 @@ values — which is what "refuse anything this state doesn't handle" means. **`O
 an `[OnAny]` in `Willing` cannot swallow `Error` recovery declared on the root.
 
 For an event: the exact event type at each level, leaf first. Nothing matching at any level is *unhandled*
-(§6.8).
+(§6.8). A join (D26) is an unguarded candidate for each of its events: when it is chosen, the event is recorded,
+and the join fires only if that completes it. A recorded event is handled.
 
 Ambiguity is a compile error: two unguarded transitions for the same source and trigger (`SALCH0101`) — including
 two plugins claiming the same option byte, which the whole-program generator sees.
@@ -398,6 +404,11 @@ ancestors, the lowest common ancestor is taken as the target's parent, so the ta
 with fresh data; a re-entry is this case. A move to the root is the exception: the root is never exited, so
 everything below it is exited and the root's initial path entered. A state both exited and entered by one move is
 *started over*: `in` reads its old data (from the snapshot of §6.2), `ref` writes its new.
+
+A **move by history** (D27) enters below its target whatever was recorded, so it is planned once per leaf it can
+recall and checked against all of them: it may name its target and the states above it, but a state below the
+target binds differently from one recall to the next, so naming it is `SALCH0202`. A target on the active path is
+exited by the move itself, which records the active leaf, so the move comes back to that leaf with fresh data.
 
 Where data sits in the tree **is** its lifetime: data that must outlive a state belongs in an ancestor common to
 both sides of the transitions that need it.
@@ -640,7 +651,7 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0102 | Error | app | Several guarded transitions for one source and trigger without distinct `Order`s. |
 | SALCH0104 | Error | app | A trigger value outside the value type. |
 | SALCH0105 | Error | app | A value type that is not integral or an enum of 16 bits or fewer. |
-| SALCH0106 | Error | declaring lib | A transition with no `From`, no trigger, mixed value and event triggers, an empty range, or a non-constant value. |
+| SALCH0106 | Error | declaring lib | A transition with no `From`, no trigger, mixed value and event triggers, an empty range, or a non-constant value; or an invalid join (D26). |
 | SALCH0107 | Error | app | A machine without `Root` or `Value`, or an `[Include]` of a type that is not a `[Module]`. |
 | SALCH0108 | Error/Warning | app | An `[assembly: ExportsModule]` of a type that is not a `[Module]` (error); an `[IncludeExported]` that matches no exported module (warning: nothing was added). |
 | SALCH0103 | Error | app | Several actions in one phase for the same state or transition, from different modules, without distinct `Order`s. |
@@ -653,6 +664,7 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0207 | Error + fix | declaring lib | A phase's `Async` suffix disagrees with its return type, or `Guard`/`Transform`/`Complete` is written with `Async`. |
 | SALCH0208 | Error | declaring lib | A decision declares both `Decide` and `DecideAsync`. |
 | SALCH0209 | Warning | app | `Unchecked` concurrency on a machine whose actions or decisions are async: continuations run on other threads, so a single caller must still await every `FireAsync` before the next. |
+| SALCH0210 | Error | app | `History` on a stay, or on a move whose target has no children in the machine or is the root. |
 | SALCH0301 | Warning | app | Re-entry on a state that has data (it will be cleared). Not reported for the root, which is never exited. |
 | SALCH0401 | Error | app | Decision outcome case with no `Complete`. |
 | SALCH0402 | Error | app | `Complete` for a type that is not a case of the decision's union. |

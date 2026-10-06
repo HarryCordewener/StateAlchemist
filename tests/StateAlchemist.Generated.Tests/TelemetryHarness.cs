@@ -27,6 +27,7 @@ internal static class TelemetryHarness
             ("RunsSerialized", false) => new TelemetryRunsSerializedMachine((RecordingContext)context) { Hooks = hooks },
             ("Timing", false) => new TelemetryTimingMachine((RecordingContext)context, ((RecordingContext)context).Clock) { Hooks = hooks },
             ("TimingSerialized", false) => new TelemetryTimingSerializedMachine((RecordingContext)context, ((RecordingContext)context).Clock) { Hooks = hooks },
+            ("Joins", false) => new TelemetryJoinsMachine((RecordingContext)context) { Hooks = hooks },
             _ => throw new NotSupportedException($"No telemetry machine for shape '{shape.Name}'{(handled ? " with exception hooks" : "")}."),
         };
     }

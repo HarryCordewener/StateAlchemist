@@ -27,6 +27,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     private readonly Hierarchy _hierarchy;
     private readonly Resolver _resolver;
     private readonly object?[] _slots;
+
+    // Each join's arrivals, by its name: the payload recorded for each listed event, or null before it arrives.
+    private readonly Dictionary<string, object?[]> _joins = [];
     private readonly object? _context;
     private readonly object? _config;
     private readonly ReferenceHooks<TValue> _hooks;
@@ -36,6 +39,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Lazy<MachineDefinition> _definition;
     private int _leaf;
+
+    /// <summary>For each state, the leaf that was active when it was last exited; −1 until it has been.</summary>
+    private readonly int[] _recorded;
 
     private ReferenceMachine(ReflectedMachine machine, object? context, object? config, ReferenceHooks<TValue>? hooks, TimeProvider? time)
     {
@@ -48,6 +54,7 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
         _hooks = hooks ?? new ReferenceHooks<TValue>();
         _slots = machine.StateTypes.Select(t => Activator.CreateInstance(t)).ToArray();
         _leaf = _hierarchy.InitialLeaf(_hierarchy.Root);
+        _recorded = Enumerable.Repeat(-1, _model.States.Count).ToArray();
         _definition = new Lazy<MachineDefinition>(() => DefinitionBuilder.Build(machine));
         _time = time ?? TimeProvider.System;
         _timers = Timers.Of(_model);
@@ -134,6 +141,11 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
 
         Abandon();
         _lifetime.Cancel();
+        foreach (var state in _hierarchy.PathFromRoot(_leaf))
+        {
+            _recorded[state] = _leaf;
+        }
+
         await RunLifecycleAsync(ActionPhase.Exited, _hierarchy.PathFromRoot(_leaf).Reverse().ToList());
     }
 
@@ -260,6 +272,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     private readonly record struct Trigger(TValue Value, bool HasValue, ReadOnlyMemory<TValue> Run, object? Event, TimerModel? Timer = null)
     {
         public static Trigger OfTimer(TimerModel timer) => new(default, false, default, null, timer);
+
+        /// <summary>For a join that fired, the payload recorded for each of its events, by the join's order.</summary>
+        public object?[]? Joined { get; init; }
 
         public static Trigger OfValue(TValue value) => new(value, true, new[] { value }, null);
 

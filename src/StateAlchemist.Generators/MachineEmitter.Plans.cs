@@ -81,12 +81,35 @@ internal sealed partial class MachineEmitter
         foreach (var (index, leaf, refused) in _plans)
         {
             var transition = _model.Transitions[index];
-            var path = PathPlanner.Plan(_hierarchy, transition, leaf);
-            _w.Line();
-            _w.Line($"private static readonly {Rt}TransitionPlan {PlanField(index, leaf, refused)} = new {Rt}TransitionPlan({Literal(transition.Name)}, typeof({S(path.Leaf)}), typeof({S(path.TargetLeaf)}), " +
-                    $"{Rt}TransitionKind.{transition.Kind}, {Types(path.Exiting)}, {Types(path.Entering)}, {Bool(transition.IsDecision)}{(refused < 0 ? string.Empty : $", s_refused{refused}")});");
+            var paths = PathPlanner.Plans(_hierarchy, transition, leaf);
+            string Field(TransitionPath path) => paths.Count == 1 ? PlanField(index, leaf, refused) : $"{PlanField(index, leaf, refused)}_Recall{path.TargetLeaf}";
+            foreach (var path in paths)
+            {
+                _w.Line();
+                _w.Line($"private static readonly {Rt}TransitionPlan {Field(path)} = new {Rt}TransitionPlan({Literal(transition.Name)}, typeof({S(path.Leaf)}), typeof({S(path.TargetLeaf)}), " +
+                        $"{Rt}TransitionKind.{transition.Kind}, {Types(path.Exiting)}, {Types(path.Entering)}, {Bool(transition.IsDecision)}{(refused < 0 ? string.Empty : $", s_refused{refused}")});");
+            }
+
+            if (paths.Count > 1)
+            {
+                // A move by history: which plan depends on what was recorded.
+                _w.Line();
+                using (_w.Block($"private {Rt}TransitionPlan {PlanNow(index, leaf, refused)}()"))
+                {
+                    using (_w.Block($"switch ({RecallName(transition.Target, transition.History)}())"))
+                    {
+                        foreach (var path in paths.Skip(1))
+                        {
+                            _w.Line($"case StateId.{_stateIds[path.TargetLeaf]}: return {Field(path)};");
+                        }
+
+                        _w.Line($"default: return {Field(paths[0])};");
+                    }
+                }
+            }
         }
 
+        WriteJoinPlans();
         foreach (var refused in _refusedNone)
         {
             _w.Line();
@@ -105,7 +128,9 @@ internal sealed partial class MachineEmitter
         {
             var refused = RefusedIndex(tried);
             _plans.Add((candidate.Index, leaf, refused));
-            var plan = PlanField(candidate.Index, leaf, refused);
+            var plan = PathPlanner.Plans(_hierarchy, candidate, leaf).Count == 1
+                ? PlanField(candidate.Index, leaf, refused)
+                : $"{PlanNow(candidate.Index, leaf, refused)}()";
             if (candidate.Guard is { } guard)
             {
                 var path = PathPlanner.Plan(_hierarchy, candidate, leaf);
@@ -114,7 +139,7 @@ internal sealed partial class MachineEmitter
             }
             else
             {
-                _w.Line($"return {plan};");
+                _w.Line($"return {(candidate.IsJoin ? JoinPlan(candidate, leaf, plan, refused) : plan)};");
                 return;
             }
         }
@@ -150,6 +175,9 @@ internal sealed partial class MachineEmitter
 
     private string PlanField(int transition, int leaf, int refused) =>
         $"s_plan{transition}_{_stateIds[leaf]}{(refused < 0 ? string.Empty : $"_r{refused}")}";
+
+    /// <summary>For a move by history, the method that picks the plan by what was recorded.</summary>
+    private string PlanNow(int transition, int leaf, int refused) => "Plan" + PlanField(transition, leaf, refused).Substring("s_plan".Length) + "_Now";
 
     private string Types(IReadOnlyList<int> states) =>
         states.Count == 0 ? $"new {TypeType}[0]" : $"new {TypeType}[] {{ {string.Join(", ", states.Select(s => $"typeof({S(s)})"))} }}";

@@ -27,7 +27,7 @@ public class FrontEndAgreementTests
     private static readonly Dictionary<string, MachineShape> ShapesByName = new[]
     {
         Shapes.Recorder, Shapes.Guards, Shapes.GuardsThatThrow, Shapes.Failures, Shapes.RecorderSerialized,
-        Shapes.Deciding, Shapes.Runs, Shapes.RunsSerialized, Shapes.Telnet, Shapes.Timing, Shapes.TimingSerialized,
+        Shapes.Deciding, Shapes.Runs, Shapes.RunsSerialized, Shapes.Joins, Shapes.Telnet, Shapes.Timing, Shapes.TimingSerialized,
     }.ToDictionary(s => s.Name);
 
     /// <summary>The Roslyn front-end's model of <paramref name="machine"/>, as text.</summary>
@@ -49,6 +49,7 @@ public class FrontEndAgreementTests
     [Arguments("RecorderSerialized")]
     [Arguments("Deciding")]
     [Arguments("Runs")]
+    [Arguments("Joins")]
     [Arguments("SampleTelnet")]
     [Arguments("Timing")]
     [Arguments("TimingSerialized")]
@@ -76,6 +77,10 @@ public class FrontEndAgreementTests
     [Arguments(typeof(NoTriggerModule))]
     [Arguments(typeof(RivalGmcpModule))]
     [Arguments(typeof(NotAModule))]
+    [Arguments(typeof(GuardedJoinModule))]
+    [Arguments(typeof(MixedJoinModule))]
+    [Arguments(typeof(LonelyJoinModule))]
+    [Arguments(typeof(UnlistedJoinEventModule))]
     [Arguments(typeof(TimerBothUnitsModule))]
     [Arguments(typeof(TimerNoDelayModule))]
     [Arguments(typeof(TimerTwoDelaysModule))]

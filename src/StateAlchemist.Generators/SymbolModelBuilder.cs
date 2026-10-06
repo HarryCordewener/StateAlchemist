@@ -241,13 +241,13 @@ internal static class SymbolModelBuilder
                 if (nested.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.Transition)) is { } transition)
                 {
                     yield return new TransitionDeclaration(module, null, nested, TypeArgument(transition, "From"), TypeArgument(transition, "To"),
-                        IntArgument(transition, "Order"), false, []);
+                        IntArgument(transition, "Order"), false, [], (HistoryKind)IntArgument(transition, "History"));
                 }
                 else if (nested.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.Decision)) is { } decision)
                 {
                     var handle = decision.NamedArguments.FirstOrDefault(a => a.Key == "Handle").Value;
                     var events = handle.Kind == TypedConstantKind.Array ? handle.Values.Select(v => v.Value).OfType<INamedTypeSymbol>().ToArray() : [];
-                    yield return new TransitionDeclaration(module, null, nested, TypeArgument(decision, "From"), null, IntArgument(decision, "Order"), true, events);
+                    yield return new TransitionDeclaration(module, null, nested, TypeArgument(decision, "From"), null, IntArgument(decision, "Order"), true, events, HistoryKind.None);
                 }
             }
 
@@ -257,7 +257,7 @@ internal static class SymbolModelBuilder
                 if (method.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.Transition)) is { } transition)
                 {
                     yield return new TransitionDeclaration(module, method, null, TypeArgument(transition, "From"), TypeArgument(transition, "To"),
-                        IntArgument(transition, "Order"), false, []);
+                        IntArgument(transition, "Order"), false, [], (HistoryKind)IntArgument(transition, "History"));
                     continue;
                 }
 
@@ -376,7 +376,7 @@ internal static class SymbolModelBuilder
             }
 
             var classMethods = declaration.Class?.GetMembers().OfType<IMethodSymbol>().Where(m => m.MethodKind == MethodKind.Ordinary).ToList() ?? [];
-            var triggers = Triggers(member, name, location, declaration.IsDecision, classMethods.Any(m => m.Name == "Delay"));
+            var triggers = Triggers(member, name, location, declaration.IsDecision, classMethods.Any(m => m.Name == "Delay"), out var join);
             if (triggers.Count == 0)
             {
                 yield break;
@@ -403,7 +403,8 @@ internal static class SymbolModelBuilder
             {
                 var completions = classMethods.Where(m => m.Name == "Complete").Select(m =>
                 {
-                    var target = FirstArgument(m.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.To))) as INamedTypeSymbol;
+                    var to = m.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.To));
+                    var target = FirstArgument(to) as INamedTypeSymbol;
                     var complete = MethodModelOf(m, declaringType, stateIndex, outcomes);
                     if (target is null)
                     {
@@ -411,7 +412,7 @@ internal static class SymbolModelBuilder
                     }
 
                     var outcome = m.Parameters.Select(p => MetadataName(p.Type)).FirstOrDefault(outcomes.Contains) ?? string.Empty;
-                    return new OutcomeCompletion(outcome, target is null ? -1 : stateIndex[target], complete);
+                    return new OutcomeCompletion(outcome, target is null ? -1 : stateIndex[target], complete, to is null ? HistoryKind.None : (HistoryKind)IntArgument(to, "History"));
                 }).Where(c => c.Target >= 0).ToList();
                 decision = new DecisionModel(Phase("Decide"), Phase("DecideAsync"), outcomes, completions, declaration.Handle.Select(h => Event(h)).ToList());
             }
@@ -422,13 +423,14 @@ internal static class SymbolModelBuilder
             foreach (var trigger in triggers)
             {
                 yield return new TransitionModel(0, name, source, target, trigger, declaration.Order, isRun, Phase("Guard"), transform,
-                    Phases("Completed", "CompletedAsync"), decision, unknown, MetadataName(declaration.Module), location,
+                    Phases("Completed", "CompletedAsync"), decision, unknown, MetadataName(declaration.Module), location, join, declaration.History,
                     declaration.IsDecision ? null : Phase("Delay"));
             }
         }
 
-        private List<TriggerModel> Triggers(ISymbol member, string name, SourceSpan location, bool isDecision, bool hasDelay)
+        private List<TriggerModel> Triggers(ISymbol member, string name, SourceSpan location, bool isDecision, bool hasDelay, out JoinModel? join)
         {
+            join = null;
             var triggers = new List<TriggerModel>();
             var attributes = member.GetAttributes();
             foreach (var on in attributes.Where(a => Is(a.AttributeClass, known.On)))
@@ -485,6 +487,29 @@ internal static class SymbolModelBuilder
             if (FirstArgument(onEvent) is INamedTypeSymbol eventType)
             {
                 triggers.Add(TriggerModel.Event(Event(eventType)));
+            }
+
+            var onAll = attributes.FirstOrDefault(a => Is(a.AttributeClass, known.OnAll));
+            if (onAll is not null)
+            {
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "mixes [OnAll] with other triggers"));
+                    return [];
+                }
+
+                var listed = onAll.ConstructorArguments.Length == 1 && onAll.ConstructorArguments[0].Kind == TypedConstantKind.Array
+                    ? onAll.ConstructorArguments[0].Values.Select(v => v.Value as INamedTypeSymbol).ToList()
+                    : [];
+                if (JoinModel.Problem(listed.Count, listed.Any(t => t is null), listed.Where(t => t is not null).Select(t => MetadataName(t!)).ToList()) is { } problem)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, problem));
+                    return [];
+                }
+
+                var events = listed.Select(t => Event(t!)).ToList();
+                join = new JoinModel(events);
+                triggers.AddRange(events.Select(TriggerModel.Event));
             }
 
             if (attributes.FirstOrDefault(a => Is(a.AttributeClass, known.After)) is { } after)
@@ -709,7 +734,7 @@ internal static class SymbolModelBuilder
         ? $"{MetadataName(generic.OriginalDefinition).Split('`')[0]}<{string.Join(", ", generic.TypeArguments.Select(FriendlyName))}>"
         : MetadataName(type);
 
-    private sealed record TransitionDeclaration(INamedTypeSymbol Module, IMethodSymbol? Method, INamedTypeSymbol? Class, INamedTypeSymbol? From, INamedTypeSymbol? To, int Order, bool IsDecision, INamedTypeSymbol[] Handle);
+    private sealed record TransitionDeclaration(INamedTypeSymbol Module, IMethodSymbol? Method, INamedTypeSymbol? Class, INamedTypeSymbol? From, INamedTypeSymbol? To, int Order, bool IsDecision, INamedTypeSymbol[] Handle, HistoryKind History);
 
     private sealed record ActionDeclaration(INamedTypeSymbol Module, IMethodSymbol Method, ActionPhase Phase, INamedTypeSymbol State, int Order, int DeclarationIndex);
 }

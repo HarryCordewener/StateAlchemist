@@ -13,6 +13,20 @@ All notable changes to this project are documented here.
   describe one in `MachineDefinition`. The `netstandard2.0` build of the package now depends on
   `Microsoft.Bcl.TimeProvider`. See [timers](docs/concepts/timers.md).
   ([#19](https://github.com/HarryCordewener/StateAlchemist/issues/19))
+- Joins: `[OnAll(typeof(A), typeof(B))]` fires a transition once each listed event has arrived while its `From`
+  state is active, in any order. The arrivals and the latest payload of each event live with the `From` state's
+  data, and the transform and `Completed` may take every listed event's payload. `TransitionDefinition.Joins` and
+  `TransitionPlan.IsJoinArrival` describe them. Parallel regions remain out of scope. See
+  [joins](docs/concepts/triggers.md#joins). ([#24](https://github.com/HarryCordewener/StateAlchemist/issues/24))
+- History states. `History = History.Deep` on a `[Transition]` or a decision's `[To]` enters the leaf that was
+  active when the target was last exited; `History.Shallow` enters the child that was, then its `[Initial]` path.
+  Before the target has been exited, and on any move without `History`, the `[Initial]` path is entered as before.
+  History restores which state is active, not its data. The machine keeps one `StateId` per parent some move enters
+  by history; recording it is a field store and recalling it a `switch`, so nothing allocates. `Plan` names the leaf
+  the move would enter, `TransitionDefinition.History` and `OutcomeDefinition.History` say which moves use it, and
+  the diagrams draw an `H` or `H*` node. `SALCH0210` reports history on a stay, a leaf or the root. See
+  [going back with history](docs/concepts/states.md#going-back-with-history).
+  ([#23](https://github.com/HarryCordewener/StateAlchemist/issues/23))
 - `TransitionPlan.Refused`: the guarded transitions whose guard returned `false` while `Plan` looked for one to
   fire, in the order they were tried. A plan for a trigger nothing handles lists them too, so an interface can say
   why a trigger would not fire. The generated `Plan` returns a static plan for each combination, so it still
@@ -43,6 +57,12 @@ All notable changes to this project are documented here.
 - `MudTelnet`, the machine the module guide and the generated API reference describe, is a real sample machine.
   The reference's constructor row now shows it without a `Config`, and says what a `Config` adds.
 - Package validation diffs every build against 1.3.0, the latest release, rather than 1.0.0.
+- The inbox of a `Serialized` machine, or of one with an async decision, locks a `System.Threading.Lock` when the
+  application's framework has the type and its language is C# 13 or later, and an `object` otherwise. On net11.0
+  the `Serialized` benchmark measured 88–93 ns per call with it against 98–103 ns without.
+- The benchmarks run the suspending action, a suspending `FireAsync` and a suspending async decision under two
+  net11.0 jobs, one compiled with `runtime-async=on`. BenchmarkDotNet is 0.16.0-preview.2: 0.15.8 has no
+  net11.0 runtime and stops before running an out-of-process job on it.
 
 ## [1.3.0] — 2026-09-14
 

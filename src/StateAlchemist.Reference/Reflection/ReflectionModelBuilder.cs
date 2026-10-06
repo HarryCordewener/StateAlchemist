@@ -126,7 +126,7 @@ public static class ReflectionModelBuilder
                 switch (member)
                 {
                     case MethodInfo method when method.GetCustomAttribute<TransitionAttribute>() is { } attribute:
-                        yield return new TransitionDeclaration(module, method, null, attribute.From, attribute.To, attribute.Order, false, []);
+                        yield return new TransitionDeclaration(module, method, null, attribute.From, attribute.To, attribute.Order, false, [], (HistoryKind)attribute.History);
                         break;
                     case MethodInfo method:
                         foreach (var exited in method.GetCustomAttributes<ExitedAttribute>())
@@ -141,10 +141,10 @@ public static class ReflectionModelBuilder
 
                         break;
                     case Type nested when nested.GetCustomAttribute<TransitionAttribute>() is { } attribute:
-                        yield return new TransitionDeclaration(module, null, nested, attribute.From, attribute.To, attribute.Order, false, []);
+                        yield return new TransitionDeclaration(module, null, nested, attribute.From, attribute.To, attribute.Order, false, [], (HistoryKind)attribute.History);
                         break;
                     case Type nested when nested.GetCustomAttribute<DecisionAttribute>() is { } attribute:
-                        yield return new TransitionDeclaration(module, null, nested, attribute.From, null, attribute.Order, true, attribute.Handle);
+                        yield return new TransitionDeclaration(module, null, nested, attribute.From, null, attribute.Order, true, attribute.Handle, HistoryKind.None);
                         break;
                 }
             }
@@ -241,7 +241,7 @@ public static class ReflectionModelBuilder
             }
 
             var hasDelay = declaration.Class?.GetMethods(Declared).Any(m => m.Name == "Delay") == true;
-            var triggers = Triggers(member, name, declaration.IsDecision, hasDelay);
+            var triggers = Triggers(member, name, declaration.IsDecision, hasDelay, out var join);
             if (triggers.Count == 0)
             {
                 yield break;
@@ -267,7 +267,8 @@ public static class ReflectionModelBuilder
             {
                 var completions = declaration.Class!.GetMethods(Declared).Where(m => m.Name == "Complete").OrderBy(m => m.MetadataToken).Select(m =>
                 {
-                    var target = m.GetCustomAttribute<ToAttribute>()?.Target;
+                    var to = m.GetCustomAttribute<ToAttribute>();
+                    var target = to?.Target;
                     var complete = MethodModelOf(m, declaringType, stateIndex, outcomes);
                     if (target is null)
                     {
@@ -275,7 +276,7 @@ public static class ReflectionModelBuilder
                     }
 
                     var outcome = m.GetParameters().Select(p => p.ParameterType).FirstOrDefault(t => outcomes.Contains(t.FullName!))?.FullName ?? string.Empty;
-                    return new OutcomeCompletion(outcome, target is null ? -1 : stateIndex[target], complete);
+                    return new OutcomeCompletion(outcome, target is null ? -1 : stateIndex[target], complete, (HistoryKind)(to?.History ?? History.None));
                 }).Where(c => c.Target >= 0).ToList();
                 decision = new DecisionModel(Phase("Decide"), Phase("DecideAsync"), outcomes, completions, declaration.Handle.Select(h => h.FullName!).ToList());
             }
@@ -286,13 +287,14 @@ public static class ReflectionModelBuilder
             foreach (var trigger in triggers)
             {
                 yield return new TransitionModel(0, name, source, target, trigger, declaration.Order, isRun, Phase("Guard"), transform,
-                    Phases("Completed", "CompletedAsync"), decision, unknown, declaration.Module.FullName!, SourceSpan.None,
+                    Phases("Completed", "CompletedAsync"), decision, unknown, declaration.Module.FullName!, SourceSpan.None, join, declaration.History,
                     declaration.IsDecision ? null : Phase("Delay"));
             }
         }
 
-        private List<TriggerModel> Triggers(MemberInfo member, string name, bool isDecision, bool hasDelay)
+        private List<TriggerModel> Triggers(MemberInfo member, string name, bool isDecision, bool hasDelay, out JoinModel? join)
         {
+            join = null;
             var triggers = new List<TriggerModel>();
             foreach (var on in member.GetCustomAttributes<OnAttribute>())
             {
@@ -337,6 +339,26 @@ public static class ReflectionModelBuilder
             if (onEvent is not null)
             {
                 triggers.Add(TriggerModel.Event(onEvent.EventType.FullName!));
+            }
+
+            if (member.GetCustomAttribute<OnAllAttribute>() is { } onAll)
+            {
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, "mixes [OnAll] with other triggers"));
+                    return [];
+                }
+
+                var listed = onAll.EventTypes ?? [];
+                if (JoinModel.Problem(listed.Length, listed.Any(t => t is null), listed.Where(t => t is not null).Select(t => t.FullName!).ToList()) is { } problem)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, problem));
+                    return [];
+                }
+
+                var events = listed.Select(t => t.FullName!).ToList();
+                join = new JoinModel(events);
+                triggers.AddRange(events.Select(TriggerModel.Event));
             }
 
             if (member.GetCustomAttribute<AfterAttribute>() is { } after)
@@ -489,7 +511,7 @@ public static class ReflectionModelBuilder
             : type.FullName ?? type.Name;
     }
 
-    private sealed record TransitionDeclaration(Type Module, MethodInfo? Method, Type? Class, Type? From, Type? To, int Order, bool IsDecision, Type[] Handle);
+    private sealed record TransitionDeclaration(Type Module, MethodInfo? Method, Type? Class, Type? From, Type? To, int Order, bool IsDecision, Type[] Handle, HistoryKind History);
 
     private sealed record ActionDeclaration(Type Module, MethodInfo Method, ActionPhase Phase, Type State, int Order, int DeclarationIndex);
 }

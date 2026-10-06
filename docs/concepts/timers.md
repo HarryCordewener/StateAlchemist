@@ -82,7 +82,7 @@ await login.FireAsync((byte)'x');                  // input re-enters Playing: f
 clock.Advance(TimeSpan.FromMinutes(5));            // the timer fires while Advance runs
 // login.IsIn<Disconnected>() is now true, and context.Log holds "idled".
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L57-L68' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-login-clock' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L58-L69' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-login-clock' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `TimeProvider` is part of .NET 8 and later. On `netstandard2.0` the package brings in `Microsoft.Bcl.TimeProvider`,

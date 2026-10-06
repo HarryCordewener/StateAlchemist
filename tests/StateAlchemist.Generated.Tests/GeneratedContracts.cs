@@ -99,6 +99,18 @@ public sealed class GeneratedSerialized : SerializedContract
 }
 
 [InheritsTests]
+public sealed class GeneratedHistory : HistoryContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class GeneratedJoins : JoinContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
 public sealed class GeneratedTimers : TimerContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);

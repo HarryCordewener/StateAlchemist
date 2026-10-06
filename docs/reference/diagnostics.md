@@ -127,10 +127,12 @@ small integral type.
 > '{0}' {1}
 
 A transition does not name its `From` state, has no trigger, mixes value and event triggers, has an empty range,
-or names a trigger value that is not an integral constant. For a [timer](../concepts/timers.md): `[After]` mixed
-with another trigger or on a decision, both `Milliseconds` and `Seconds` set, a negative delay or one longer than
-4294967294 milliseconds, no delay and no `Delay` method, both a delay and a `Delay` method, or a `Delay` method on
-a transition that does not fire on `[After]`.
+or names a trigger value that is not an integral constant. For a [join](../concepts/triggers.md#joins): an
+`[OnAll]` alongside another trigger, listing fewer than two or more than 32 events or one event twice, or a join
+with a `Guard` or a decision. For a [timer](../concepts/timers.md): `[After]` mixed with another trigger or on a
+decision, both `Milliseconds` and `Seconds` set, a negative delay or one longer than 4294967294 milliseconds, no
+delay and no `Delay` method, both a delay and a `Delay` method, or a `Delay` method on a transition that does not
+fire on `[After]`.
 
 ## SALCH0107
 
@@ -186,9 +188,10 @@ code fix that does the first half. See
 > Parameter '{0}' of '{1}' names '{2}', which {3}
 
 The parameter names a state the transition does not touch — a sibling, an unrelated branch — or, for a
-transition declared on a parent, a state that binds differently depending on the active leaf. For a state action,
-a state that is neither the action's state nor one of its ancestors. For a timer's `Delay`, a state that is neither
-the source nor one of its ancestors.
+transition declared on a parent, a state that binds differently depending on the active leaf. For a move by
+[history](../concepts/states.md#going-back-with-history), a state under its target: which of those it enters is
+known only when it runs. For a state action, a state that is neither the action's state nor one of its ancestors.
+For a timer's `Delay`, a state that is neither the source nor one of its ancestors.
 
 ## SALCH0203
 
@@ -208,8 +211,8 @@ synchronously; a decision declares `Decide` or `DecideAsync`.
 
 A parameter that is not a state, the value, the event that fired, a run, the configuration, the context, a
 decision outcome, a `CancellationToken` or the transition info — or one of those where its method cannot take it,
-such as a `CancellationToken` on a transform, a value on an event or timer transition, or a state taken by `ref`
-in a `Delay`.
+such as a `CancellationToken` on a transform, a value on an event or timer transition, an event a
+[join](../concepts/triggers.md#joins) does not list, or a state taken by `ref` in a `Delay`.
 
 ## SALCH0205
 
@@ -249,6 +252,16 @@ A phase returning a task is named with `Async`; one that does not is named witho
 > Machine '{0}' is Unchecked but has async actions or decisions; await every FireAsync before calling the next
 
 See [concurrency](../concepts/concurrency.md#unchecked).
+
+## SALCH0210
+
+**History without a state to recall** · error · app
+
+> '{0}' asks for history, but {1}
+
+`History = History.Shallow` or `History.Deep` on a stay, or on a move whose target has no children in this
+machine or is the root. A leaf has nothing below it to recall, and the root is never exited. See
+[history](../concepts/states.md#going-back-with-history).
 
 ## SALCH0301
 

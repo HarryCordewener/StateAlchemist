@@ -58,6 +58,12 @@
         public ExportsModuleAttribute(System.Type module) { }
         public System.Type Module { get; }
     }
+    public enum History
+    {
+        None = 0,
+        Shallow = 1,
+        Deep = 2,
+    }
     public interface IBoundaryMachine<TValue> : StateAlchemist.IMachine<TValue>, System.IAsyncDisposable
         where TValue :  struct
     {
@@ -148,6 +154,12 @@
         public ModuleAttribute() { }
     }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
+    public sealed class OnAllAttribute : System.Attribute
+    {
+        public OnAllAttribute(params System.Type[] eventTypes) { }
+        public System.Type[] EventTypes { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
     public sealed class OnAnyAttribute : System.Attribute
     {
         public OnAnyAttribute() { }
@@ -174,6 +186,8 @@
     public sealed class OutcomeDefinition
     {
         public OutcomeDefinition(System.Type type, int target) { }
+        public OutcomeDefinition(System.Type type, int target, StateAlchemist.History history) { }
+        public StateAlchemist.History History { get; }
         public string Name { get; }
         public int Target { get; }
         public System.Type Type { get; }
@@ -224,6 +238,7 @@
     public sealed class ToAttribute : System.Attribute
     {
         public ToAttribute(System.Type target) { }
+        public StateAlchemist.History History { get; set; }
         public System.Type Target { get; }
     }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
@@ -231,17 +246,24 @@
     {
         public TransitionAttribute() { }
         public System.Type? From { get; set; }
+        public StateAlchemist.History History { get; set; }
         public int Order { get; set; }
         public System.Type? To { get; set; }
     }
     public sealed class TransitionDefinition
     {
+        public TransitionDefinition(int index, string name, int source, int target, StateAlchemist.TransitionKind kind, StateAlchemist.TriggerDefinition trigger, int order, bool usesContext, System.Collections.Generic.IReadOnlyList<System.Type> joins) { }
+        public TransitionDefinition(int index, string name, int source, int target, StateAlchemist.TransitionKind kind, StateAlchemist.TriggerDefinition trigger, int order, bool usesContext, System.Collections.Generic.IReadOnlyList<System.Type> joins, StateAlchemist.History history) { }
         public TransitionDefinition(int index, string name, int source, int target, StateAlchemist.TransitionKind kind, StateAlchemist.TriggerDefinition trigger, int order, bool hasGuard, bool isRun, bool usesContext, bool isDecision) { }
         public TransitionDefinition(int index, string name, int source, int target, StateAlchemist.TransitionKind kind, StateAlchemist.TriggerDefinition trigger, int order, bool hasGuard, bool isRun, bool usesContext, bool isDecision, System.Collections.Generic.IReadOnlyList<StateAlchemist.OutcomeDefinition> outcomes) { }
+        public TransitionDefinition(int index, string name, int source, int target, StateAlchemist.TransitionKind kind, StateAlchemist.TriggerDefinition trigger, int order, bool hasGuard, bool isRun, bool usesContext, bool isDecision, System.Collections.Generic.IReadOnlyList<StateAlchemist.OutcomeDefinition> outcomes, StateAlchemist.History history) { }
         public bool HasGuard { get; }
+        public StateAlchemist.History History { get; }
         public int Index { get; }
         public bool IsDecision { get; }
+        public bool IsJoin { get; }
         public bool IsRun { get; }
+        public System.Collections.Generic.IReadOnlyList<System.Type> Joins { get; }
         public StateAlchemist.TransitionKind Kind { get; }
         public string Name { get; }
         public int Order { get; }
@@ -283,12 +305,14 @@
         public System.Collections.Generic.IReadOnlyList<System.Type> Exiting { get; }
         public bool Handled { get; }
         public bool IsDecision { get; }
+        public bool IsJoinArrival { get; }
         public StateAlchemist.TransitionKind Kind { get; }
         public System.Type? Leaf { get; }
         public System.Collections.Generic.IReadOnlyList<string> Refused { get; }
         public System.Type? Target { get; }
         public string? Transition { get; }
         public static StateAlchemist.TransitionPlan None { get; }
+        public static StateAlchemist.TransitionPlan ForJoinArrival(string transition, System.Type leaf, System.Collections.Generic.IReadOnlyList<string> refused) { }
     }
     public readonly struct TriggerDefinition : System.IEquatable<StateAlchemist.TriggerDefinition>
     {
