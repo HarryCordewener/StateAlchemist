@@ -38,6 +38,7 @@ generator writes the machine as straight-line code.
 - [Testing a machine](guides/testing.md) — the pure layer, the machine interface, and the reference interpreter.
 - [Writing a module](guides/writing-a-module.md) — adding a protocol to a machine you do not own.
 - [Hosting a machine](guides/hosting.md) — running one for the lifetime of a Generic Host, fed from a queue.
+- [Coming from Stateless](guides/coming-from-stateless.md) — each Stateless call and its counterpart here.
 - [Contributing](../CONTRIBUTING.md) — building the repository, where the tests live, and what a change has to do.
 
 ## Reference

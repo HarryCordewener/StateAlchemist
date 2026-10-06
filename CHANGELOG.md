@@ -11,6 +11,10 @@ All notable changes to this project are documented here.
   input in turn, and on shutdown fires what is still queued before stopping the machine. A `capacity` bounds the
   inbox, so the machine's backpressure reaches whoever writes to it. The core package still has no dependencies;
   this one depends on `Microsoft.Extensions.Hosting.Abstractions`. See [hosting a machine](docs/guides/hosting.md).
+- [Coming from Stateless](docs/guides/coming-from-stateless.md): each Stateless configuration call, action and
+  member, and its StateAlchemist counterpart, with the places where the two work differently.
+- An acknowledgements section in the README, crediting the libraries the design specification names as sources:
+  Stateless, FunctionalStateMachine, StrongInject, Jab, Pure.DI, `Dictionary`, Channels and Orleans.
 
 ### Changed
 - The documentation's code is compiled. Eighteen blocks that were written into the prose, and only checked to

@@ -121,6 +121,27 @@ Adding a protocol is adding a package reference: a library offers its modules wi
 The first consumer is [TelnetNegotiationCore](https://github.com/HarryCordewener/TelnetNegotiationCore) 4.0; the
 [migration design](docs/superpowers/specs/2026-09-11-tnc-4.0-migration-design.md) says how.
 
+## Acknowledgements
+
+StateAlchemist stands on the work of others.
+
+- **[Stateless](https://github.com/dotnet-state-machine/stateless)**: the library owns the machine's state, and
+  actions run inside `Fire` and may be async. [Coming from Stateless](docs/guides/coming-from-stateless.md) maps
+  its API onto this one.
+- **FunctionalStateMachine**: transitions are pure transformations that can be planned, inspected and tested
+  without running any side effects.
+- **[StrongInject](https://github.com/YairHalberstadt/stronginject), [Jab](https://github.com/pakrym/jab) and
+  [Pure.DI](https://github.com/DevTeam/Pure.DI)**: a machine's modules are named where the machine is declared,
+  as these containers name theirs.
+- **.NET's `Dictionary`, Channels and [Orleans](https://github.com/dotnet/orleans)**: the three
+  [concurrency](docs/concepts/concurrency.md) modes. `Checked` throws on concurrent use rather than corrupting
+  state, following `Dictionary`, which throws when it detects a concurrent update; `Unchecked` takes a single
+  caller's promise, as a channel's `SingleReader` and `SingleWriter` do; and `Serialized` processes calls one turn
+  at a time, as Orleans grains do.
+
+The [design specification](docs/superpowers/specs/2026-09-11-statealchemist-design.md) records where each idea is
+used: §1 for Stateless and FunctionalStateMachine, D25 for the modules, and §6.10 for concurrency.
+
 ## Contributing
 
 Bug reports, ideas and pull requests are all welcome, and there is nothing to sign.
