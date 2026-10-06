@@ -6,7 +6,8 @@ namespace StateAlchemist.Model;
 /// <param name="OutcomeType">The outcome case's full type name.</param>
 /// <param name="Target">The target state's index.</param>
 /// <param name="Complete">The <c>Complete</c> overload.</param>
-public sealed record OutcomeCompletion(string OutcomeType, int Target, MethodModel Complete);
+/// <param name="History">Whether the move enters what was last active in the target.</param>
+public sealed record OutcomeCompletion(string OutcomeType, int Target, MethodModel Complete, HistoryKind History = HistoryKind.None);
 
 /// <summary>A decision's parts (spec §5.6).</summary>
 /// <param name="Decide">A synchronous <c>Decide</c>, if declared.</param>

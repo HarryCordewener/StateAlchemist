@@ -27,7 +27,8 @@ internal static class DefinitionBuilder
                 t.IsRun,
                 new[] { t.Guard, t.Transform }.OfType<MethodModel>().Any(m => m.Parameters.Any(p => p.Kind == ParameterKind.Context)),
                 t.IsDecision,
-                Outcomes(t)))
+                Outcomes(t),
+                (History)t.History))
             .ToList();
         return new MachineDefinition(machine.Spec.Value!, states, transitions);
     }
@@ -35,7 +36,7 @@ internal static class DefinitionBuilder
     /// <summary>A decision's outcomes and where each goes; the same data a generated machine writes as a constant.</summary>
     private static IReadOnlyList<OutcomeDefinition> Outcomes(TransitionModel transition) =>
         (transition.Decision?.Completions ?? [])
-            .Select(c => new OutcomeDefinition(FindType(c.OutcomeType), c.Target))
+            .Select(c => new OutcomeDefinition(FindType(c.OutcomeType), c.Target, (History)c.History))
             .ToList();
 
     private static TriggerDefinition Trigger(TriggerModel trigger) => trigger.Kind switch

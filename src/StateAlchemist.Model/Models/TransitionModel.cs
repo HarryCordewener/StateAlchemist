@@ -20,6 +20,7 @@ namespace StateAlchemist.Model;
 /// <param name="UnknownMembers">Class-form method names that are not phases.</param>
 /// <param name="Module">The declaring module's full name.</param>
 /// <param name="Location">Where it is declared.</param>
+/// <param name="History">Whether a move into a state with children enters what was last active there.</param>
 public sealed record TransitionModel(
     int Index,
     string Name,
@@ -34,7 +35,8 @@ public sealed record TransitionModel(
     DecisionModel? Decision,
     IReadOnlyList<UnknownMember> UnknownMembers,
     string Module,
-    SourceSpan Location)
+    SourceSpan Location,
+    HistoryKind History = HistoryKind.None)
 {
     /// <summary>Stay, move or re-entry.</summary>
     public MoveKind Kind => Target < 0 ? MoveKind.Stay : Target == Source ? MoveKind.Reenter : MoveKind.Move;

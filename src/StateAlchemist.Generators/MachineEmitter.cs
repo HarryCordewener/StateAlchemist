@@ -90,6 +90,7 @@ internal sealed partial class MachineEmitter
             WriteRuns();
             WriteDecisions();
             WriteTransitions();
+            WriteRecalls();
             if (HasInbox)
             {
                 WriteInbox();
@@ -125,6 +126,7 @@ internal sealed partial class MachineEmitter
         }
 
         _w.Line("private StateId _leaf;");
+        WriteHistoryStorage();
         _w.Line($"private {Rt}MachineStatus _status;");
         _w.Line("private bool _inside;");
         _w.Line("private bool _boundaryRequested;");
@@ -190,6 +192,7 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line($"_leaf = StateId.{_stateIds[_hierarchy.InitialLeaf(_hierarchy.Root)]};");
+            WriteHistoryInitialization();
         }
 
         if (HasInbox)
@@ -321,7 +324,7 @@ internal sealed partial class MachineEmitter
         {
             var usesContext = new[] { t.Guard, t.Transform }.Any(m => m is not null && m.Parameters.Any(p => p.Kind == ParameterKind.Context));
             _w.Line($"        new {Rt}TransitionDefinition({t.Index}, {Literal(t.Name)}, {t.Source}, {t.Target}, {Rt}TransitionKind.{t.Kind}, {TriggerDefinition(t.Trigger)}, " +
-                    $"{t.Order}, {Bool(t.IsGuarded)}, {Bool(t.IsRun)}, {Bool(usesContext)}, {Bool(t.IsDecision)}, {OutcomeDefinitions(t)}),");
+                    $"{t.Order}, {Bool(t.IsGuarded)}, {Bool(t.IsRun)}, {Bool(usesContext)}, {Bool(t.IsDecision)}, {OutcomeDefinitions(t)}{HistoryArgument(t.History)}),");
         }
 
         _w.Line("    });");
@@ -342,9 +345,12 @@ internal sealed partial class MachineEmitter
         return completions.Count == 0
             ? $"new {Rt}OutcomeDefinition[0]"
             : $"new {Rt}OutcomeDefinition[] {{ " +
-              string.Join(", ", completions.Select(c => $"new {Rt}OutcomeDefinition(typeof({Name(OutcomeType(c))}), {c.Target})")) +
+              string.Join(", ", completions.Select(c => $"new {Rt}OutcomeDefinition(typeof({Name(OutcomeType(c))}), {c.Target}{HistoryArgument(c.History)})")) +
               " }";
     }
+
+    /// <summary>The trailing <c>History</c> argument of a definition, written only when there is one.</summary>
+    private static string HistoryArgument(HistoryKind history) => history == HistoryKind.None ? string.Empty : $", {Rt}History.{history}";
 
     private string TriggerDefinition(TriggerModel trigger) => trigger.Kind switch
     {

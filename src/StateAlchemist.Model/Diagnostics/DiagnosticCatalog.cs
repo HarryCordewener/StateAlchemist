@@ -78,6 +78,9 @@ public static class DiagnosticCatalog
     public static readonly DiagnosticDescriptor UncheckedWithAsync = new("SALCH0209", Severity.Warning, "Unchecked machine with async actions",
         "Machine '{0}' is Unchecked but has async actions or decisions; await every FireAsync before calling the next", App);
 
+    public static readonly DiagnosticDescriptor InvalidHistory = new("SALCH0210", Severity.Error, "History without a state to recall",
+        "'{0}' asks for history, but {1}", App);
+
     public static readonly DiagnosticDescriptor ReentryClearsData = new("SALCH0301", Severity.Warning, "Re-entry clears data",
         "'{0}' re-enters '{1}', which has data; the data is cleared", App);
 
@@ -117,7 +120,7 @@ public static class DiagnosticCatalog
         InvalidState, NotPublicStatic, InvalidHierarchy, InitialChild,
         ConflictingTransitions, AmbiguousGuardOrder, AmbiguousActionOrder, TriggerOutOfRange, UnsupportedValueType, InvalidTransition, IncompleteMachine,
         ExportedTypeIsNotAModule, NothingExported,
-        RefOnExitingState, StateNotAvailable, InvalidPhaseSignature, UnbindableParameter, ContextUnderStrictPurity, UnknownPhase, AsyncSuffix, TwoDecideMethods, UncheckedWithAsync,
+        RefOnExitingState, StateNotAvailable, InvalidPhaseSignature, UnbindableParameter, ContextUnderStrictPurity, UnknownPhase, AsyncSuffix, TwoDecideMethods, UncheckedWithAsync, InvalidHistory,
         ReentryClearsData,
         OutcomeCompletions, UnknownOutcome,
         UnhandledValues, UnreachableState,

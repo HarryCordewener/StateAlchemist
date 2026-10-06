@@ -8,7 +8,8 @@ namespace StateAlchemist.Model;
 /// a parameter must bind the same way from every leaf (spec §6.3) (SALCH0201, SALCH0202, SALCH0204 for state
 /// passing, SALCH0301). A decision is checked the way it runs: its <c>Decide</c> reads the active path, which stays;
 /// each <c>Complete</c> is the transform of a move to its own target; and a <c>Completed</c> runs after the move of
-/// the outcome it takes — or, taking none, after every outcome's move, so it must bind the same way after each.
+/// the outcome it takes — or, taking none, after every outcome's move, so it must bind the same way after each. A
+/// move with history is checked over every leaf it can recall.
 /// </summary>
 public static class RoleValidator
 {
@@ -36,18 +37,19 @@ public static class RoleValidator
         foreach (var transition in model.Transitions)
         {
             var leaves = hierarchy.LeavesUnder(transition.Source).ToList();
-            var paths = leaves.Select(leaf => PathPlanner.Plan(hierarchy, transition, leaf)).ToList();
+            var paths = leaves.SelectMany(leaf => PathPlanner.Plans(hierarchy, transition, leaf)).ToList();
             IReadOnlyList<TransitionPath> MovesTo(IEnumerable<OutcomeCompletion> completions) =>
-                completions.SelectMany(c => leaves.Select(leaf => PathPlanner.Move(hierarchy, leaf, c.Target))).ToList();
+                completions.SelectMany(c => leaves.SelectMany(leaf => PathPlanner.Moves(hierarchy, leaf, c.Target, c.History))).ToList();
+            var recalled = transition.History == HistoryKind.None ? -1 : transition.Target;
 
             if (transition.Guard is not null)
             {
-                Check(model, hierarchy, transition.Guard, Use.Guard, paths, diagnostics);
+                Check(model, hierarchy, transition.Guard, Use.Guard, paths, diagnostics, recalled);
             }
 
             if (transition.Transform is not null)
             {
-                Check(model, hierarchy, transition.Transform, Use.Transform, paths, diagnostics);
+                Check(model, hierarchy, transition.Transform, Use.Transform, paths, diagnostics, recalled);
             }
 
             if (transition.Decision is { } decision)
@@ -59,7 +61,8 @@ public static class RoleValidator
 
                 foreach (var completion in decision.Completions)
                 {
-                    Check(model, hierarchy, completion.Complete, Use.Transform, MovesTo([completion]), diagnostics);
+                    Check(model, hierarchy, completion.Complete, Use.Transform, MovesTo([completion]), diagnostics,
+                        completion.History == HistoryKind.None ? -1 : completion.Target);
                 }
             }
 
@@ -108,7 +111,8 @@ public static class RoleValidator
         MethodModel method,
         Use use,
         IReadOnlyList<TransitionPath> paths,
-        List<ModelDiagnostic> diagnostics)
+        List<ModelDiagnostic> diagnostics,
+        int recalled = -1)
     {
         var parameters = method.Parameters.Where(p => p.Kind == ParameterKind.State).ToList();
         foreach (var group in parameters.GroupBy(p => p.State).Where(g => g.Count() > 1))
@@ -155,6 +159,13 @@ public static class RoleValidator
             }
 
             var bindings = roles.Select(role => Bind(role, parameter.Passing)).Distinct().ToList();
+            if (recalled >= 0 && parameter.State != recalled && hierarchy.IsAncestorOrSelf(recalled, parameter.State) && bindings.Count > 1)
+            {
+                diagnostics.Add(new(DiagnosticCatalog.StateNotAvailable, method.Location, parameter.Name, method.FullName, stateName,
+                    $"is under '{model.States[recalled].Name}', which this move enters by history: what it enters there is known only when it runs"));
+                continue;
+            }
+
             if (bindings.Contains(Binding.None))
             {
                 diagnostics.Add(new(DiagnosticCatalog.StateNotAvailable, method.Location, parameter.Name, method.FullName, stateName, "is not touched from every leaf this transition fires from"));
