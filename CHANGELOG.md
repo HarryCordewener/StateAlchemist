@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+- `TransitionPlan.Refused`: the guarded transitions whose guard returned `false` while `Plan` looked for one to
+  fire, in the order they were tried. A plan for a trigger nothing handles lists them too, so an interface can say
+  why a trigger would not fire. The generated `Plan` returns a static plan for each combination, so it still
+  allocates nothing. ([#22](https://github.com/HarryCordewener/StateAlchemist/issues/22))
+
 ### Changed
 - The documentation's code is compiled. Eighteen blocks that were written into the prose, and only checked to
   parse, are now snippets of the samples and the tests, so a renamed member or a changed signature fails the build

@@ -6,7 +6,11 @@ namespace StateAlchemist.Generators;
 
 internal sealed partial class MachineEmitter
 {
-    private readonly SortedSet<(int Transition, int Leaf)> _plans = [];
+    private readonly SortedSet<(int Transition, int Leaf, int Refused)> _plans = [];
+    private readonly SortedSet<int> _refusedNone = [];
+
+    /// <summary>Each distinct list of refused guards a plan can carry, by its index: the names, in the order tried.</summary>
+    private readonly List<string[]> _refused = [];
 
     /// <summary>The pure layer: what a trigger would do now, evaluating guards, doing nothing (docs/guides/testing.md).</summary>
     private void WritePlans()
@@ -68,27 +72,45 @@ internal sealed partial class MachineEmitter
             _w.Line($"return {Rt}TransitionPlan.None;");
         }
 
-        foreach (var (index, leaf) in _plans)
+        for (var i = 0; i < _refused.Count; i++)
+        {
+            _w.Line();
+            _w.Line($"private static readonly string[] s_refused{i} = new string[] {{ {string.Join(", ", _refused[i].Select(Literal))} }};");
+        }
+
+        foreach (var (index, leaf, refused) in _plans)
         {
             var transition = _model.Transitions[index];
             var path = PathPlanner.Plan(_hierarchy, transition, leaf);
             _w.Line();
-            _w.Line($"private static readonly {Rt}TransitionPlan s_plan{index}_{_stateIds[leaf]} = new {Rt}TransitionPlan({Literal(transition.Name)}, typeof({S(path.Leaf)}), typeof({S(path.TargetLeaf)}), " +
-                    $"{Rt}TransitionKind.{transition.Kind}, {Types(path.Exiting)}, {Types(path.Entering)}, {Bool(transition.IsDecision)});");
+            _w.Line($"private static readonly {Rt}TransitionPlan {PlanField(index, leaf, refused)} = new {Rt}TransitionPlan({Literal(transition.Name)}, typeof({S(path.Leaf)}), typeof({S(path.TargetLeaf)}), " +
+                    $"{Rt}TransitionKind.{transition.Kind}, {Types(path.Exiting)}, {Types(path.Entering)}, {Bool(transition.IsDecision)}{(refused < 0 ? string.Empty : $", s_refused{refused}")});");
+        }
+
+        foreach (var refused in _refusedNone)
+        {
+            _w.Line();
+            _w.Line($"private static readonly {Rt}TransitionPlan s_none{refused} = new {Rt}TransitionPlan(s_refused{refused});");
         }
     }
 
-    /// <summary>Like dispatch, but a guard is called without its exception hook, and the answer is a plan.</summary>
+    /// <summary>
+    /// Like dispatch, but a guard is called without its exception hook, and the answer is a plan. Guards are tried in
+    /// order and each returns, so the guards refused before any candidate are known here: every plan is a static field.
+    /// </summary>
     private void PlanCandidates(IReadOnlyList<TransitionModel> candidates, int leaf, string argument, string unhandled)
     {
+        var tried = new List<string>();
         foreach (var candidate in candidates)
         {
-            _plans.Add((candidate.Index, leaf));
-            var plan = $"s_plan{candidate.Index}_{_stateIds[leaf]}";
+            var refused = RefusedIndex(tried);
+            _plans.Add((candidate.Index, leaf, refused));
+            var plan = PlanField(candidate.Index, leaf, refused);
             if (candidate.Guard is { } guard)
             {
                 var path = PathPlanner.Plan(_hierarchy, candidate, leaf);
                 _w.Line($"if ({Owner(guard)}({Arguments(guard, Use.Guard, candidate, path, [])})) return {plan};");
+                tried.Add(candidate.Name);
             }
             else
             {
@@ -97,8 +119,37 @@ internal sealed partial class MachineEmitter
             }
         }
 
-        _w.Line($"return {Rt}TransitionPlan.None;");
+        var none = RefusedIndex(tried);
+        if (none < 0)
+        {
+            _w.Line($"return {Rt}TransitionPlan.None;");
+            return;
+        }
+
+        _refusedNone.Add(none);
+        _w.Line($"return s_none{none};");
     }
+
+    /// <summary>The index of <paramref name="names"/> among the refused lists, adding it if new; -1 for none.</summary>
+    private int RefusedIndex(List<string> names)
+    {
+        if (names.Count == 0)
+        {
+            return -1;
+        }
+
+        var index = _refused.FindIndex(r => r.SequenceEqual(names));
+        if (index >= 0)
+        {
+            return index;
+        }
+
+        _refused.Add(names.ToArray());
+        return _refused.Count - 1;
+    }
+
+    private string PlanField(int transition, int leaf, int refused) =>
+        $"s_plan{transition}_{_stateIds[leaf]}{(refused < 0 ? string.Empty : $"_r{refused}")}";
 
     private string Types(IReadOnlyList<int> states) =>
         states.Count == 0 ? $"new {TypeType}[0]" : $"new {TypeType}[] {{ {string.Join(", ", states.Select(s => $"typeof({S(s)})"))} }}";
