@@ -375,7 +375,7 @@ internal static class SymbolModelBuilder
                 yield break;
             }
 
-            var triggers = Triggers(member, name, location);
+            var triggers = Triggers(member, name, location, out var join);
             if (triggers.Count == 0)
             {
                 yield break;
@@ -423,12 +423,13 @@ internal static class SymbolModelBuilder
             foreach (var trigger in triggers)
             {
                 yield return new TransitionModel(0, name, source, target, trigger, declaration.Order, isRun, Phase("Guard"), transform,
-                    Phases("Completed", "CompletedAsync"), decision, unknown, MetadataName(declaration.Module), location, declaration.History);
+                    Phases("Completed", "CompletedAsync"), decision, unknown, MetadataName(declaration.Module), location, join, declaration.History);
             }
         }
 
-        private List<TriggerModel> Triggers(ISymbol member, string name, SourceSpan location)
+        private List<TriggerModel> Triggers(ISymbol member, string name, SourceSpan location, out JoinModel? join)
         {
+            join = null;
             var triggers = new List<TriggerModel>();
             var attributes = member.GetAttributes();
             foreach (var on in attributes.Where(a => Is(a.AttributeClass, known.On)))
@@ -485,6 +486,29 @@ internal static class SymbolModelBuilder
             if (FirstArgument(onEvent) is INamedTypeSymbol eventType)
             {
                 triggers.Add(TriggerModel.Event(Event(eventType)));
+            }
+
+            var onAll = attributes.FirstOrDefault(a => Is(a.AttributeClass, known.OnAll));
+            if (onAll is not null)
+            {
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "mixes [OnAll] with other triggers"));
+                    return [];
+                }
+
+                var listed = onAll.ConstructorArguments.Length == 1 && onAll.ConstructorArguments[0].Kind == TypedConstantKind.Array
+                    ? onAll.ConstructorArguments[0].Values.Select(v => v.Value as INamedTypeSymbol).ToList()
+                    : [];
+                if (JoinModel.Problem(listed.Count, listed.Any(t => t is null), listed.Where(t => t is not null).Select(t => MetadataName(t!)).ToList()) is { } problem)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, problem));
+                    return [];
+                }
+
+                var events = listed.Select(t => Event(t!)).ToList();
+                join = new JoinModel(events);
+                triggers.AddRange(events.Select(TriggerModel.Event));
             }
 
             if (triggers.Count == 0)

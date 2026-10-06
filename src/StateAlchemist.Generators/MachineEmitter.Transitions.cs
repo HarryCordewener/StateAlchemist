@@ -24,6 +24,7 @@ internal sealed partial class MachineEmitter
             WriteGuard(_model.Transitions[index], leaf);
         }
 
+        WriteArrivals();
         foreach (var (index, leaf) in _transitions)
         {
             var transition = _model.Transitions[index];
@@ -96,6 +97,12 @@ internal sealed partial class MachineEmitter
                 _w.Line($"var old{state} = {Field(state)};");
             }
 
+            var startedOverJoins = JoinsOf(startedOver).ToList();
+            foreach (var join in startedOverJoins)
+            {
+                _w.Line($"var old{JoinField(join)} = {JoinField(join)};");
+            }
+
             // 2. reset the entering states
             foreach (var state in path.Entering)
             {
@@ -109,7 +116,7 @@ internal sealed partial class MachineEmitter
                     ? $"{name}_Run(run);"
                     : $"{Owner(transform)}({Arguments(transform, Use.Transform, transition, path, startedOver)});";
                 var hook = Implements("OnTransformException");
-                if (startedOver.Count == 0 && !hook)
+                if (startedOver.Count == 0 && startedOverJoins.Count == 0 && !hook)
                 {
                     _w.Line(call);
                 }
@@ -121,6 +128,11 @@ internal sealed partial class MachineEmitter
                         foreach (var state in startedOver)
                         {
                             _w.Line($"{Field(state)} = old{state};");
+                        }
+
+                        foreach (var join in startedOverJoins)
+                        {
+                            _w.Line($"{JoinField(join)} = old{JoinField(join)};");
                         }
 
                         if (hook)
@@ -251,7 +263,11 @@ internal sealed partial class MachineEmitter
         return index < 0 ? int.MaxValue : index;
     }
 
-    private void Clear(int state) => _w.Line(_model.States[state].HasReset ? $"{Field(state)}.Reset();" : $"{Field(state)} = default({S(state)});");
+    private void Clear(int state)
+    {
+        _w.Line(_model.States[state].HasReset ? $"{Field(state)}.Reset();" : $"{Field(state)} = default({S(state)});");
+        ClearJoins(state);
+    }
 
     /// <summary>
     /// The arguments for one method. A state being started over is read from its snapshot — by a transform's
@@ -272,7 +288,7 @@ internal sealed partial class MachineEmitter
             {
                 ParameterKind.State => modifier + StateArgument(parameter, use, startedOver),
                 ParameterKind.Value => "value",
-                ParameterKind.Event => modifier + "e",
+                ParameterKind.Event => modifier + (transition.IsJoin ? JoinArgument(transition, parameter) : "e"),
                 ParameterKind.Run => "run.Span",
                 ParameterKind.RunMemory => "run",
                 ParameterKind.Outcome => "outcome",
@@ -314,11 +330,12 @@ internal sealed partial class MachineEmitter
 
     /// <summary>The name of <see cref="TriggerParameter"/>'s parameter.</summary>
     private static string TriggerArgumentName(TransitionModel transition) =>
-        transition.Trigger.Kind == MatchKind.Event ? "e" : transition.IsRun ? "run" : "value";
+        transition.IsJoin ? "join" : transition.Trigger.Kind == MatchKind.Event ? "e" : transition.IsRun ? "run" : "value";
 
     /// <summary>What fires a transition, as its generated methods take it: the value, the event, or a run.</summary>
     private string TriggerParameter(TransitionModel transition, bool forGuard = false) =>
-        transition.Trigger.Kind == MatchKind.Event ? $"{Event(transition.Trigger.EventType!)} e"
+        transition.IsJoin ? $"{JoinType(JoinOf(transition))} join"
+        : transition.Trigger.Kind == MatchKind.Event ? $"{Event(transition.Trigger.EventType!)} e"
         : transition.IsRun && !forGuard ? $"global::System.ReadOnlyMemory<{V}> run"
         : $"{V} value";
 

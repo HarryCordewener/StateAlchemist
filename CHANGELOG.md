@@ -5,6 +5,11 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- Joins: `[OnAll(typeof(A), typeof(B))]` fires a transition once each listed event has arrived while its `From`
+  state is active, in any order. The arrivals and the latest payload of each event live with the `From` state's
+  data, and the transform and `Completed` may take every listed event's payload. `TransitionDefinition.Joins` and
+  `TransitionPlan.IsJoinArrival` describe them. Parallel regions remain out of scope. See
+  [joins](docs/concepts/triggers.md#joins). ([#24](https://github.com/HarryCordewener/StateAlchemist/issues/24))
 - History states. `History = History.Deep` on a `[Transition]` or a decision's `[To]` enters the leaf that was
   active when the target was last exited; `History.Shallow` enters the child that was, then its `[Initial]` path.
   Before the target has been exited, and on any move without `History`, the `[Initial]` path is entered as before.

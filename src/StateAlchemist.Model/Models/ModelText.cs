@@ -25,6 +25,11 @@ public static class ModelText
         foreach (var t in model.Transitions)
         {
             text.AppendLine($"transition {t.Index} {t.Name} {t.Source}->{t.Target} on {t.Trigger} order={t.Order} run={t.IsRun} module={t.Module} unknown=[{string.Join(",", t.UnknownMembers)}]");
+            if (t.Join is { } j)
+            {
+                text.AppendLine($"  join [{string.Join(",", j.Events)}]");
+            }
+
             Method(text, "guard", t.Guard);
             Method(text, "transform", t.Transform);
             foreach (var completed in t.Completed)

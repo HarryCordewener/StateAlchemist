@@ -240,7 +240,7 @@ public static class ReflectionModelBuilder
                 yield break;
             }
 
-            var triggers = Triggers(member, name);
+            var triggers = Triggers(member, name, out var join);
             if (triggers.Count == 0)
             {
                 yield break;
@@ -286,12 +286,13 @@ public static class ReflectionModelBuilder
             foreach (var trigger in triggers)
             {
                 yield return new TransitionModel(0, name, source, target, trigger, declaration.Order, isRun, Phase("Guard"), transform,
-                    Phases("Completed", "CompletedAsync"), decision, unknown, declaration.Module.FullName!, SourceSpan.None, declaration.History);
+                    Phases("Completed", "CompletedAsync"), decision, unknown, declaration.Module.FullName!, SourceSpan.None, join, declaration.History);
             }
         }
 
-        private List<TriggerModel> Triggers(MemberInfo member, string name)
+        private List<TriggerModel> Triggers(MemberInfo member, string name, out JoinModel? join)
         {
+            join = null;
             var triggers = new List<TriggerModel>();
             foreach (var on in member.GetCustomAttributes<OnAttribute>())
             {
@@ -336,6 +337,26 @@ public static class ReflectionModelBuilder
             if (onEvent is not null)
             {
                 triggers.Add(TriggerModel.Event(onEvent.EventType.FullName!));
+            }
+
+            if (member.GetCustomAttribute<OnAllAttribute>() is { } onAll)
+            {
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, "mixes [OnAll] with other triggers"));
+                    return [];
+                }
+
+                var listed = onAll.EventTypes ?? [];
+                if (JoinModel.Problem(listed.Length, listed.Any(t => t is null), listed.Where(t => t is not null).Select(t => t.FullName!).ToList()) is { } problem)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, problem));
+                    return [];
+                }
+
+                var events = listed.Select(t => t.FullName!).ToList();
+                join = new JoinModel(events);
+                triggers.AddRange(events.Select(TriggerModel.Event));
             }
 
             if (triggers.Count == 0)

@@ -57,6 +57,10 @@ public static class RecallingModule
         }
     }
 
+    /// <summary>A coin and a pick, in either order: back to the leaf of the player that was active.</summary>
+    [Transition(From = typeof(Idle), To = typeof(Player), History = History.Deep), OnAll(typeof(Coin), typeof(Pick))]
+    public static void Play(ref Player to) => to.Resumes++;
+
     [Entered(typeof(Player))]
     public static void EnteredPlayer(RecordingContext context) => context.Record("entered Player");
 

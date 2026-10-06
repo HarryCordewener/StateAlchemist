@@ -20,6 +20,7 @@ namespace StateAlchemist.Model;
 /// <param name="UnknownMembers">Class-form method names that are not phases.</param>
 /// <param name="Module">The declaring module's full name.</param>
 /// <param name="Location">Where it is declared.</param>
+/// <param name="Join">For a join (<c>[OnAll]</c>), every event it waits for; this model is the one for <see cref="Trigger"/>'s event.</param>
 /// <param name="History">Whether a move into a state with children enters what was last active there.</param>
 public sealed record TransitionModel(
     int Index,
@@ -36,6 +37,7 @@ public sealed record TransitionModel(
     IReadOnlyList<UnknownMember> UnknownMembers,
     string Module,
     SourceSpan Location,
+    JoinModel? Join = null,
     HistoryKind History = HistoryKind.None)
 {
     /// <summary>Stay, move or re-entry.</summary>
@@ -46,6 +48,9 @@ public sealed record TransitionModel(
 
     /// <summary>Whether it is a decision.</summary>
     public bool IsDecision => Decision is not null;
+
+    /// <summary>Whether it is a join.</summary>
+    public bool IsJoin => Join is not null;
 
     /// <summary>Every method it declares.</summary>
     public IEnumerable<MethodModel> Methods
@@ -92,4 +97,70 @@ public sealed record UnknownMember(string Name, SourceSpan? Location = null)
 {
     /// <inheritdoc/>
     public override string ToString() => Name;
+}
+
+/// <summary>
+/// A join: <c>[OnAll(typeof(A), typeof(B))]</c>. It is modelled as one transition per listed event, each sharing this,
+/// so resolution, conflicts and roles treat every event as an ordinary event trigger.
+/// </summary>
+/// <param name="Events">The events' full names, as declared.</param>
+public sealed record JoinModel(IReadOnlyList<string> Events)
+{
+    /// <summary>The most events one join may list: one bit each in its arrival mask.</summary>
+    public const int MaxEvents = 32;
+
+    /// <summary>The bit for <paramref name="eventType"/> in the arrival mask, or −1 if the join does not list it.</summary>
+    public int BitOf(string eventType)
+    {
+        for (var i = 0; i < Events.Count; i++)
+        {
+            if (Events[i] == eventType)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// What is wrong with an <c>[OnAll]</c> listing <paramref name="count"/> types, or null. Both front-ends ask, so
+    /// they word it the same.
+    /// </summary>
+    /// <param name="count">How many types it lists.</param>
+    /// <param name="anyMissing">Whether some listed type could not be read.</param>
+    /// <param name="names">The listed types' full names.</param>
+    public static string? Problem(int count, bool anyMissing, IReadOnlyList<string> names)
+    {
+        if (anyMissing)
+        {
+            return "lists a type in [OnAll] that is not an event type";
+        }
+
+        if (count < 2)
+        {
+            return "has an [OnAll] with fewer than two events: use [OnEvent]";
+        }
+
+        if (count > MaxEvents)
+        {
+            return $"has an [OnAll] with more than {MaxEvents} events";
+        }
+
+        for (var i = 0; i < names.Count; i++)
+        {
+            for (var j = i + 1; j < names.Count; j++)
+            {
+                if (names[i] == names[j])
+                {
+                    return $"lists '{names[i]}' twice in [OnAll]";
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The arrival mask once every event has arrived.</summary>
+    public uint Full => Events.Count >= MaxEvents ? uint.MaxValue : (1u << Events.Count) - 1;
 }

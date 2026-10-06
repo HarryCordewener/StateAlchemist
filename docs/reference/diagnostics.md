@@ -127,7 +127,9 @@ small integral type.
 > '{0}' {1}
 
 A transition does not name its `From` state, has no trigger, mixes value and event triggers, has an empty range,
-or names a trigger value that is not an integral constant.
+or names a trigger value that is not an integral constant. For a [join](../concepts/triggers.md#joins): an
+`[OnAll]` alongside another trigger, listing fewer than two or more than 32 events or one event twice, or a join
+with a `Guard` or a decision.
 
 ## SALCH0107
 
@@ -205,7 +207,8 @@ known only when it runs. For a state action, a state that is neither the action'
 
 A parameter that is not a state, the value, the event that fired, a run, the configuration, the context, a
 decision outcome, a `CancellationToken` or the transition info — or one of those where its method cannot take it,
-such as a `CancellationToken` on a transform, or a value on an event transition.
+such as a `CancellationToken` on a transform, a value on an event transition, or an event a
+[join](../concepts/triggers.md#joins) does not list.
 
 ## SALCH0205
 

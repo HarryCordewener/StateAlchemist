@@ -26,6 +26,7 @@ internal static class GeneratedHarness
             ("Runs", false) => new RunsMachine((RecordingContext)context) { Hooks = hooks },
             ("Recalling", false) => new RecallingMachine((RecordingContext)context) { Hooks = hooks },
             ("RunsSerialized", false) => new RunsSerializedMachine((RecordingContext)context) { Hooks = hooks },
+            ("Joins", false) => new JoinsMachine((RecordingContext)context) { Hooks = hooks },
             _ => throw new NotSupportedException($"No generated machine for shape '{shape.Name}'{(handled ? " with exception hooks" : "")}."),
         };
     }

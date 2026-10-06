@@ -678,6 +678,12 @@ internal sealed partial class MachineEmitter
                 _decisions.Add((candidate.Index, leaf));
                 call = $"{DecisionName(candidate.Index, leaf)}({argument})";
             }
+            else if (candidate.IsJoin)
+            {
+                _arrivals.Add((candidate.Index, leaf));
+                _transitions.Add((candidate.Index, leaf));
+                call = $"{ArrivalName(candidate.Index, leaf)}({argument})";
+            }
             else
             {
                 _transitions.Add((candidate.Index, leaf));

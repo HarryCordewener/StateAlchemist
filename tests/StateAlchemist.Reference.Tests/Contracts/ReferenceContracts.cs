@@ -95,3 +95,9 @@ public sealed class ReferenceHistory : HistoryContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class ReferenceJoins : JoinContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}

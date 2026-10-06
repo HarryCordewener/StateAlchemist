@@ -27,6 +27,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     private readonly Hierarchy _hierarchy;
     private readonly Resolver _resolver;
     private readonly object?[] _slots;
+
+    // Each join's arrivals, by its name: the payload recorded for each listed event, or null before it arrives.
+    private readonly Dictionary<string, object?[]> _joins = [];
     private readonly object? _context;
     private readonly object? _config;
     private readonly ReferenceHooks<TValue> _hooks;
@@ -252,6 +255,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     /// <summary>What fired: a value (with the run it starts, one value long unless a run transition takes more) or an event.</summary>
     private readonly record struct Trigger(TValue Value, bool HasValue, ReadOnlyMemory<TValue> Run, object? Event)
     {
+        /// <summary>For a join that fired, the payload recorded for each of its events, by the join's order.</summary>
+        public object?[]? Joined { get; init; }
+
         public static Trigger OfValue(TValue value) => new(value, true, new[] { value }, null);
 
         public static Trigger OfRun(ReadOnlyMemory<TValue> run) => new(run.Span[0], true, run, null);

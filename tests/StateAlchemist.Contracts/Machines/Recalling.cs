@@ -44,3 +44,11 @@ public readonly record struct Resume;
 public readonly record struct Fresh;
 
 public union Choice(Resume, Fresh);
+
+public readonly struct Coin : IEvent
+{
+}
+
+public readonly struct Pick : IEvent
+{
+}

@@ -112,6 +112,18 @@ public abstract class HistoryContract : MachineContract
     }
 
     [Test]
+    public async Task AJoinCanMoveByHistory()
+    {
+        var (machine, context) = await Started(3, 1, 2, 9);
+        await machine.FireAsync(new Pick());
+        await Assert.That(machine.Plan(new Coin()).Target).IsEqualTo(typeof(Fast));
+        await machine.FireAsync(new Coin());
+        await Assert.That(machine.IsIn<Fast>()).IsTrue();
+        await Assert.That(context.Trace).IsEqualTo("entered Player | entered Playing | entered Fast");
+        await Assert.That(Data<Player>(machine).Resumes).IsEqualTo(1);
+    }
+
+    [Test]
     public async Task TheDefinitionSaysWhichMovesUseHistory()
     {
         var (machine, _) = await Started();
@@ -119,6 +131,7 @@ public abstract class HistoryContract : MachineContract
         await Assert.That(transitions.Single(t => t.Name == "RecallingModule.ResumeDeep").History).IsEqualTo(History.Deep);
         await Assert.That(transitions.Single(t => t.Name == "RecallingModule.ResumeShallow").History).IsEqualTo(History.Shallow);
         await Assert.That(transitions.Single(t => t.Name == "RecallingModule.Restart").History).IsEqualTo(History.None);
+        await Assert.That(transitions.Where(t => t.Name == "RecallingModule.Play").All(t => t.IsJoin && t.History == History.Deep)).IsTrue();
         var outcomes = transitions.Single(t => t.Name == "RecallingModule.Ask").Outcomes;
         await Assert.That(outcomes.Single(o => o.Name == "Resume").History).IsEqualTo(History.Deep);
         await Assert.That(outcomes.Single(o => o.Name == "Fresh").History).IsEqualTo(History.None);
