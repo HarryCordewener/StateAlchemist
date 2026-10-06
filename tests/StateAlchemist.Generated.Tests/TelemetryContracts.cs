@@ -97,3 +97,9 @@ public sealed class TelemetrySerialized : SerializedContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => TelemetryHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class TelemetryJoins : JoinContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => TelemetryHarness.Create(shape, context, hooks);
+}

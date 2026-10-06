@@ -1,6 +1,7 @@
 using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
+using StateAlchemist.Contracts.Machines.Joins;
 using StateAlchemist.Contracts.Machines.Recording;
 using StateAlchemist.Contracts.Machines.Runs;
 using StateAlchemist.Samples.Telnet;
@@ -29,6 +30,8 @@ public static class Shapes
     public static readonly MachineShape Runs = new("Runs", typeof(RunRoot), [typeof(RunModule)], typeof(RecordingContext));
 
     public static readonly MachineShape RunsSerialized = Runs with { Name = "RunsSerialized", Concurrency = Concurrency.Serialized };
+
+    public static readonly MachineShape Joins = new("Joins", typeof(JoinRoot), [typeof(JoinModule)], typeof(RecordingContext));
 
     public static readonly MachineShape Telnet = new("SampleTelnet", typeof(Connected), [typeof(TelnetCore), typeof(GmcpModule), typeof(NawsModule)], typeof(TelnetContext));
 }

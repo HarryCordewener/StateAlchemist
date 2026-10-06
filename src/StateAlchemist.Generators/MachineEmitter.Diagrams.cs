@@ -105,8 +105,14 @@ internal sealed partial class MachineEmitter
     /// </summary>
     private IEnumerable<(int Source, int Target, string Label)> Arrows()
     {
+        var drawn = new HashSet<string>();
         foreach (var transition in _model.Transitions)
         {
+            if (transition.IsJoin && !drawn.Add(transition.Name))
+            {
+                continue; // a join is one transition per event, and one arrow
+            }
+
             var completions = transition.Decision?.Completions ?? [];
             if (completions.Count == 0)
             {
@@ -125,7 +131,7 @@ internal sealed partial class MachineEmitter
     /// <summary>What an arrow says: its trigger, and whether it is a run or a decision.</summary>
     private static string Label(TransitionModel transition)
     {
-        var trigger = transition.Trigger.Kind switch
+        var trigger = transition.Join is { } join ? $"all({string.Join(", ", join.Events.Select(ShortName))})" : transition.Trigger.Kind switch
         {
             MatchKind.Value => transition.Trigger.Low.ToString(System.Globalization.CultureInfo.InvariantCulture),
             MatchKind.Range => $"{transition.Trigger.Low}..{transition.Trigger.High}",
@@ -135,4 +141,6 @@ internal sealed partial class MachineEmitter
         var kind = transition.IsRun ? " run" : transition.IsDecision ? " decide" : string.Empty;
         return trigger + kind;
     }
+
+    private static string ShortName(string typeName) => typeName.Substring(typeName.LastIndexOfAny(['.', '+']) + 1);
 }

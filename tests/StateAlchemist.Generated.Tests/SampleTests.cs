@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using StateAlchemist.Samples.Crossing;
 using StateAlchemist.Samples.Door;
 using StateAlchemist.Samples.Lines;
+using StateAlchemist.Samples.Orders;
 using StateAlchemist.Samples.Phone;
 using TUnit.Core;
 
@@ -78,6 +79,21 @@ public class SampleTests
         await phone.FireAsync(Button.Hold);
 
         await Assert.That(phone.IsIn<OnHook>()).IsTrue();
+    }
+
+    /// <summary>The order's join: it ships once paid for and reserved, in either order, with both payloads.</summary>
+    [Test]
+    public async Task AnOrderShipsOncePaidForAndReservedInEitherOrder()
+    {
+        await using var order = new OrderMachine();
+        await order.StartAsync();
+
+        await order.FireAsync(new StockReserved { Warehouse = "Leeds" });
+        await Assert.That(order.IsIn<Placed>()).IsTrue();
+
+        await order.FireAsync(new PaymentReceived { Amount = 12 });
+        await Assert.That(order.TryGetShipped(out var shipped)).IsTrue();
+        await Assert.That(shipped.Label).IsEqualTo("12 from Leeds");
     }
 
     /// <summary>The crossing's guard: the light changes early for someone waiting, but not before three seconds.</summary>

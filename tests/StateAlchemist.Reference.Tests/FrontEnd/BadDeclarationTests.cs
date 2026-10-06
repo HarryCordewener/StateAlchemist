@@ -43,6 +43,31 @@ public class BadDeclarationTests
     }
 
     [Test]
+    public async Task AJoinWithAGuardIsSalch0106()
+    {
+        await Assert.That(Problems(typeof(GuardedJoinModule))).IsEqualTo("SALCH0106: 'GuardedJoinModule.Answer' is a join, which cannot have a Guard");
+    }
+
+    [Test]
+    public async Task AJoinMixedWithAnotherTriggerIsSalch0106()
+    {
+        await Assert.That(Problems(typeof(MixedJoinModule))).IsEqualTo("SALCH0106: 'MixedJoinModule.Answer' mixes [OnAll] with other triggers");
+    }
+
+    [Test]
+    public async Task AJoinOfOneEventIsSalch0106()
+    {
+        await Assert.That(Problems(typeof(LonelyJoinModule))).IsEqualTo("SALCH0106: 'LonelyJoinModule.Answer' has an [OnAll] with fewer than two events: use [OnEvent]");
+    }
+
+    [Test]
+    public async Task AJoinTakesOnlyItsOwnEvents()
+    {
+        await Assert.That(Problems(typeof(UnlistedJoinEventModule))).IsEqualTo(
+            "SALCH0204: Parameter 'error' of 'UnlistedJoinEventModule.Answer' cannot be bound: this join waits for Knock, Ring, not 'StateAlchemist.Samples.Telnet.Error'");
+    }
+
+    [Test]
     public async Task TwoModulesClaimingTheSameOptionConflict()
     {
         await Assert.That(Problems(typeof(RivalGmcpModule)))

@@ -58,6 +58,31 @@ public sealed class TransitionDefinition(
     {
     }
 
+    /// <summary>Creates one event's transition of a join (<c>[OnAll]</c>).</summary>
+    /// <param name="index">The transition's position in <see cref="MachineDefinition.Transitions"/>.</param>
+    /// <param name="name">The declaring member, such as <c>Checkout.Ship</c>.</param>
+    /// <param name="source">The source state's index.</param>
+    /// <param name="target">The target state's index, or −1 for a stay.</param>
+    /// <param name="kind">Stay, move or re-entry.</param>
+    /// <param name="trigger">The one event of the join this transition is for.</param>
+    /// <param name="order">Its order among guarded transitions for the same trigger.</param>
+    /// <param name="usesContext">Whether its transform takes the context.</param>
+    /// <param name="joins">Every event the join waits for, as declared.</param>
+    public TransitionDefinition(
+        int index,
+        string name,
+        int source,
+        int target,
+        TransitionKind kind,
+        TriggerDefinition trigger,
+        int order,
+        bool usesContext,
+        IReadOnlyList<Type> joins)
+        : this(index, name, source, target, kind, trigger, order, false, false, usesContext, false, new OutcomeDefinition[0])
+    {
+        Joins = joins ?? throw new ArgumentNullException(nameof(joins));
+    }
+
     /// <summary>The transition's position in <see cref="MachineDefinition.Transitions"/>.</summary>
     public int Index { get; } = index;
 
@@ -96,4 +121,14 @@ public sealed class TransitionDefinition(
     /// outcomes the front-end could not resolve.
     /// </summary>
     public IReadOnlyList<OutcomeDefinition> Outcomes { get; } = outcomes ?? throw new ArgumentNullException(nameof(outcomes));
+
+    /// <summary>
+    /// For a join (<c>[OnAll]</c>), every event it waits for, as declared; empty for every other transition. A join
+    /// is one transition per event, each with that event as its <see cref="Trigger"/> and the same
+    /// <see cref="Name"/>.
+    /// </summary>
+    public IReadOnlyList<Type> Joins { get; } = new Type[0];
+
+    /// <summary>Whether it is one event's transition of a join.</summary>
+    public bool IsJoin => Joins.Count > 0;
 }
