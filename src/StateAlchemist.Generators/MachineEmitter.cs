@@ -22,6 +22,7 @@ internal sealed partial class MachineEmitter
     private static readonly string[] ExceptionPhases = ["Guard", "Transform", "Exited", "Entered", "Completed"];
 
     private readonly SymbolMachine _machine;
+    private readonly bool _lockType;
     private readonly MachineModel _model;
     private readonly Hierarchy _hierarchy;
     private readonly Resolver _resolver;
@@ -31,9 +32,10 @@ internal sealed partial class MachineEmitter
     private readonly SortedSet<(int Transition, int Leaf)> _transitions = [];
     private readonly SortedSet<(int Transition, int Leaf)> _guards = [];
 
-    private MachineEmitter(SymbolMachine machine)
+    private MachineEmitter(SymbolMachine machine, bool lockType)
     {
         _machine = machine;
+        _lockType = lockType;
         _model = machine.Model;
         _hierarchy = new Hierarchy(_model.States);
         _resolver = new Resolver(_model, _hierarchy);
@@ -42,7 +44,9 @@ internal sealed partial class MachineEmitter
     }
 
     /// <summary>The machine's source.</summary>
-    public static string Emit(SymbolMachine machine) => new MachineEmitter(machine).Write();
+    /// <param name="machine">The machine.</param>
+    /// <param name="lockType">Whether the inbox can lock a <c>System.Threading.Lock</c> instead of an <c>object</c>.</param>
+    public static string Emit(SymbolMachine machine, bool lockType) => new MachineEmitter(machine, lockType).Write();
 
     private string V => Name(_machine.Value!);
 

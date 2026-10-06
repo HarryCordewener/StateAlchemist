@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using StateAlchemist.Model;
 
@@ -47,7 +48,18 @@ public sealed class MachineGenerator : IIncrementalGenerator
             .Select(d => DiagnosticInfo.From(d, built.Locations.TryGetValue(d.Location, out var location) ? location : fallback))
             .ToArray();
         var hint = machine.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).Replace("global::", string.Empty) + ".g.cs";
-        var source = diagnostics.Any(d => d.Severity == Severity.Error) ? null : MachineEmitter.Emit(built);
+        var source = diagnostics.Any(d => d.Severity == Severity.Error) ? null : MachineEmitter.Emit(built, HasLockType(compilation));
         return new GeneratedMachine(hint, source, new EquatableArray<DiagnosticInfo>(infos));
     }
+
+    /// <summary>
+    /// Whether <c>lock</c> on a <c>System.Threading.Lock</c> compiles to its <c>EnterScope</c>: the type is there
+    /// (.NET 9 on) and the application can see it, and the language is C# 13 or later. A reference can carry an
+    /// internal polyfill of the type, which the generated field could not name. 1300 is C# 13, which Roslyn 4.8 has
+    /// no name for.
+    /// </summary>
+    internal static bool HasLockType(Compilation compilation) =>
+        compilation is CSharpCompilation { LanguageVersion: >= (LanguageVersion)1300 } &&
+        compilation.GetTypeByMetadataName("System.Threading.Lock") is { } type &&
+        compilation.IsSymbolAccessibleWithin(type, compilation.Assembly);
 }
