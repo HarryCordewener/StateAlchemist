@@ -45,3 +45,8 @@ Forgetting to start is caught twice:
 `StopAsync` cancels a pending [decision](decisions.md), then runs `[Exited]` actions from the active leaf up to the
 root. `DisposeAsync` stops the machine if it was started, and does nothing if it was not. Stopping twice is
 harmless.
+
+## Restoring
+
+A machine restored from a [snapshot](snapshots.md) before it starts is already in its states: its `StartAsync`
+runs no `[Entered]` actions.

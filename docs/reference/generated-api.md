@@ -36,6 +36,14 @@ where the module is written, by the [analyzer](diagnostics.md#which-component-re
 | `ValueTask DisposeAsync()` | Stops the machine if it was started. |
 | `MachineStatus Status` | `NotStarted`, `Running` or `Stopped`. |
 
+## Snapshots
+
+| Member | |
+|---|---|
+| `Snapshot TakeSnapshot()` | Copies the active leaf, the data of the active states, recorded history and join arrivals. Throws while the machine is processing input or a decision is pending. See [snapshots](../concepts/snapshots.md). |
+| `void Restore(Snapshot snapshot)` | Before `StartAsync` only: puts the machine in the snapshot's state and runs nothing; the `StartAsync` that follows runs no `[Entered]` actions. |
+| `Snapshot`, `SnapshotStates` | The snapshot's classes: settable properties, one per state, named by `StateId`. A machine with history or joins also gets `SnapshotHistory` and `SnapshotJoins`. |
+
 ## State
 
 | Member | |

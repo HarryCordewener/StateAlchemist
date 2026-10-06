@@ -17,6 +17,8 @@ internal sealed partial class MachineEmitter
         using (_w.Block($"public {ValueTaskType} StartAsync()"))
         {
             _w.Line($"if (_status != {Rt}MachineStatus.NotStarted) return Faulted(new global::System.InvalidOperationException(\"The machine has already been started.\"));");
+            // A restored machine's states were entered before its snapshot was taken: starting it only lets it run.
+            _w.Line($"if (_restored) {{ _status = {Rt}MachineStatus.Running; return default({ValueTaskType}); }}");
             _w.Line("return Start();");
         }
 
