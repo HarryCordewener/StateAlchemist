@@ -115,7 +115,7 @@ public class DocumentationTests
     {
         var reference = File.ReadAllText(Path.Combine(Docs(), "reference", "generated-api.md"));
         // The hooks are private partial methods, so they are looked up too — an application implements them.
-        var members = new[] { typeof(MudTelnet), typeof(TelnetMachine), typeof(RecorderMachine) }
+        var members = new[] { typeof(MudTelnet), typeof(TelnetMachine), typeof(RecorderMachine), typeof(TimingHandledMachine) }
             .SelectMany(type => type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
             .Select(m => m.Name)
             .ToHashSet();

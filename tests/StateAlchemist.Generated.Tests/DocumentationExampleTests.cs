@@ -1,5 +1,8 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Time.Testing;
+using StateAlchemist.Samples.Login;
 using StateAlchemist.Samples.Radio;
 using StateAlchemist.Samples.Telnet;
 using TUnit.Core;
@@ -46,6 +49,27 @@ public class DocumentationExampleTests
 
         await Assert.That(telnet.Status).IsEqualTo(MachineStatus.Stopped);
         await Assert.That(context.Log).IsEquivalentTo(new[] { "ready" });
+    }
+
+    /// <summary>Quoted by the timers page.</summary>
+    [Test]
+    public async Task ATestMovesTheMachinesClock()
+    {
+        // begin-snippet: sample-login-clock
+        var clock = new FakeTimeProvider();
+        var context = new SessionContext { IdleLimit = TimeSpan.FromMinutes(5) };
+        await using var login = new LoginMachine(context, clock);
+        await login.StartAsync();                          // Prompting's 30-second timer starts
+        await login.FireAsync((byte)1);                    // logged in: that timer is cancelled, Playing's starts
+
+        clock.Advance(TimeSpan.FromMinutes(4));
+        await login.FireAsync((byte)'x');                  // input re-enters Playing: five minutes from now
+        clock.Advance(TimeSpan.FromMinutes(5));            // the timer fires while Advance runs
+        // login.IsIn<Disconnected>() is now true, and context.Log holds "idled".
+        // end-snippet
+
+        await Assert.That(login.IsIn<Disconnected>()).IsTrue();
+        await Assert.That(context.Log).IsEquivalentTo(new[] { "idled" });
     }
 
     // begin-snippet: sample-test-transform

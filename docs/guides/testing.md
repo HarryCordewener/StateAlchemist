@@ -20,7 +20,7 @@ public async Task FinishReadsTheWindowSize()
     await Assert.That((root.Width, root.Height)).IsEqualTo((80, 24));
 }
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L51-L62' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-transform' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L75-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-transform' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 No machine, no context, no mocks. Guards are the same: `NawsModule.Finish.Guard(in escaping)`.
@@ -38,7 +38,7 @@ await Assert.That(plan.Transition).IsEqualTo("TelnetCore.BeginCommand");
 await Assert.That(plan.Target).IsEqualTo(typeof(AwaitingVerb));
 await Assert.That(string.Join(",", plan.Exiting.Select(t => t.Name))).IsEqualTo("Idle");
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L71-L76' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-plan' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L95-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-plan' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `Refused` names the guarded transitions whose guard returned `false` on the way, in the order they were tried,
@@ -73,7 +73,7 @@ public async Task GmcpIsAcceptedAndEverythingElseRefused()
     await Assert.That(telnet.TryGetState(out Connected root) && root.GmcpEnabled).IsTrue();
 }
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L79-L93' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-machine' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L103-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-machine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Tests written against `IMachine<TValue>` do not care what implements it — which is how StateAlchemist tests

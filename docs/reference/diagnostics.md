@@ -129,7 +129,10 @@ small integral type.
 A transition does not name its `From` state, has no trigger, mixes value and event triggers, has an empty range,
 or names a trigger value that is not an integral constant. For a [join](../concepts/triggers.md#joins): an
 `[OnAll]` alongside another trigger, listing fewer than two or more than 32 events or one event twice, or a join
-with a `Guard` or a decision.
+with a `Guard` or a decision. For a [timer](../concepts/timers.md): `[After]` mixed with another trigger or on a
+decision, both `Milliseconds` and `Seconds` set, a negative delay or one longer than 4294967294 milliseconds, no
+delay and no `Delay` method, both a delay and a `Delay` method, or a `Delay` method on a transition that does not
+fire on `[After]`.
 
 ## SALCH0107
 
@@ -188,6 +191,7 @@ The parameter names a state the transition does not touch — a sibling, an unre
 transition declared on a parent, a state that binds differently depending on the active leaf. For a move by
 [history](../concepts/states.md#going-back-with-history), a state under its target: which of those it enters is
 known only when it runs. For a state action, a state that is neither the action's state nor one of its ancestors.
+For a timer's `Delay`, a state that is neither the source nor one of its ancestors.
 
 ## SALCH0203
 
@@ -196,8 +200,8 @@ known only when it runs. For a state action, a state that is neither the action'
 > '{0}' must {1}
 
 `Guard` returns `bool`; `Transform` and `Complete` return `void`; `Completed` returns `void` and
-`CompletedAsync` `ValueTask`; `DecideAsync` returns `ValueTask<TOutcome>`; a decision declares `Decide` or
-`DecideAsync`.
+`CompletedAsync` `ValueTask`; `DecideAsync` returns `ValueTask<TOutcome>`; `Delay` returns `TimeSpan`
+synchronously; a decision declares `Decide` or `DecideAsync`.
 
 ## SALCH0204
 
@@ -207,8 +211,8 @@ known only when it runs. For a state action, a state that is neither the action'
 
 A parameter that is not a state, the value, the event that fired, a run, the configuration, the context, a
 decision outcome, a `CancellationToken` or the transition info — or one of those where its method cannot take it,
-such as a `CancellationToken` on a transform, a value on an event transition, or an event a
-[join](../concepts/triggers.md#joins) does not list.
+such as a `CancellationToken` on a transform, a value on an event or timer transition, an event a
+[join](../concepts/triggers.md#joins) does not list, or a state taken by `ref` in a `Delay`.
 
 ## SALCH0205
 
@@ -222,7 +226,7 @@ See [purity](../concepts/machines.md#purity).
 
 **Unknown phase method** · error · declaring library
 
-> '{0}' is not a phase; a class-form transition may declare Guard, Transform, Decide, DecideAsync, Complete, Completed and CompletedAsync
+> '{0}' is not a phase; a class-form transition may declare Guard, Transform, Delay, Decide, DecideAsync, Complete, Completed and CompletedAsync
 
 In a class-form transition, a method's name says when it runs. A name that is not a phase would never run.
 
@@ -232,7 +236,7 @@ In a class-form transition, a method's name says when it runs. A name that is no
 
 > '{0}' {1}
 
-A phase returning a task is named with `Async`; one that does not is named without. `Guard`, `Transform` and
+A phase returning a task is named with `Async`; one that does not is named without. `Guard`, `Transform`, `Delay` and
 `Complete` run before the state changes and cannot be async. The code fix renames the method.
 
 ## SALCH0208

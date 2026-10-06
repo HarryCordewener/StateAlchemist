@@ -31,6 +31,7 @@ internal sealed partial class MachineEmitter
     private readonly List<INamedTypeSymbol> _events;
     private readonly SortedSet<(int Transition, int Leaf)> _transitions = [];
     private readonly SortedSet<(int Transition, int Leaf)> _guards = [];
+    private readonly IReadOnlyList<TimerModel> _timers;
 
     private MachineEmitter(SymbolMachine machine, bool lockType)
     {
@@ -41,6 +42,7 @@ internal sealed partial class MachineEmitter
         _resolver = new Resolver(_model, _hierarchy);
         _stateIds = StateIds(_model.States);
         _events = machine.Events.OrderBy(e => e.Key, StringComparer.Ordinal).Select(e => e.Value).ToList();
+        _timers = Timers.Of(_model);
     }
 
     /// <summary>The machine's source.</summary>
@@ -53,10 +55,11 @@ internal sealed partial class MachineEmitter
     private bool IsChecked => _model.Options.Concurrency == ConcurrencyMode.Checked;
 
     /// <summary>
-    /// Whether the machine needs the inbox and the pump (spec §6.6, §6.10): it is <c>Serialized</c>, or has an async
-    /// decision, while which it must accept events from other callers. Every other machine runs each call inline.
+    /// Whether the machine needs the inbox and the pump (spec §6.6, §6.10): it is <c>Serialized</c>, has an async
+    /// decision, while which it must accept events from other callers, or has a timer, whose firing comes from another
+    /// thread. Every other machine runs each call inline.
     /// </summary>
-    private bool HasInbox => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.Decision?.DecideAsync is not null);
+    private bool HasInbox => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.Decision?.DecideAsync is not null || t.IsTimer);
 
     private bool HasRuns => _model.Transitions.Any(t => t.IsRun);
 
@@ -94,12 +97,19 @@ internal sealed partial class MachineEmitter
             WritePlans();
             WriteRuns();
             WriteDecisions();
+            if (HasTimers)
+            {
+                WriteTimers();
+            }
+
             WriteTransitions();
             WriteRecalls();
             if (HasInbox)
             {
                 WriteInbox();
             }
+
+            WriteTimerHookSupport();
 
             WriteHooks();
         }
@@ -145,6 +155,11 @@ internal sealed partial class MachineEmitter
         // [Exited] actions running under that stop still read it, and so may an action the stop abandoned. It
         // holds no wait handle and no timer, so it is ordinary garbage once the machine is.
         _w.Line("private global::System.Threading.CancellationTokenSource _lifetime;");
+        if (HasTimers)
+        {
+            WriteTimerStorage();
+        }
+
         if (HasInbox)
         {
             WriteInboxStorage();
@@ -185,7 +200,17 @@ internal sealed partial class MachineEmitter
             parameters.Add($"in {Name(g)} config");
         }
 
+        if (HasTimers)
+        {
+            parameters.Add("global::System.TimeProvider timeProvider = null");
+        }
+
         _w.Line("/// <summary>Creates the machine in its initial state. Runs no actions: call <see cref=\"StartAsync\"/>.</summary>");
+        if (HasTimers)
+        {
+            _w.Line("/// <remarks>Its <c>[After]</c> timers run on <c>timeProvider</c>, or on the system clock when it is <see langword=\"null\"/>.</remarks>");
+        }
+
         using (_w.Block($"public {_machine.Machine.Name}({string.Join(", ", parameters)})"))
         {
             if (_machine.Context is not null)
@@ -196,6 +221,11 @@ internal sealed partial class MachineEmitter
             if (_machine.Config is not null)
             {
                 _w.Line("_config = config;");
+            }
+
+            if (HasTimers)
+            {
+                _w.Line("_time = timeProvider ?? global::System.TimeProvider.System;");
             }
 
             _w.Line($"_leaf = StateId.{_stateIds[_hierarchy.InitialLeaf(_hierarchy.Root)]};");
@@ -371,6 +401,9 @@ internal sealed partial class MachineEmitter
         MatchKind.Value => $"{Rt}TriggerDefinition.ForValue({trigger.Low})",
         MatchKind.Range => $"{Rt}TriggerDefinition.ForRange({trigger.Low}, {trigger.High})",
         MatchKind.Any => $"{Rt}TriggerDefinition.ForAny()",
+        MatchKind.Timer => trigger.DelayedBy is null
+            ? $"{Rt}TriggerDefinition.ForTimer(new global::System.TimeSpan({trigger.Low}L * global::System.TimeSpan.TicksPerMillisecond))"
+            : $"{Rt}TriggerDefinition.ForTimer(null)",
         _ => $"{Rt}TriggerDefinition.ForEvent(typeof({Event(trigger.EventType!)}))",
     };
 
@@ -387,6 +420,13 @@ internal sealed partial class MachineEmitter
             _w.Line();
             _w.Line($"/// <summary>A <see cref=\"{Name(e)}\"/> nothing handles.</summary>");
             _w.Line($"partial void OnUnhandled(StateId state, in {Name(e)} e);");
+        }
+
+        if (HasTimers)
+        {
+            _w.Line();
+            _w.Line("/// <summary>A timer's transition threw, and no phase hook resolved it. A timer has no caller: implement this to see it.</summary>");
+            _w.Line("partial void OnTimerException(global::System.Exception exception, string transition);");
         }
 
         foreach (var phase in ExceptionPhases)

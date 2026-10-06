@@ -5,6 +5,7 @@ using StateAlchemist.Contracts.Machines;
 using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Joins;
 using StateAlchemist.Contracts.Machines.Recalling;
+using Timed = StateAlchemist.Contracts.Machines.Timing;
 using TUnit.Core;
 
 namespace StateAlchemist.Generated.Tests;
@@ -177,5 +178,74 @@ public class SnapshotTests
 
         Assert.Throws<ArgumentException>(() => machine.Restore(snapshot));
         await Assert.That(machine.IsIn<Idle>()).IsTrue();
+    }
+
+    /// <summary>Recording's 60-second timer, snapshotted 50 seconds in.</summary>
+    private static async Task<TimingMachine.Snapshot> FiftySecondsIntoRecording()
+    {
+        var context = new RecordingContext();
+        var machine = new TimingMachine(context, context.Clock);
+        await machine.StartAsync();
+        await machine.FireAsync((byte)1);
+        context.Clock.Advance(TimeSpan.FromSeconds(50));
+        return RoundTrip(machine.TakeSnapshot());
+    }
+
+    [Test]
+    public async Task ASnapshotRecordsWhenEachRunningTimerIsDue()
+    {
+        var snapshot = await FiftySecondsIntoRecording();
+        var started = new RecordingContext().Clock.GetUtcNow();
+        await Assert.That(snapshot.Timers!.TimingModule_GiveUp).IsEqualTo(started.AddSeconds(60));
+        await Assert.That(snapshot.Timers.TimingModule_Dozed).IsNull();
+    }
+
+    [Test]
+    public async Task ARestoredTimerRunsForWhatIsLeftOfIt()
+    {
+        var snapshot = await FiftySecondsIntoRecording();
+        var context = new RecordingContext();
+        context.Clock.Advance(TimeSpan.FromSeconds(50));
+        var restored = new TimingMachine(context, context.Clock);
+        restored.Restore(snapshot);
+        await restored.StartAsync();
+
+        context.Clock.Advance(TimeSpan.FromSeconds(9));
+        await restored.FireAsync((byte)200);
+        await Assert.That(restored.IsIn<Timed.Recording>()).IsTrue();
+
+        context.Clock.Advance(TimeSpan.FromSeconds(1));
+        await restored.FireAsync((byte)200);
+        await Assert.That(restored.IsIn<Timed.TimedOut>()).IsTrue();
+    }
+
+    [Test]
+    public async Task ATimerDueWhileTheSnapshotWasStoredFiresWhenTheMachineStarts()
+    {
+        var snapshot = await FiftySecondsIntoRecording();
+        var context = new RecordingContext();
+        context.Clock.Advance(TimeSpan.FromMinutes(10));
+        var restored = new TimingMachine(context, context.Clock);
+        restored.Restore(snapshot);
+        await restored.StartAsync();
+        await restored.FireAsync((byte)200);
+
+        await Assert.That(restored.IsIn<Timed.TimedOut>()).IsTrue();
+        await Assert.That(context.Trace).IsEqualTo("gave up 1");
+    }
+
+    [Test]
+    public async Task ASnapshotOfAMachineNotYetStartedStartsItsTimersAfresh()
+    {
+        var context = new RecordingContext();
+        var snapshot = RoundTrip(new TimingMachine(context, context.Clock).TakeSnapshot());
+        await Assert.That(snapshot.Timers).IsNull();
+
+        var restored = new TimingMachine(context, context.Clock);
+        restored.Restore(snapshot);
+        await restored.StartAsync();
+        context.Clock.Advance(TimeSpan.FromSeconds(3600));
+        await restored.FireAsync((byte)200);
+        await Assert.That(restored.IsIn<Timed.TimedOut>()).IsTrue();
     }
 }

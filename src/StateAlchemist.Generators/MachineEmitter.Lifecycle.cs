@@ -18,11 +18,20 @@ internal sealed partial class MachineEmitter
         {
             _w.Line($"if (_status != {Rt}MachineStatus.NotStarted) return Faulted(new global::System.InvalidOperationException(\"The machine has already been started.\"));");
             // A restored machine's states were entered before its snapshot was taken: starting it only lets it run.
-            _w.Line($"if (_restored) {{ _status = {Rt}MachineStatus.Running; return default({ValueTaskType}); }}");
+            _w.Line(HasTimers ? "if (_restored) return StartRestored();" : $"if (_restored) {{ _status = {Rt}MachineStatus.Running; return default({ValueTaskType}); }}");
             _w.Line("return Start();");
         }
 
-        WriteLifecycleActions("Start", starting, $"_status = {Rt}MachineStatus.Running;", null);
+        // The initial path's timers are armed once the machine is running, so a firing is never refused as early.
+        var started = $"_status = {Rt}MachineStatus.Running;";
+        var initialTimers = TimersOn(initialPath);
+        if (initialTimers.Count > 0)
+        {
+            started = string.Concat(initialTimers.Select(t => $"var delay{Num(t.Index)} = Delay{Num(t.Index)}(); "))
+                      + ArmStatements(initialTimers, [], t => $"delay{Num(t.Index)}", started + " ");
+        }
+
+        WriteLifecycleActions("Start", starting, started, null);
 
         _w.Line();
         _w.Line("/// <summary>Whether a stop has already been claimed: two threads must not both run the exit actions.</summary>");

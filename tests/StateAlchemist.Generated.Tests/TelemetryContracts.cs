@@ -103,3 +103,16 @@ public sealed class TelemetryJoins : JoinContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => TelemetryHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class TelemetryTimers : TimerContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => TelemetryHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class TelemetrySerializedTimers : TimerContract
+{
+    protected override MachineShape Shape => Shapes.TimingSerialized;
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => TelemetryHarness.Create(shape, context, hooks);
+}

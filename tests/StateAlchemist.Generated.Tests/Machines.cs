@@ -8,6 +8,7 @@ using StateAlchemist.Contracts.Machines.Joins;
 using StateAlchemist.Contracts.Machines.Recalling;
 using StateAlchemist.Contracts.Machines.Recording;
 using StateAlchemist.Contracts.Machines.Runs;
+using StateAlchemist.Contracts.Machines.Timing;
 using StateAlchemist.Samples.Telnet;
 
 namespace StateAlchemist.Generated.Tests;
@@ -149,4 +150,35 @@ public sealed partial class JoinsMachine
     public ContractHooks? Hooks { get; set; }
 
     partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
+}
+
+[Machine(Root = typeof(TimeRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(TimingModule))]
+public sealed partial class TimingMachine
+{
+    public ContractHooks? Hooks { get; set; }
+
+    partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
+}
+
+[Machine(Root = typeof(TimeRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(TimingModule))]
+public sealed partial class TimingHandledMachine
+{
+    public ContractHooks? Hooks { get; set; }
+
+    partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
+
+    partial void OnTimerException(Exception exception, string transition) => Hooks!.TimerException(exception, transition);
+}
+
+[Machine(Root = typeof(TimeRoot), Value = typeof(byte), Context = typeof(RecordingContext), Concurrency = Concurrency.Serialized)]
+[Include(typeof(TimingModule))]
+public sealed partial class TimingSerializedMachine
+{
+    public ContractHooks? Hooks { get; set; }
+
+    partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
+
+    partial void OnTimerException(Exception exception, string transition) => Hooks?.TimerException(exception, transition);
 }

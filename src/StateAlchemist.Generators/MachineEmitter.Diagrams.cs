@@ -159,6 +159,7 @@ internal sealed partial class MachineEmitter
             MatchKind.Value => transition.Trigger.Low.ToString(System.Globalization.CultureInfo.InvariantCulture),
             MatchKind.Range => $"{transition.Trigger.Low}..{transition.Trigger.High}",
             MatchKind.Any => "any",
+            MatchKind.Timer => transition.Trigger.ToString(),
             _ => transition.Trigger.EventType is { } name ? name.Substring(name.LastIndexOf('.') + 1) : "event",
         };
         var kind = transition.IsRun ? " run" : transition.IsDecision ? " decide" : string.Empty;

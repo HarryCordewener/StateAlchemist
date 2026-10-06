@@ -46,6 +46,27 @@ internal sealed partial class MachineEmitter
                 _w.Line("/// <summary>What each join whose source is active has received.</summary>");
                 _w.Line("public SnapshotJoins Joins { get; set; }");
             }
+
+            if (HasTimers)
+            {
+                _w.Line();
+                _w.Line("/// <summary>When each running timer is due; null from a machine that had not started, whose active states' timers then start afresh.</summary>");
+                _w.Line("public SnapshotTimers Timers { get; set; }");
+            }
+        }
+
+        if (HasTimers)
+        {
+            _w.Line();
+            _w.Line("/// <summary>When each timer is due, one property per timer, named by its transition.</summary>");
+            using (_w.Block("public sealed class SnapshotTimers"))
+            {
+                foreach (var timer in _timers)
+                {
+                    _w.Line($"/// <summary>When <c>{timer.Name}</c> is due, as a UTC instant; null when it is not running.</summary>");
+                    _w.Line($"public global::System.DateTimeOffset? {TimerProperty(timer)} {{ get; set; }}");
+                }
+            }
         }
 
         _w.Line();
@@ -184,6 +205,31 @@ internal sealed partial class MachineEmitter
                 }
             }
 
+            if (HasTimers)
+            {
+                // A running timer is due when it was armed plus its delay; one restored but not yet started keeps the
+                // due time it was restored with. A machine never started has no timers running yet: null.
+                using (_w.Block($"if (_status == {Rt}MachineStatus.Running)"))
+                {
+                    _w.Line("snapshot.Timers = new SnapshotTimers();");
+                    _w.Line("var now = _time.GetUtcNow();");
+                    foreach (var timer in _timers)
+                    {
+                        var k = Num(timer.Index);
+                        _w.Line($"if (_armed{k}) snapshot.Timers.{TimerProperty(timer)} = now + (_armedFor{k} - _time.GetElapsedTime(_armedAt{k}));");
+                    }
+                }
+
+                using (_w.Block("else if (_restoredTimers)"))
+                {
+                    _w.Line("snapshot.Timers = new SnapshotTimers();");
+                    foreach (var timer in _timers)
+                    {
+                        _w.Line($"snapshot.Timers.{TimerProperty(timer)} = _restoredDue{Num(timer.Index)};");
+                    }
+                }
+            }
+
             _w.Line("return snapshot;");
         }
 
@@ -264,7 +310,22 @@ internal sealed partial class MachineEmitter
                 }
             }
 
+            if (HasTimers)
+            {
+                _w.Line("var timers = snapshot.Timers;");
+                _w.Line("_restoredTimers = timers != null;");
+                foreach (var timer in _timers)
+                {
+                    _w.Line($"_restoredDue{Num(timer.Index)} = timers != null && IsIn(StateId.{_stateIds[timer.Source]}) ? timers.{TimerProperty(timer)} : null;");
+                }
+            }
+
             _w.Line("_restored = true;");
+        }
+
+        if (HasTimers)
+        {
+            WriteStartRestored();
         }
 
         _w.Line();
@@ -282,6 +343,41 @@ internal sealed partial class MachineEmitter
             }
         }
     }
+
+    /// <summary>
+    /// The <c>StartAsync</c> after <c>Restore</c>: each recorded timer runs for what is left of it, and one already due
+    /// fires at once. A snapshot without timers starts the active states' timers afresh.
+    /// </summary>
+    private void WriteStartRestored()
+    {
+        _w.Line();
+        using (_w.Block($"private {ValueTaskType} StartRestored()"))
+        {
+            _w.Line("var now = _time.GetUtcNow();");
+            foreach (var timer in _timers)
+            {
+                var k = Num(timer.Index);
+                _w.Line($"var delay{k} = {TimeSpanType}.Zero;");
+                _w.Line($"var start{k} = false;");
+                _w.Line($"if (_restoredTimers) {{ if (_restoredDue{k}.HasValue) {{ delay{k} = _restoredDue{k}.Value - now; start{k} = true; }} }}");
+                _w.Line($"else if (IsIn(StateId.{_stateIds[timer.Source]})) {{ delay{k} = Delay{k}(); start{k} = true; }}");
+            }
+
+            var before = string.Concat(_timers.Select(t => $"var due{Num(t.Index)} = false; var generation{Num(t.Index)} = 0; "));
+            var inside = string.Concat(_timers.Select(t =>
+                $"if (start{Num(t.Index)}) {{ due{Num(t.Index)} = Arm{Num(t.Index)}(delay{Num(t.Index)}); generation{Num(t.Index)} = _armedGeneration{Num(t.Index)}; }} "));
+            _w.Line($"{before}lock (_sync) {{ _status = {Rt}MachineStatus.Running; {inside}}}");
+            foreach (var timer in _timers)
+            {
+                _w.Line($"if (due{Num(timer.Index)}) SubmitTimer({Num(timer.Index)}, generation{Num(timer.Index)});");
+            }
+
+            _w.Line($"return default({ValueTaskType});");
+        }
+    }
+
+    /// <summary>A timer's property in <c>SnapshotTimers</c>: its transition's name, with the module's dot made an underscore.</summary>
+    private static string TimerProperty(StateAlchemist.Model.TimerModel timer) => timer.Name.Replace('.', '_').Replace('+', '_');
 
     private string LeafUnder(int state, string local) =>
         "(" + string.Join(" || ", _hierarchy.LeavesUnder(state).Select(l => $"{local} == StateId.{_stateIds[l]}")) + ")";

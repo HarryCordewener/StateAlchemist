@@ -13,7 +13,7 @@ namespace StateAlchemist.Generators;
 /// </summary>
 internal static class SymbolModelBuilder
 {
-    private static readonly string[] TransitionPhases = ["Guard", "Transform", "Completed", "CompletedAsync"];
+    private static readonly string[] TransitionPhases = ["Guard", "Transform", "Delay", "Completed", "CompletedAsync"];
     private static readonly string[] DecisionPhases = ["Guard", "Decide", "DecideAsync", "Complete", "Completed", "CompletedAsync"];
 
     /// <summary>Builds the model of <paramref name="machine"/>. Problems become diagnostics; nothing throws for a bad declaration.</summary>
@@ -375,7 +375,8 @@ internal static class SymbolModelBuilder
                 yield break;
             }
 
-            var triggers = Triggers(member, name, location, out var join);
+            var classMethods = declaration.Class?.GetMembers().OfType<IMethodSymbol>().Where(m => m.MethodKind == MethodKind.Ordinary).ToList() ?? [];
+            var triggers = Triggers(member, name, location, declaration.IsDecision, classMethods.Any(m => m.Name == "Delay"), out var join);
             if (triggers.Count == 0)
             {
                 yield break;
@@ -383,7 +384,6 @@ internal static class SymbolModelBuilder
 
             var declaringType = declaration.Class is null ? DisplayName(declaration.Module) : DisplayName(declaration.Class);
             var outcomes = declaration.IsDecision ? OutcomesOf(declaration.Class!) : [];
-            var classMethods = declaration.Class?.GetMembers().OfType<IMethodSymbol>().Where(m => m.MethodKind == MethodKind.Ordinary).ToList() ?? [];
             MethodModel? Phase(string phase) => classMethods.FirstOrDefault(m => m.Name == phase) is { } method
                 ? MethodModelOf(method, declaringType, stateIndex, outcomes)
                 : null;
@@ -423,11 +423,12 @@ internal static class SymbolModelBuilder
             foreach (var trigger in triggers)
             {
                 yield return new TransitionModel(0, name, source, target, trigger, declaration.Order, isRun, Phase("Guard"), transform,
-                    Phases("Completed", "CompletedAsync"), decision, unknown, MetadataName(declaration.Module), location, join, declaration.History);
+                    Phases("Completed", "CompletedAsync"), decision, unknown, MetadataName(declaration.Module), location, join, declaration.History,
+                    declaration.IsDecision ? null : Phase("Delay"));
             }
         }
 
-        private List<TriggerModel> Triggers(ISymbol member, string name, SourceSpan location, out JoinModel? join)
+        private List<TriggerModel> Triggers(ISymbol member, string name, SourceSpan location, bool isDecision, bool hasDelay, out JoinModel? join)
         {
             join = null;
             var triggers = new List<TriggerModel>();
@@ -509,6 +510,31 @@ internal static class SymbolModelBuilder
                 var events = listed.Select(t => Event(t!)).ToList();
                 join = new JoinModel(events);
                 triggers.AddRange(events.Select(TriggerModel.Event));
+            }
+
+            if (attributes.FirstOrDefault(a => Is(a.AttributeClass, known.After)) is { } after)
+            {
+                if (triggers.Count > 0 || onEvent is not null)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "mixes [After] with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "is a decision, which cannot fire on [After]"));
+                    return [];
+                }
+
+                if (Timers.Trigger(name, IntArgument(after, "Milliseconds"), IntArgument(after, "Seconds"), hasDelay, out var problem) is { } timer)
+                {
+                    triggers.Add(timer);
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, problem!));
+                    return [];
+                }
             }
 
             if (triggers.Count == 0)
@@ -675,6 +701,7 @@ internal static class SymbolModelBuilder
             _ when type.SpecialType == SpecialType.System_Boolean => ReturnShape.Bool,
             _ when Is(type, known.ValueTask) => ReturnShape.ValueTask,
             _ when Is(type, known.Task) => ReturnShape.Task,
+            _ when Is(type, known.TimeSpan) => ReturnShape.TimeSpan,
             INamedTypeSymbol { IsGenericType: true } g when Is(g.OriginalDefinition, known.ValueTaskOfT) => ReturnShape.ValueTaskOfResult,
             INamedTypeSymbol { IsGenericType: true } g when Is(g.OriginalDefinition, known.TaskOfT) => ReturnShape.TaskOfResult,
             _ => ReturnShape.Other,

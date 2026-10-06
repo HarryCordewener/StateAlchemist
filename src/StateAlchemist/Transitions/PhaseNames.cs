@@ -14,6 +14,9 @@ public static class PhaseNames
     /// <summary>Turn the source into the target. <c>static void</c>, synchronous.</summary>
     public const string Transform = "Transform";
 
+    /// <summary>How long an <see cref="AfterAttribute"/> timer waits, computed when its state is entered. Returns <c>TimeSpan</c>.</summary>
+    public const string Delay = "Delay";
+
     /// <summary>Choose a decision's outcome, synchronously. Returns the outcome union.</summary>
     public const string Decide = "Decide";
 
@@ -31,5 +34,5 @@ public static class PhaseNames
 
     /// <summary>Every phase name, imperative first.</summary>
     public static IReadOnlyList<string> All { get; } =
-        [Guard, Transform, Decide, DecideAsync, Complete, Completed, CompletedAsync];
+        [Guard, Transform, Delay, Decide, DecideAsync, Complete, Completed, CompletedAsync];
 }

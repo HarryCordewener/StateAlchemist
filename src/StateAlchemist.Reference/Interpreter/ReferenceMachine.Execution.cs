@@ -25,6 +25,11 @@ public sealed partial class ReferenceMachine<TValue>
     /// <summary>One trigger, resolved and run. True when it started an async decision, which pauses its input.</summary>
     private async ValueTask<bool> RunTriggerAsync(Trigger trigger, Work owner)
     {
+        if (trigger.Event is Armed armed)
+        {
+            return await RunTimerAsync(armed, owner);
+        }
+
         var chosen = Choose(Candidates(trigger), trigger, hooks: true);
         if (chosen is null)
         {
@@ -158,20 +163,46 @@ public sealed partial class ReferenceMachine<TValue>
             WriteBack(transform, arguments);
         }
 
-        // 4. commit. A move leaves the pending state below the leaf, if there is one, which ends its decision.
+        // The entered states' timers' delays, which a Delay method computes from the new data. A Delay that throws is
+        // a transform that throws: nothing commits.
+        List<(TimerModel Timer, TimeSpan Delay)> delays;
+        try
+        {
+            delays = Delays(path.Entering);
+        }
+        catch (Exception exception)
+        {
+            foreach (var (state, snapshot) in snapshots)
+            {
+                _slots[state] = snapshot;
+            }
+
+            if (Resolve(exception, info) == ExceptionResolution.Rethrow)
+            {
+                ExceptionDispatchInfo.Capture(exception).Throw();
+            }
+
+            return;
+        }
+
+        // 4. commit. A move leaves the pending state below the leaf, if there is one, which ends its decision. The
+        // exited states' timers are cancelled, and the entered states' armed.
         _leaf = path.TargetLeaf;
         foreach (var state in path.Exiting)
         {
             _recorded[state] = path.Leaf;
         }
-        if (path.Exiting.Count > 0)
+
+        if (path.Exiting.Count > 0 || path.Entering.Count > 0)
         {
             lock (_sync)
             {
-                if (_pending is { } pending)
+                if (path.Exiting.Count > 0 && _pending is { } pending)
                 {
                     EndPending(pending);
                 }
+
+                Rearm(path.Exiting, delays);
             }
         }
 
@@ -345,6 +376,11 @@ public sealed partial class ReferenceMachine<TValue>
 
     private void Unhandled(Trigger trigger)
     {
+        if (trigger.Timer is not null)
+        {
+            return;
+        }
+
         if (trigger.HasValue)
         {
             _hooks.UnhandledValue?.Invoke(StateType, trigger.Value);

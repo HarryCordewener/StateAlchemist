@@ -22,6 +22,7 @@ namespace StateAlchemist.Model;
 /// <param name="Location">Where it is declared.</param>
 /// <param name="Join">For a join (<c>[OnAll]</c>), every event it waits for; this model is the one for <see cref="Trigger"/>'s event.</param>
 /// <param name="History">Whether a move into a state with children enters what was last active there.</param>
+/// <param name="Delay">Its <c>Delay</c>, for a timer whose delay is computed.</param>
 public sealed record TransitionModel(
     int Index,
     string Name,
@@ -38,13 +39,17 @@ public sealed record TransitionModel(
     string Module,
     SourceSpan Location,
     JoinModel? Join = null,
-    HistoryKind History = HistoryKind.None)
+    HistoryKind History = HistoryKind.None,
+    MethodModel? Delay = null)
 {
     /// <summary>Stay, move or re-entry.</summary>
     public MoveKind Kind => Target < 0 ? MoveKind.Stay : Target == Source ? MoveKind.Reenter : MoveKind.Move;
 
     /// <summary>Whether it declares a guard.</summary>
     public bool IsGuarded => Guard is not null;
+
+    /// <summary>Whether it fires on a timer.</summary>
+    public bool IsTimer => Trigger.Kind == MatchKind.Timer;
 
     /// <summary>Whether it is a decision.</summary>
     public bool IsDecision => Decision is not null;
@@ -65,6 +70,11 @@ public sealed record TransitionModel(
             if (Transform is not null)
             {
                 yield return Transform;
+            }
+
+            if (Delay is not null)
+            {
+                yield return Delay;
             }
 
             if (Decision?.Decide is not null)

@@ -36,6 +36,7 @@ public enum ReturnShape
     ValueTaskOfResult,
     Task,
     TaskOfResult,
+    TimeSpan,
     Other,
 }
 
@@ -46,6 +47,7 @@ public enum MatchKind
     Range,
     Any,
     Event,
+    Timer,
 }
 
 /// <summary>What a transition does to the active path.</summary>

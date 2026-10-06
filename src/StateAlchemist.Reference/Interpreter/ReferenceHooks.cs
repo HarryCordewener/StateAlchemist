@@ -27,4 +27,10 @@ public sealed class ReferenceHooks<TValue>
 
     /// <summary>A phase threw: <c>On{Phase}Exception</c>. The phase is <see cref="TransitionInfo{TValue}.Phase"/>.</summary>
     public ExceptionHook? Exception { get; set; }
+
+    /// <summary>
+    /// A timer's transition threw, and nothing resolved it: <c>OnTimerException(Exception, string)</c>, with the
+    /// transition's name. A timer has no caller, so the exception goes nowhere else.
+    /// </summary>
+    public Action<Exception, string>? TimerException { get; set; }
 }

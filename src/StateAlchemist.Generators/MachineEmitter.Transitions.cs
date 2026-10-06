@@ -109,12 +109,27 @@ internal sealed partial class MachineEmitter
                 Clear(state);
             }
 
-            // 3. transform: nothing has committed, so a failure puts back what step 2 started over
+            // 3. transform: nothing has committed, so a failure puts back what step 2 started over. The entered states'
+            // timers' delays are read here too, after the transform, so a Delay reads the new data; one that throws is
+            // a transform that throws.
+            var arming = HasTimers ? TimersOn(path.Entering) : [];
+            var statements = new List<string>();
             if (transform is not null)
             {
-                var call = transition.IsRun
+                statements.Add(transition.IsRun
                     ? $"{name}_Run(run);"
-                    : $"{Owner(transform)}({Arguments(transform, Use.Transform, transition, path, startedOver)});";
+                    : $"{Owner(transform)}({Arguments(transform, Use.Transform, transition, path, startedOver)});");
+            }
+
+            foreach (var timer in arming)
+            {
+                _w.Line($"{TimeSpanType} delay{Num(timer.Index)};");
+                statements.Add($"delay{Num(timer.Index)} = Delay{Num(timer.Index)}();");
+            }
+
+            if (statements.Count > 0)
+            {
+                var call = string.Join(" ", statements);
                 var hook = Implements("OnTransformException");
                 if (startedOver.Count == 0 && startedOverJoins.Count == 0 && !hook)
                 {
@@ -147,12 +162,19 @@ internal sealed partial class MachineEmitter
                 }
             }
 
-            // 4. commit. A move leaves any pending decision's state, which sits below the leaf: the decision ends.
+            // 4. commit. A move leaves any pending decision's state, which sits below the leaf: the decision ends. The
+            // exited states' timers are cancelled and the entered states' armed.
             _w.Line($"_leaf = StateId.{_stateIds[path.TargetLeaf]};");
             WriteRecording(path);
             if (Deciding && path.Exiting.Count > 0)
             {
                 _w.Line("lock (_sync) { if (_pending != null) EndPending(_pending); }");
+            }
+
+            var disarming = HasTimers ? TimersOn(path.Exiting) : [];
+            if (arming.Count + disarming.Count > 0)
+            {
+                _w.Line(ArmStatements(arming, disarming, t => $"delay{Num(t.Index)}"));
             }
 
             var cleared = path.Exiting.Where(s => !startedOver.Contains(s)).ToList();
@@ -323,19 +345,21 @@ internal sealed partial class MachineEmitter
     private string Info(TransitionModel transition, TransitionPath path, string phase, int state = -1, string? kind = null)
     {
         var isEvent = transition.Trigger.Kind == MatchKind.Event;
+        var isValue = transition.Trigger.IsValue;
         return $"new {Rt}TransitionInfo<{V}>({Literal(transition.Name)}, typeof({S(transition.Source)}), typeof({S(path.Leaf)}), {TargetType(transition, path, phase)}, " +
-               $"{Rt}TransitionKind.{kind ?? transition.Kind.ToString()}, {Rt}Phase.{phase}, {(isEvent ? $"default({V})" : "value")}, {Bool(!isEvent)}, " +
+               $"{Rt}TransitionKind.{kind ?? transition.Kind.ToString()}, {Rt}Phase.{phase}, {(isValue ? "value" : $"default({V})")}, {Bool(isValue)}, " +
                $"{(isEvent ? $"typeof({Event(transition.Trigger.EventType!)})" : "null")}, {(state < 0 ? "null" : $"typeof({S(state)})")})";
     }
 
     /// <summary>The name of <see cref="TriggerParameter"/>'s parameter.</summary>
     private static string TriggerArgumentName(TransitionModel transition) =>
-        transition.IsJoin ? "join" : transition.Trigger.Kind == MatchKind.Event ? "e" : transition.IsRun ? "run" : "value";
+        transition.IsJoin ? "join" : transition.Trigger.Kind == MatchKind.Event ? "e" : transition.IsTimer ? string.Empty : transition.IsRun ? "run" : "value";
 
     /// <summary>What fires a transition, as its generated methods take it: the value, the event, or a run.</summary>
     private string TriggerParameter(TransitionModel transition, bool forGuard = false) =>
         transition.IsJoin ? $"{JoinType(JoinOf(transition))} join"
         : transition.Trigger.Kind == MatchKind.Event ? $"{Event(transition.Trigger.EventType!)} e"
+        : transition.IsTimer ? string.Empty
         : transition.IsRun && !forGuard ? $"global::System.ReadOnlyMemory<{V}> run"
         : $"{V} value";
 

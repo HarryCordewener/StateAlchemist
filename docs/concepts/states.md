@@ -175,7 +175,7 @@ await radio.FireAsync(Knob.Power);   // off
 await radio.FireAsync(Knob.Power);   // on again, by history: AM
 // radio.State == CarRadio.StateId.Am
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L99-L108' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-radio-run' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L123-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-radio-run' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 - **`History.Deep`** enters the leaf that was active. **`History.Shallow`** enters the child that was active, then

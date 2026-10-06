@@ -32,6 +32,7 @@ public static class ModelText
 
             Method(text, "guard", t.Guard);
             Method(text, "transform", t.Transform);
+            Method(text, "delay", t.Delay);
             foreach (var completed in t.Completed)
             {
                 Method(text, "completed", completed);

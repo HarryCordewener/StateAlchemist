@@ -5,6 +5,15 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- Timers that belong to a state: `[After(Seconds = 30)]` fires a transition when its source state has been active
+  that long, and a `Delay` method sets a delay known only at runtime. The timer starts when the state is entered,
+  is cancelled when it is exited or the machine stops, and fires through the machine's inbox, so it never races a
+  caller. A machine with a timer takes an optional `TimeProvider`, and reports what a timer's transition throws to
+  a new `OnTimerException` hook. `TriggerKind.Timer`, `TriggerDefinition.ForTimer` and `TriggerDefinition.Delay`
+  describe one in `MachineDefinition`. The `netstandard2.0` build of the package now depends on
+  `Microsoft.Bcl.TimeProvider`. A snapshot records when each running timer is due, and the machine restored from it
+  fires the timer then. See [timers](docs/concepts/timers.md).
+  ([#19](https://github.com/HarryCordewener/StateAlchemist/issues/19))
 - Snapshot and restore. The generator adds `TakeSnapshot()`, which copies the active leaf, the data of each active
   state, what each history state recorded and what each active join has received into a generated `Snapshot` class
   of settable properties, and `Restore(snapshot)`, which puts a machine that has not been started into that state

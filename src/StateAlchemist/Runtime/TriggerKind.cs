@@ -14,4 +14,7 @@ public enum TriggerKind
 
     /// <summary>An event type.</summary>
     Event,
+
+    /// <summary>A timer that belongs to the source state: see <see cref="AfterAttribute"/>.</summary>
+    Timer,
 }

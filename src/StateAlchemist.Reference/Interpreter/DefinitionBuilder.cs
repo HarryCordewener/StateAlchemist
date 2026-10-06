@@ -59,6 +59,7 @@ internal static class DefinitionBuilder
         MatchKind.Value => TriggerDefinition.ForValue(trigger.Low),
         MatchKind.Range => TriggerDefinition.ForRange(trigger.Low, trigger.High),
         MatchKind.Any => TriggerDefinition.ForAny(),
+        MatchKind.Timer => TriggerDefinition.ForTimer(trigger.DelayedBy is null ? TimeSpan.FromTicks(trigger.Low * TimeSpan.TicksPerMillisecond) : null),
         _ => TriggerDefinition.ForEvent(FindType(trigger.EventType!)),
     };
 

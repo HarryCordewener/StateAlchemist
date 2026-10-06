@@ -67,7 +67,7 @@ public static class DiagnosticCatalog
         "'{0}' takes the context, which machine '{1}' forbids with Purity.Strict", App);
 
     public static readonly DiagnosticDescriptor UnknownPhase = new("SALCH0206", Severity.Error, "Unknown phase method",
-        "'{0}' is not a phase; a class-form transition may declare Guard, Transform, Decide, DecideAsync, Complete, Completed and CompletedAsync", Library);
+        "'{0}' is not a phase; a class-form transition may declare Guard, Transform, Delay, Decide, DecideAsync, Complete, Completed and CompletedAsync", Library);
 
     public static readonly DiagnosticDescriptor AsyncSuffix = new("SALCH0207", Severity.Error, "Async suffix does not match",
         "'{0}' {1}", Library);
