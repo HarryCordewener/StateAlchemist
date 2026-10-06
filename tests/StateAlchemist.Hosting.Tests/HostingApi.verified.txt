@@ -1,0 +1,28 @@
+﻿namespace StateAlchemist.Hosting
+{
+    public static class HostedMachineServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddHostedMachine<TMachine, TValue>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, TMachine> factory, int? capacity = default)
+            where TMachine :  class, StateAlchemist.IMachine<TValue>
+            where TValue :  struct { }
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddHostedMachine<TMachine, TValue, TInput>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, TMachine> factory, System.Func<TMachine, TInput, System.Threading.Tasks.ValueTask> fire, int? capacity = default)
+            where TMachine :  class, StateAlchemist.IMachine<TValue>
+            where TValue :  struct { }
+    }
+    public sealed class MachineHostedService<TMachine, TValue, TInput> : Microsoft.Extensions.Hosting.BackgroundService
+        where TMachine :  class, StateAlchemist.IMachine<TValue>
+        where TValue :  struct
+    {
+        public MachineHostedService(TMachine machine, StateAlchemist.Hosting.MachineInbox<TMachine, TInput> inbox, System.Func<TMachine, TInput, System.Threading.Tasks.ValueTask> fire) { }
+        protected override System.Threading.Tasks.Task ExecuteAsync(System.Threading.CancellationToken stoppingToken) { }
+        public override System.Threading.Tasks.Task StartAsync(System.Threading.CancellationToken cancellationToken) { }
+        public override System.Threading.Tasks.Task StopAsync(System.Threading.CancellationToken cancellationToken) { }
+    }
+    public sealed class MachineInbox<TMachine, TInput>
+    {
+        public MachineInbox() { }
+        public MachineInbox(int capacity) { }
+        public bool TryWrite(TInput input) { }
+        public System.Threading.Tasks.ValueTask WriteAsync(TInput input, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}
