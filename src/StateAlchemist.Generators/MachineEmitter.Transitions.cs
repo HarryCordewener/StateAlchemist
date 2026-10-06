@@ -174,8 +174,7 @@ internal sealed partial class MachineEmitter
             var disarming = HasTimers ? TimersOn(path.Exiting) : [];
             if (arming.Count + disarming.Count > 0)
             {
-                _w.Line("lock (_sync) { " + string.Concat(disarming.Select(t => $"Disarm{Num(t.Index)}(); "))
-                        + string.Concat(arming.Select(t => $"Arm{Num(t.Index)}(delay{Num(t.Index)}); ")) + "}");
+                _w.Line(ArmStatements(arming, disarming, t => $"delay{Num(t.Index)}"));
             }
 
             var cleared = path.Exiting.Where(s => !startedOver.Contains(s)).ToList();

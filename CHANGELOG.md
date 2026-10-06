@@ -11,7 +11,8 @@ All notable changes to this project are documented here.
   caller. A machine with a timer takes an optional `TimeProvider`, and reports what a timer's transition throws to
   a new `OnTimerException` hook. `TriggerKind.Timer`, `TriggerDefinition.ForTimer` and `TriggerDefinition.Delay`
   describe one in `MachineDefinition`. The `netstandard2.0` build of the package now depends on
-  `Microsoft.Bcl.TimeProvider`. See [timers](docs/concepts/timers.md).
+  `Microsoft.Bcl.TimeProvider`. A snapshot records when each running timer is due, and the machine restored from it
+  fires the timer then. See [timers](docs/concepts/timers.md).
   ([#19](https://github.com/HarryCordewener/StateAlchemist/issues/19))
 - Snapshot and restore. The generator adds `TakeSnapshot()`, which copies the active leaf, the data of each active
   state, what each history state recorded and what each active join has received into a generated `Snapshot` class

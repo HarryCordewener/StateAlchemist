@@ -49,6 +49,10 @@ public static class TimingModule
     [Transition(From = typeof(Idle), To = typeof(Waiting)), On(6)]
     public static void Wait(ref Waiting to) => to.Seconds = 5;
 
+    /// <summary>11: wait no time at all: the timer is due as Waiting is entered.</summary>
+    [Transition(From = typeof(Idle), To = typeof(Waiting)), On(11)]
+    public static void WaitNoTime(ref Waiting to) => to.Seconds = 0;
+
     [Transition(From = typeof(Waiting), To = typeof(Idle)), After]
     public static class Waited
     {

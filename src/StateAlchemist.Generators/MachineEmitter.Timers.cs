@@ -24,6 +24,8 @@ internal sealed partial class MachineEmitter
     private void WriteTimerStorage()
     {
         _w.Line("private readonly global::System.TimeProvider _time;");
+        _w.Line("/// <summary>Whether the restored snapshot recorded its timers; <c>_restoredDue{k}</c> is when each was due.</summary>");
+        _w.Line("private bool _restoredTimers;");
         foreach (var timer in _timers)
         {
             var k = Num(timer.Index);
@@ -32,6 +34,7 @@ internal sealed partial class MachineEmitter
             _w.Line($"private int _armedGeneration{k};");
             _w.Line($"private long _armedAt{k};");
             _w.Line($"private {TimeSpanType} _armedFor{k};");
+            _w.Line($"private global::System.DateTimeOffset? _restoredDue{k};");
         }
     }
 
@@ -61,16 +64,20 @@ internal sealed partial class MachineEmitter
                 }
             }
 
+            // A timer already due is not handed to the ITimer: a TimeProvider may run a due callback at once, on this
+            // thread, inside the lock. The caller submits it once the lock is released.
             _w.Line();
-            _w.Line("/// <summary>Called under the lock.</summary>");
-            using (_w.Block($"private void Arm{k}({TimeSpanType} delay)"))
+            _w.Line("/// <summary>Called under the lock. True when the delay is already over: the caller submits the firing.</summary>");
+            using (_w.Block($"private bool Arm{k}({TimeSpanType} delay)"))
             {
                 _w.Line($"_armed{k} = true;");
                 _w.Line($"_armedGeneration{k}++;");
                 _w.Line($"_armedAt{k} = _time.GetTimestamp();");
                 _w.Line($"_armedFor{k} = delay;");
+                _w.Line($"if (delay <= {TimeSpanType}.Zero) {{ if (_timer{k} != null) _timer{k}.Change(global::System.Threading.Timeout.InfiniteTimeSpan, global::System.Threading.Timeout.InfiniteTimeSpan); return true; }}");
                 _w.Line($"if (_timer{k} == null) _timer{k} = CreateTimer(s_elapsed{k}, delay);");
                 _w.Line($"else _timer{k}.Change(delay, global::System.Threading.Timeout.InfiniteTimeSpan);");
+                _w.Line("return false;");
             }
 
             _w.Line();
@@ -80,7 +87,7 @@ internal sealed partial class MachineEmitter
                 _w.Line($"if (!_armed{k}) return;");
                 _w.Line($"_armed{k} = false;");
                 _w.Line($"_armedGeneration{k}++;");
-                _w.Line($"_timer{k}.Change(global::System.Threading.Timeout.InfiniteTimeSpan, global::System.Threading.Timeout.InfiniteTimeSpan);");
+                _w.Line($"if (_timer{k} != null) _timer{k}.Change(global::System.Threading.Timeout.InfiniteTimeSpan, global::System.Threading.Timeout.InfiniteTimeSpan);");
             }
 
             // A callback from an earlier arming can run after a re-arming, since the timer is reused: it finds the new
@@ -280,6 +287,21 @@ internal sealed partial class MachineEmitter
         {
             _w.Line($"try {{ await running; }} catch ({Exception} exception) {{ OnTimerException(exception, transition); throw; }}");
         }
+    }
+
+    /// <summary>
+    /// Arming <paramref name="arming"/> with the delay <paramref name="delay"/> gives each, after
+    /// <paramref name="underLock"/> and the disarming of <paramref name="disarming"/>, under the lock; then submitting
+    /// any already due, outside it.
+    /// </summary>
+    private string ArmStatements(IReadOnlyList<TimerModel> arming, IReadOnlyList<TimerModel> disarming, System.Func<TimerModel, string> delay, string underLock = "")
+    {
+        var before = string.Concat(arming.Select(t => $"var due{Num(t.Index)} = false; var generation{Num(t.Index)} = 0; "));
+        var inside = underLock
+                     + string.Concat(disarming.Select(t => $"Disarm{Num(t.Index)}(); "))
+                     + string.Concat(arming.Select(t => $"due{Num(t.Index)} = Arm{Num(t.Index)}({delay(t)}); generation{Num(t.Index)} = _armedGeneration{Num(t.Index)}; "));
+        var after = string.Concat(arming.Select(t => $" if (due{Num(t.Index)}) SubmitTimer({Num(t.Index)}, generation{Num(t.Index)});"));
+        return $"{before}lock (_sync) {{ {inside}}}{after}";
     }
 
     /// <summary>A <c>Delay</c>'s arguments: the states it reads, the configuration and the context.</summary>

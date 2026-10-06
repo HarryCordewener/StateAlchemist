@@ -55,6 +55,7 @@ other, and transitions with the same source and the same `[After]` share one tim
 - **Cancelled** when its source state is exited. Moving between states below the source does not touch it. A
   [re-entry](transitions.md) exits and enters, so it starts the timer again; a stay does not.
 - **Cancelled** by `StopAsync` and `DisposeAsync`.
+- **Kept** by a [snapshot](snapshots.md), which records when it is due: after `Restore`, it fires then.
 - **Fired** once. Its transition is tried from the active state, which is the source or a state below it. It is
   not looked for up the tree, and never reaches `OnUnhandled`. If every guard refuses, nothing happens, and the
   timer does not start again until the state is entered again.

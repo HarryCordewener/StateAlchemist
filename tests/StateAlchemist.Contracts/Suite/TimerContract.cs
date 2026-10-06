@@ -116,6 +116,16 @@ public abstract class TimerContract : MachineContract
     }
 
     [Test]
+    public async Task ADelayOfZeroFiresOnceTheTransitionIsDone()
+    {
+        var (machine, context) = await Started();
+        await machine.FireAsync((byte)11);
+        await machine.FireAsync((byte)200);
+        await Assert.That(machine.IsIn<Idle>()).IsTrue();
+        await Assert.That(context.Trace).IsEqualTo("waited");
+    }
+
+    [Test]
     public async Task GuardsChooseAmongTimersWithTheSameDelay()
     {
         var (machine, context) = await Started(allow: "left");

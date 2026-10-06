@@ -14,7 +14,7 @@ var restored = new RecallingMachine(restoredContext);
 restored.Restore(JsonSerializer.Deserialize<RecallingMachine.Snapshot>(json, Json)!);
 await restored.StartAsync();                                           // runs no [Entered] actions
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/SnapshotTests.cs#L30-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-snapshot-save-restore' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/SnapshotTests.cs#L31-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-snapshot-save-restore' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## What a snapshot holds
@@ -27,6 +27,7 @@ await restored.StartAsync();                                           // runs n
 | `States` | One property per state: the data of each active state, and null for the rest. |
 | `History` | For each state some move enters [with history](states.md#going-back-with-history), the leaf that was active when it was last exited, or null before its first exit. Present only on a machine with history. |
 | `Joins` | For each [join](triggers.md#joins) whose source is active, the latest payload of each listed event that has arrived. Present only on a machine with joins. |
+| `Timers` | For each running [timer](timers.md), the UTC instant it is due, by its transition's name. Null when the machine had not started. Present only on a machine with timers. |
 
 A snapshot leaves out the context and the config, which the machine is constructed with, and the token actions
 take for the machine's lifetime.
@@ -42,7 +43,7 @@ fields, and System.Text.Json does not serialize fields by default
 /// <summary>State structs keep their data in fields, which System.Text.Json writes only when asked to.</summary>
 private static readonly JsonSerializerOptions Json = new() { IncludeFields = true };
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/SnapshotTests.cs#L15-L18' title='Snippet source file'>snippet source</a> | <a href='#snippet-snapshot-json-options' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/SnapshotTests.cs#L16-L19' title='Snippet source file'>snippet source</a> | <a href='#snippet-snapshot-json-options' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## When a snapshot can be taken
@@ -69,6 +70,11 @@ sets the active leaf, the data, the recorded history and the join arrivals, and 
 follows runs no `[Entered]` actions: the states were entered, and their actions ran, in the machine the snapshot was
 taken from. Anything those actions set up outside the machine, such as a connection, is for the host to set up
 again.
+
+A timer keeps its due time across the snapshot. The `StartAsync` after `Restore` starts each recorded timer for
+what is left of it, measured on the restored machine's `TimeProvider`, and one that fell due while the snapshot was
+stored fires at once. A snapshot with no `Timers`, from a machine that had not started or from before the machine
+had timers, starts the timers of the active states afresh, as `StartAsync` would.
 
 `Restore` checks the snapshot before changing anything. It throws `ArgumentException` when `State` does not name a
 leaf of the machine, or when a recorded history leaf is not a leaf under its state.
