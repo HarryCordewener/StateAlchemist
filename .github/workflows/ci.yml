@@ -30,7 +30,9 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.x
-      - run: dotnet restore
+      # Directory.Build.props already restores in locked mode on CI. The flag says so where Scorecard's
+      # Pinned-Dependencies check looks: it counts a `dotnet restore` as pinned only with --locked-mode.
+      - run: dotnet restore --locked-mode
       - run: dotnet build --no-restore --configuration ${{ matrix.configuration }}
       - run: dotnet test --solution StateAlchemist.slnx --no-build --configuration ${{ matrix.configuration }} --framework ${{ matrix.framework }}
 
