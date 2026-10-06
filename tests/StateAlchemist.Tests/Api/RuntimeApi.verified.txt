@@ -110,6 +110,7 @@
         public int InboxCapacity { get; set; }
         public StateAlchemist.Purity Purity { get; set; }
         public System.Type? Root { get; set; }
+        public bool Telemetry { get; set; }
         public StateAlchemist.Unhandled Unhandled { get; set; }
         public System.Type? Value { get; set; }
     }
@@ -267,13 +268,16 @@
     }
     public sealed class TransitionPlan
     {
+        public TransitionPlan(System.Collections.Generic.IReadOnlyList<string> refused) { }
         public TransitionPlan(string transition, System.Type leaf, System.Type target, StateAlchemist.TransitionKind kind, System.Collections.Generic.IReadOnlyList<System.Type> exiting, System.Collections.Generic.IReadOnlyList<System.Type> entering, bool isDecision) { }
+        public TransitionPlan(string transition, System.Type leaf, System.Type target, StateAlchemist.TransitionKind kind, System.Collections.Generic.IReadOnlyList<System.Type> exiting, System.Collections.Generic.IReadOnlyList<System.Type> entering, bool isDecision, System.Collections.Generic.IReadOnlyList<string> refused) { }
         public System.Collections.Generic.IReadOnlyList<System.Type> Entering { get; }
         public System.Collections.Generic.IReadOnlyList<System.Type> Exiting { get; }
         public bool Handled { get; }
         public bool IsDecision { get; }
         public StateAlchemist.TransitionKind Kind { get; }
         public System.Type? Leaf { get; }
+        public System.Collections.Generic.IReadOnlyList<string> Refused { get; }
         public System.Type? Target { get; }
         public string? Transition { get; }
         public static StateAlchemist.TransitionPlan None { get; }

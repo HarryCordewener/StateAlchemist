@@ -41,6 +41,10 @@ await Assert.That(string.Join(",", plan.Exiting.Select(t => t.Name))).IsEqualTo(
 <sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L70-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-plan' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
+`Refused` names the guarded transitions whose guard returned `false` on the way, in the order they were tried,
+which is what an interface needs to say why a trigger would not fire. A trigger nothing handles has a plan whose
+`Handled` is `false`, and its `Refused` still lists the guards that were tried.
+
 `Definition` describes the whole machine as data — states, parents, transitions, triggers, and a decision's
 outcomes with the state each one moves to — for tests that check structure ("every `Willing` refusal is an
 `[OnAny]`") and for diagrams. With

@@ -47,8 +47,8 @@ public sealed partial class ReferenceMachine<TValue>
         return false;
     }
 
-    /// <summary>Step 1: the first candidate whose guard passes.</summary>
-    private TransitionModel? Choose(IReadOnlyList<TransitionModel> candidates, Trigger trigger, bool hooks)
+    /// <summary>Step 1: the first candidate whose guard passes. Each guard that refuses is added to <paramref name="refused"/>.</summary>
+    private TransitionModel? Choose(IReadOnlyList<TransitionModel> candidates, Trigger trigger, bool hooks, List<string>? refused = null)
     {
         foreach (var candidate in candidates)
         {
@@ -65,6 +65,8 @@ public sealed partial class ReferenceMachine<TValue>
                 {
                     return candidate;
                 }
+
+                refused?.Add(candidate.Name);
             }
             catch (Exception exception) when (hooks)
             {
@@ -334,10 +336,11 @@ public sealed partial class ReferenceMachine<TValue>
 
     private TransitionPlan PlanFor(IReadOnlyList<TransitionModel> candidates, Trigger trigger)
     {
-        var chosen = Choose(candidates, trigger, hooks: false);
+        var refused = new List<string>();
+        var chosen = Choose(candidates, trigger, hooks: false, refused);
         if (chosen is null)
         {
-            return TransitionPlan.None;
+            return refused.Count == 0 ? TransitionPlan.None : new TransitionPlan(refused);
         }
 
         var path = PathPlanner.Plan(_hierarchy, chosen, _leaf);
@@ -348,7 +351,8 @@ public sealed partial class ReferenceMachine<TValue>
             (TransitionKind)chosen.Kind,
             path.Exiting.Select(s => _machine.StateTypes[s]).ToList(),
             path.Entering.Select(s => _machine.StateTypes[s]).ToList(),
-            chosen.IsDecision);
+            chosen.IsDecision,
+            refused);
     }
 
     private TransitionInfo<TValue> Info(TransitionModel transition, TransitionPath path, TransitionKind kind, Trigger trigger, Phase phase) =>

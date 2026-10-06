@@ -45,4 +45,39 @@ public abstract class PlanContract : MachineContract
         var machine = await StartAsync(Shapes.Guards, context);
         await Assert.That(machine.Plan(1).Transition).IsEqualTo("GuardModule.Second");
     }
+
+    [Test]
+    public async Task APlanNamesTheGuardsThatRefusedInTheOrderTried()
+    {
+        var context = new RecordingContext();
+        context.Allow.Add("Second");
+        var machine = await StartAsync(Shapes.Guards, context);
+
+        var plan = machine.Plan(1);
+
+        await Assert.That(plan.Transition).IsEqualTo("GuardModule.Second");
+        await Assert.That(string.Join(",", plan.Refused)).IsEqualTo("GuardModule.First");
+    }
+
+    [Test]
+    public async Task APlanPastEveryGuardNamesThemAll()
+    {
+        var machine = await StartAsync(Shapes.Guards, new RecordingContext());
+
+        var plan = machine.Plan(1);
+
+        await Assert.That(plan.Transition).IsEqualTo("GuardModule.Fallback");
+        await Assert.That(string.Join(",", plan.Refused)).IsEqualTo("GuardModule.First,GuardModule.Second");
+    }
+
+    [Test]
+    public async Task APlanWithNoGuardTriedRefusesNothing()
+    {
+        var context = new RecordingContext();
+        context.Allow.Add("First");
+        var machine = await StartAsync(Shapes.Guards, context);
+
+        await Assert.That(machine.Plan(1).Refused.Count).IsEqualTo(0);
+        await Assert.That(machine.Plan(42).Refused.Count).IsEqualTo(0);
+    }
 }

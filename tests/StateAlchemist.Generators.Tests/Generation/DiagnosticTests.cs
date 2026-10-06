@@ -123,6 +123,21 @@ public class DiagnosticTests
         await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
     }
 
+    [Test]
+    public async Task TelemetryWithoutDiagnosticSourceIsReportedAndGetsNoCode()
+    {
+        // What a netstandard2.0 application without the System.Diagnostics.DiagnosticSource package compiles against.
+        var compilation = TestCompilation.Create(TestCompilation.Machine("M", typeof(Root), typeof(byte), typeof(RecordingContext),
+                [typeof(RecorderModule), typeof(RecorderExtras)], ", Telemetry = true"))
+            .RemoveReferences(TestCompilation.References.Where(r => Path.GetFileName(r.Display) == "System.Diagnostics.DiagnosticSource.dll"));
+
+        var result = Driver().RunGenerators(compilation).GetRunResult();
+
+        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(0);
+        await Assert.That(string.Join("\n", result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error).Select(d => $"{d.Id}: {d.GetMessage()}")))
+            .IsEqualTo("SALCH0107: Machine 'M' sets Telemetry, which needs System.Diagnostics.Metrics.Meter and System.Diagnostics.ActivitySource: reference the System.Diagnostics.DiagnosticSource package");
+    }
+
     private static string BadDeclarationsSource([CallerFilePath] string here = "") =>
         File.ReadAllText(Path.Combine(Path.GetDirectoryName(here)!, "..", "..", "StateAlchemist.Reference.Tests", "FrontEnd", "BadDeclarations.cs"));
 }

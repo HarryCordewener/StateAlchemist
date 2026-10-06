@@ -60,7 +60,7 @@ where the module is written, by the [analyzer](diagnostics.md#which-component-re
 
 | Member | |
 |---|---|
-| `TransitionPlan Plan(byte value)`, `TransitionPlan Plan(in {Event} e)` | What a trigger would do now, evaluating guards, without doing it. |
+| `TransitionPlan Plan(byte value)`, `TransitionPlan Plan(in {Event} e)` | What a trigger would do now, evaluating guards, without doing it. `Refused` lists the guards that returned `false`, in the order tried. |
 | `static MachineDefinition Definition` | States, parents, transitions and triggers, as data. A [decision](../concepts/decisions.md) has no target — which one it takes is not known when the trigger arrives — so its `TransitionDefinition.Outcomes` name each outcome case and the state it moves to. |
 | `const string Mermaid`, `const string Dot` | The machine as a diagram: a Mermaid `stateDiagram-v2` and a Graphviz digraph, a composite state per parent and an arrow per transition — or, for a decision, an arrow per outcome, so a state only a decision reaches is not drawn as unreachable. Written at compile time from the model the machine runs, so it cannot drift from the code. |
 
@@ -73,6 +73,9 @@ Generated `partial` methods, removed by the compiler unless the application impl
 | `partial void OnTransitioned(in TransitionInfo<byte> transition)` | After every transition. |
 | `partial void OnUnhandled(StateId state, byte value)`, and one per event type | When nothing handles a trigger. |
 | `partial void On{Phase}Exception(Exception exception, in TransitionInfo<byte> transition, ref ExceptionResolution resolution)` | For `Guard`, `Transform`, `Exited`, `Entered` and `Completed`; see [exceptions](../concepts/exceptions.md). |
+
+With `[Machine(Telemetry = true)]` the machine also reports to an `ActivitySource` and a `Meter` named
+`StateAlchemist`, alongside these hooks rather than in them; see [telemetry](../guides/telemetry.md).
 
 ## Through the interface
 

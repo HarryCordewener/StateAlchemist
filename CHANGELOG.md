@@ -5,6 +5,16 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- `TransitionPlan.Refused`: the guarded transitions whose guard returned `false` while `Plan` looked for one to
+  fire, in the order they were tried. A plan for a trigger nothing handles lists them too, so an interface can say
+  why a trigger would not fire. The generated `Plan` returns a static plan for each combination, so it still
+  allocates nothing. ([#22](https://github.com/HarryCordewener/StateAlchemist/issues/22))
+- `[Machine(Telemetry = true)]`: the generator writes an `ActivitySource` and a `Meter`, both named
+  `StateAlchemist`, into the machine. Each transition and each decision is an activity and a duration, and
+  completed transitions and unhandled triggers are counted; see [telemetry](docs/guides/telemetry.md). A machine
+  without the option is generated as before. A `netstandard2.0` application that sets it references the
+  `System.Diagnostics.DiagnosticSource` package, or gets `SALCH0107`.
+  ([#21](https://github.com/HarryCordewener/StateAlchemist/issues/21))
 - `StateAlchemist.Hosting`, a companion package that runs a machine for the lifetime of a .NET Generic Host
   ([#28](https://github.com/HarryCordewener/StateAlchemist/issues/28)). `AddHostedMachine` registers the machine,
   a `MachineInbox` to write inputs to, and a `BackgroundService` that starts the machine with the host, fires each

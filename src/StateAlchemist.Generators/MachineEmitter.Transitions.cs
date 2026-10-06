@@ -70,6 +70,12 @@ internal sealed partial class MachineEmitter
         var skip = actions.Any(a => Implements($"On{a.Phase}Exception"));
         var done = isAsync ? "return;" : $"return default({ValueTaskType});";
         var transformPhase = outcome is null ? "Transform" : "Complete";
+        if (Telemetry)
+        {
+            var arguments = TriggerArgumentName(transition) + (outcome is null ? string.Empty : ", outcome");
+            WriteTelemetrySteps(name, name + "_Steps", parameters, arguments, isAsync, transition, path);
+            name += "_Steps";
+        }
 
         _w.Line();
         _w.Line($"// {transition.Name}: {_model.States[path.Leaf].Name} --[{transition.Trigger}]--> {_model.States[path.TargetLeaf].Name}");
@@ -160,6 +166,11 @@ internal sealed partial class MachineEmitter
                 {
                     _w.Line("skipped:");
                 }
+            }
+
+            if (Telemetry)
+            {
+                WriteTransitionCount(transition);
             }
 
             _w.Line($"OnTransitioned({Info(transition, path, "Completed", kind: kind)});");
@@ -299,6 +310,10 @@ internal sealed partial class MachineEmitter
                $"{Rt}TransitionKind.{kind ?? transition.Kind.ToString()}, {Rt}Phase.{phase}, {(isEvent ? $"default({V})" : "value")}, {Bool(!isEvent)}, " +
                $"{(isEvent ? $"typeof({Event(transition.Trigger.EventType!)})" : "null")}, {(state < 0 ? "null" : $"typeof({S(state)})")})";
     }
+
+    /// <summary>The name of <see cref="TriggerParameter"/>'s parameter.</summary>
+    private static string TriggerArgumentName(TransitionModel transition) =>
+        transition.Trigger.Kind == MatchKind.Event ? "e" : transition.IsRun ? "run" : "value";
 
     /// <summary>What fires a transition, as its generated methods take it: the value, the event, or a run.</summary>
     private string TriggerParameter(TransitionModel transition, bool forGuard = false) =>

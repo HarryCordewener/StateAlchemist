@@ -96,9 +96,9 @@ public class RandomMachineTests
 
             // A batch of one to four values, so runs form; the plan is compared for its first value.
             var batch = Enumerable.Range(0, random.Next(1, 5)).Select(_ => (byte)random.Next(8)).ToArray();
-            if (generated.Plan(batch[0]).Transition != interpreted.Plan(batch[0]).Transition)
+            if (Show(generated.Plan(batch[0])) is var gp && Show(interpreted.Plan(batch[0])) is var ip && gp != ip)
             {
-                return $"step {step}: the plans for {batch[0]} differ: {generated.Plan(batch[0]).Transition} and {interpreted.Plan(batch[0]).Transition}";
+                return $"step {step}: the plans for {batch[0]} differ: {gp} and {ip}";
             }
 
             await generated.FireAsync(batch);
@@ -107,6 +107,8 @@ public class RandomMachineTests
 
         return "";
     }
+
+    private static string Show(TransitionPlan plan) => $"{plan.Transition} refused [{string.Join(",", plan.Refused)}]";
 
     /// <summary>The active leaf, every active state's value, and the log — everything the two machines must agree on.</summary>
     private static string Describe(IMachine<byte> machine, object log, List<Type> stateTypes)
