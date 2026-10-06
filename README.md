@@ -15,6 +15,7 @@
   <a href="https://www.nuget.org/packages/StateAlchemist"><img alt="Downloads" src="https://img.shields.io/nuget/dt/StateAlchemist?style=for-the-badge&color=blue"></a>
   <a href="https://github.com/HarryCordewener/StateAlchemist/actions/workflows/ci.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/HarryCordewener/StateAlchemist/ci.yml?branch=main&style=for-the-badge&label=tests"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/HarryCordewener/StateAlchemist"><img alt="OpenSSF Scorecard" src="https://img.shields.io/ossf-scorecard/github.com/HarryCordewener/StateAlchemist?style=for-the-badge&label=scorecard"></a>
+  <a href="https://www.bestpractices.dev/projects/15244"><img alt="OpenSSF Best Practices" src="https://www.bestpractices.dev/projects/15244/badge"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/HarryCordewener/StateAlchemist?style=for-the-badge"></a>
   <a href="https://discord.gg/SK2cWERJF7"><img alt="Discord" src="https://img.shields.io/discord/1193672869104861195?style=for-the-badge&logo=discord&logoColor=white&label=discord"></a>
 </p>
