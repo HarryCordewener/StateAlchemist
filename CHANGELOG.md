@@ -5,6 +5,13 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- Snapshot and restore. The generator adds `TakeSnapshot()`, which copies the active leaf, the data of each active
+  state, what each history state recorded and what each active join has received into a generated `Snapshot` class
+  of settable properties, and `Restore(snapshot)`, which puts a machine that has not been started into that state
+  without running anything; the `StartAsync` that follows runs no `[Entered]` actions. States are named, not
+  numbered, so a snapshot survives states being added or reordered. `TakeSnapshot` throws while a decision is
+  pending or the machine is processing input. See [snapshots](docs/concepts/snapshots.md).
+  ([#20](https://github.com/HarryCordewener/StateAlchemist/issues/20))
 - Joins: `[OnAll(typeof(A), typeof(B))]` fires a transition once each listed event has arrived while its `From`
   state is active, in any order. The arrivals and the latest payload of each event live with the `From` state's
   data, and the transform and `Completed` may take every listed event's payload. `TransitionDefinition.Joins` and

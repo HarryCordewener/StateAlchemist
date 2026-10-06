@@ -29,6 +29,7 @@ generator writes the machine as straight-line code.
 | [Runs](concepts/runs.md) | Consuming a stretch at once, or stopping at a boundary and retaining the suffix |
 | [Machines](concepts/machines.md) | Modules, the machine declaration, and its options |
 | [Lifecycle](concepts/lifecycle.md) | Starting, stopping, disposing |
+| [Snapshots](concepts/snapshots.md) | Saving a machine and restoring it, in another process if need be |
 | [Concurrency](concepts/concurrency.md) | `Checked`, `Unchecked` and `Serialized`, and what each costs |
 | [Exceptions](concepts/exceptions.md) | What happens when your code throws, and how to choose the recovery |
 

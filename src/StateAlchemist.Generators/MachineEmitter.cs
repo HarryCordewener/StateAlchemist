@@ -88,6 +88,7 @@ internal sealed partial class MachineEmitter
             WriteDefinition();
             WriteDiagrams();
             WriteLifecycle();
+            WriteSnapshots();
             WriteFiring();
             WriteDispatch();
             WritePlans();
@@ -134,6 +135,7 @@ internal sealed partial class MachineEmitter
         WriteHistoryStorage();
         _w.Line($"private {Rt}MachineStatus _status;");
         _w.Line("private bool _inside;");
+        _w.Line("private bool _restored;");
         _w.Line("private bool _boundaryRequested;");
         if (!HasInbox)
         {
