@@ -6,7 +6,7 @@ A trigger is what makes a transition fire. There are two kinds, dispatched diffe
 |---|---|---|
 | What | the machine's value type: a byte, a `char`, a small enum | a struct implementing `IEvent`, with its own payload |
 | Dispatched by | a `switch` on the value | the event's type, known at compile time |
-| Declared with | `[On(value)]`, `[OnRange(from, to)]`, `[OnAny]` | `[OnEvent(typeof(E))]` |
+| Declared with | `[On(value)]`, `[OnRange(from, to)]`, `[OnAny]` | `[OnEvent(typeof(E))]`, or `[OnAll(typeof(A), typeof(B))]` for a [join](#joins) |
 | Fired with | `FireAsync(value)`, or a batch `FireAsync(ReadOnlyMemory<TValue>)` | a generated `FireAsync(in E)` per event type |
 | Typical use | a byte stream | `Error`, `Timeout`, `Disconnect`, decision results |
 
@@ -78,6 +78,51 @@ If every guard at a level fails, resolution continues with the next category, th
 transitions for the same state and trigger are [`SALCH0101`](../reference/diagnostics.md#salch0101) — including
 two *modules* claiming the same option, which the generator sees because it compiles the whole machine at once.
 Two guarded ones with the same `Order` are [`SALCH0102`](../reference/diagnostics.md#salch0102).
+
+## Joins
+
+`[OnAll]` fires a transition once each of several events has arrived while its `From` state is active, in any
+order. An order ships once it is both paid for and reserved:
+
+<!-- snippet: sample-join -->
+<a id='snippet-sample-join'></a>
+```cs
+[Module]
+public static class OrderModule
+{
+    /// <summary>
+    /// Fires once both events have arrived in <see cref="Placed"/>, in either order. The transform takes both
+    /// payloads, whichever came first.
+    /// </summary>
+    [Transition(From = typeof(Placed), To = typeof(Shipped)), OnAll(typeof(PaymentReceived), typeof(StockReserved))]
+    public static void Ship(in PaymentReceived payment, in StockReserved stock, ref Shipped to) =>
+        to.Label = $"{payment.Amount} from {stock.Warehouse}";
+
+    /// <summary>Leaving <see cref="Placed"/> forgets whatever had arrived.</summary>
+    [Transition(From = typeof(Placed), To = typeof(Cancelled)), OnEvent(typeof(CancelRequested))]
+    public static void Cancel()
+    {
+    }
+}
+```
+<sup><a href='/samples/StateAlchemist.Samples/Orders/Orders.cs#L45-L63' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-join' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+- **Until the last event arrives**, each one is recorded and nothing else happens: no state changes, and
+  `OnTransitioned` is not called. The event counts as handled.
+- **Arrivals live with the `From` state's data.** Entering or leaving `Placed` forgets them, and so does the join
+  firing, so a join that stays where it is waits for every event again. Moves between the `From` state's
+  descendants keep them.
+- **An event that arrives again** before the join fires replaces the payload recorded for it.
+- **`Transform` and `Completed` may take any listed event**, and receive the payload recorded for it, whichever
+  arrived first. Naming an event the join does not list is
+  [`SALCH0204`](../reference/diagnostics.md#salch0204).
+- **Resolution is that of `[OnEvent]`, once per listed event.** A child's own transition on one of the events
+  wins first; a guarded `[OnEvent]` for one of them in the same state is tried before the join; an unguarded one
+  is [`SALCH0101`](../reference/diagnostics.md#salch0101).
+- A join lists two to 32 distinct events, has no `Guard`, and is not a decision
+  ([`SALCH0106`](../reference/diagnostics.md#salch0106)).
+- `Plan(in e)` returns a plan with `IsJoinArrival` set when the event would only be recorded.
 
 ## Unhandled triggers
 

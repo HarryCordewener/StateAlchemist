@@ -87,6 +87,7 @@ internal sealed partial class MachineEmitter
                     $"{Rt}TransitionKind.{transition.Kind}, {Types(path.Exiting)}, {Types(path.Entering)}, {Bool(transition.IsDecision)}{(refused < 0 ? string.Empty : $", s_refused{refused}")});");
         }
 
+        WriteJoinPlans();
         foreach (var refused in _refusedNone)
         {
             _w.Line();
@@ -114,7 +115,7 @@ internal sealed partial class MachineEmitter
             }
             else
             {
-                _w.Line($"return {plan};");
+                _w.Line($"return {(candidate.IsJoin ? JoinPlan(candidate, leaf, plan, refused) : plan)};");
                 return;
             }
         }

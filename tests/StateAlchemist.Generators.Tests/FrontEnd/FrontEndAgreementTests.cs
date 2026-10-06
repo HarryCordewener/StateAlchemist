@@ -27,7 +27,7 @@ public class FrontEndAgreementTests
     private static readonly Dictionary<string, MachineShape> ShapesByName = new[]
     {
         Shapes.Recorder, Shapes.Guards, Shapes.GuardsThatThrow, Shapes.Failures, Shapes.RecorderSerialized,
-        Shapes.Deciding, Shapes.Runs, Shapes.RunsSerialized, Shapes.Telnet,
+        Shapes.Deciding, Shapes.Runs, Shapes.RunsSerialized, Shapes.Joins, Shapes.Telnet,
     }.ToDictionary(s => s.Name);
 
     /// <summary>The Roslyn front-end's model of <paramref name="machine"/>, as text.</summary>
@@ -49,6 +49,7 @@ public class FrontEndAgreementTests
     [Arguments("RecorderSerialized")]
     [Arguments("Deciding")]
     [Arguments("Runs")]
+    [Arguments("Joins")]
     [Arguments("SampleTelnet")]
     public async Task EveryContractMachineIsModelledAlike(string name)
     {
@@ -74,6 +75,10 @@ public class FrontEndAgreementTests
     [Arguments(typeof(NoTriggerModule))]
     [Arguments(typeof(RivalGmcpModule))]
     [Arguments(typeof(NotAModule))]
+    [Arguments(typeof(GuardedJoinModule))]
+    [Arguments(typeof(MixedJoinModule))]
+    [Arguments(typeof(LonelyJoinModule))]
+    [Arguments(typeof(UnlistedJoinEventModule))]
     public async Task EveryBadDeclarationIsDiagnosedAlike(Type module)
     {
         Type[] modules = [typeof(TelnetCore), typeof(GmcpModule), typeof(NawsModule), module];

@@ -5,6 +5,11 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- Joins: `[OnAll(typeof(A), typeof(B))]` fires a transition once each listed event has arrived while its `From`
+  state is active, in any order. The arrivals and the latest payload of each event live with the `From` state's
+  data, and the transform and `Completed` may take every listed event's payload. `TransitionDefinition.Joins` and
+  `TransitionPlan.IsJoinArrival` describe them. Parallel regions remain out of scope. See
+  [joins](docs/concepts/triggers.md#joins). ([#24](https://github.com/HarryCordewener/StateAlchemist/issues/24))
 - `TransitionPlan.Refused`: the guarded transitions whose guard returned `false` while `Plan` looked for one to
   fire, in the order they were tried. A plan for a trigger nothing handles lists them too, so an interface can say
   why a trigger would not fire. The generated `Plan` returns a static plan for each combination, so it still

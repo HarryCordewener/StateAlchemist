@@ -97,6 +97,7 @@ Every decision below was taken or approved during design review on 2026-09-11.
 | D23 | Deferral is invisible to the host: `FireAsync` completes when its input has been processed, including waiting for any decision it started, so awaiting it *is* the backpressure. There is no `IsDeferring`, `WhenReady()`, consumed count or `MachineDeferringException`. | Decided |
 | D24 | Phase names are discoverable through code fixes, which work in Rider, Visual Studio and VS Code: `SALCH0901` (info, an empty class-form transition) and `SALCH0902` (hidden, on any transition) offer **Add Guard / Transform / Completed / CompletedAsync** and **Add Complete for** an uncovered outcome, each with the exact signature the transition's roles allow; `SALCH0206` offers a rename for near-miss names. A base class with overridable phases was rejected: phase signatures depend on the tree, and instances would replace static calls. | Decided |
 | D25 | **A machine's modules are named where the machine is declared.** By default `[Include(typeof(M))]` is the only way a module joins a machine, as in StrongInject, Jab and Pure.DI; it is also the only arrangement in which a conflict between two modules can be reported to whoever chose them both. A library may additionally *export* modules with `[assembly: ExportsModule(typeof(M))]`, and a machine may take what its references export with `[IncludeExported]`, optionally `Except` some. Both ends opt in, so a package reference alone never changes a machine. Only the assembly attributes of references are read, never their types: scanning referenced types for markers cannot be done incrementally (Roslyn's guidance), while assembly attributes project to metadata names and cache. A library cannot compose the machine for its host with a generator of its own: generators all see the same input compilation and never each other's output, and Roslyn has kept it that way deliberately. | Decided |
+| D26 | **A join is a trigger.** `[OnAll(typeof(A), typeof(B))]` fires a transition once each listed event has arrived while its `From` state is active, in any order. The arrivals and the latest payload of each event are kept in a generated slot that belongs to the `From` state: entering or leaving it forgets them, and so does the join firing. It is modelled as one event transition per listed event, so resolution, conflicts and roles are those of `[OnEvent]`. A join has no `Guard` and is not a decision. Parallel regions stay a non-goal: a join waits for independent events without the machine leaving a single leaf (D21). Added 2026-10-06 for [#24](https://github.com/HarryCordewener/StateAlchemist/issues/24). | Decided |
 
 ## 5. The model
 
@@ -149,6 +150,8 @@ public struct Naws : IState<SubNegotiation> { public byte[]? Bytes; public int I
 - **Events.** `public readonly struct` types implementing `IEvent`, each with its own payload (`Error`,
   `Timeout`, `Disconnect`, and generated completion events). The machine gets one typed
   `FireAsync(in TEvent)` overload per event type: no boxing, no runtime type test.
+- **Joins (D26).** `[OnAll(typeof(A), typeof(B))]` fires once every listed event has arrived in the source state,
+  in any order. Each arrival is recorded in a slot that lives as long as the source state's data.
 
 ### 5.4 Transitions
 
@@ -336,7 +339,8 @@ values — which is what "refuse anything this state doesn't handle" means. **`O
 an `[OnAny]` in `Willing` cannot swallow `Error` recovery declared on the root.
 
 For an event: the exact event type at each level, leaf first. Nothing matching at any level is *unhandled*
-(§6.8).
+(§6.8). A join (D26) is an unguarded candidate for each of its events: when it is chosen, the event is recorded,
+and the join fires only if that completes it. A recorded event is handled.
 
 Ambiguity is a compile error: two unguarded transitions for the same source and trigger (`SALCH0101`) — including
 two plugins claiming the same option byte, which the whole-program generator sees.
@@ -640,7 +644,7 @@ The async continuation (`Continue_…`) finishes the remaining actions and steps
 | SALCH0102 | Error | app | Several guarded transitions for one source and trigger without distinct `Order`s. |
 | SALCH0104 | Error | app | A trigger value outside the value type. |
 | SALCH0105 | Error | app | A value type that is not integral or an enum of 16 bits or fewer. |
-| SALCH0106 | Error | declaring lib | A transition with no `From`, no trigger, mixed value and event triggers, an empty range, or a non-constant value. |
+| SALCH0106 | Error | declaring lib | A transition with no `From`, no trigger, mixed value and event triggers, an empty range, or a non-constant value; or an invalid join (D26). |
 | SALCH0107 | Error | app | A machine without `Root` or `Value`, or an `[Include]` of a type that is not a `[Module]`. |
 | SALCH0108 | Error/Warning | app | An `[assembly: ExportsModule]` of a type that is not a `[Module]` (error); an `[IncludeExported]` that matches no exported module (warning: nothing was added). |
 | SALCH0103 | Error | app | Several actions in one phase for the same state or transition, from different modules, without distinct `Order`s. |

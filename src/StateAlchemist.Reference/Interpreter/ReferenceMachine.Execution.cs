@@ -32,6 +32,20 @@ public sealed partial class ReferenceMachine<TValue>
             return false;
         }
 
+        if (chosen.Join is { } join)
+        {
+            var payloads = Arrivals(chosen);
+            payloads[join.BitOf(chosen.Trigger.EventType!)] = trigger.Event;
+            if (payloads.Any(p => p is null))
+            {
+                return false;
+            }
+
+            // Fired: the join forgets its arrivals, and the transition reads them from the trigger.
+            _joins.Remove(chosen.Name);
+            trigger = trigger with { Joined = payloads };
+        }
+
         if (chosen.Decision is { } decision)
         {
             if (decision.DecideAsync is null)
@@ -95,11 +109,13 @@ public sealed partial class ReferenceMachine<TValue>
     {
         var startedOver = new HashSet<int>(path.Exiting.Intersect(path.Entering));
         var snapshots = startedOver.ToDictionary(state => state, state => RuntimeHelpers.GetObjectValue(_slots[state]));
+        var joinSnapshots = _joins.Where(j => startedOver.Contains(SourceOf(j.Key))).ToDictionary(j => j.Key, j => (object?[])j.Value.Clone());
 
         // 2. reset the entering states
         foreach (var state in path.Entering)
         {
             _slots[state] = Cleared(state);
+            ClearJoins(state);
         }
 
         // 3. transform
@@ -124,6 +140,11 @@ public sealed partial class ReferenceMachine<TValue>
                 foreach (var (state, snapshot) in snapshots)
                 {
                     _slots[state] = snapshot;
+                }
+
+                foreach (var (name, arrivals) in joinSnapshots)
+                {
+                    _joins[name] = arrivals;
                 }
 
                 if (Resolve(exception, info) == ExceptionResolution.Rethrow)
@@ -175,6 +196,7 @@ public sealed partial class ReferenceMachine<TValue>
             foreach (var state in path.Exiting.Where(s => !startedOver.Contains(s)))
             {
                 _slots[state] = Cleared(state);
+                ClearJoins(state);
             }
         }
 
@@ -252,7 +274,7 @@ public sealed partial class ReferenceMachine<TValue>
                 ParameterKind.Value => trigger.Value,
                 ParameterKind.Run => null, // passed as a span by InvokeRun
                 ParameterKind.RunMemory => trigger.Run,
-                ParameterKind.Event => trigger.Event,
+                ParameterKind.Event => trigger.Joined is { } joined ? joined[JoinOf(method).BitOf(parameter.TypeName)] : trigger.Event,
                 ParameterKind.Outcome => outcome,
                 ParameterKind.Config => _config,
                 ParameterKind.Context => _context,
@@ -343,6 +365,11 @@ public sealed partial class ReferenceMachine<TValue>
             return refused.Count == 0 ? TransitionPlan.None : new TransitionPlan(refused);
         }
 
+        if (chosen.Join is { } join && !WouldComplete(chosen, join))
+        {
+            return TransitionPlan.ForJoinArrival(chosen.Name, _machine.StateTypes[_leaf], refused);
+        }
+
         var path = PathPlanner.Plan(_hierarchy, chosen, _leaf);
         return new TransitionPlan(
             chosen.Name,
@@ -354,6 +381,41 @@ public sealed partial class ReferenceMachine<TValue>
             chosen.IsDecision,
             refused);
     }
+
+    /// <summary>The arrivals recorded for <paramref name="join"/>'s join, created empty on its first.</summary>
+    private object?[] Arrivals(TransitionModel join)
+    {
+        if (!_joins.TryGetValue(join.Name, out var payloads))
+        {
+            payloads = new object?[join.Join!.Events.Count];
+            _joins[join.Name] = payloads;
+        }
+
+        return payloads;
+    }
+
+    /// <summary>Whether <paramref name="arriving"/>'s event would complete its join now.</summary>
+    private bool WouldComplete(TransitionModel arriving, JoinModel join)
+    {
+        var bit = join.BitOf(arriving.Trigger.EventType!);
+        return _joins.TryGetValue(arriving.Name, out var payloads)
+            ? payloads.Where((p, i) => i != bit).All(p => p is not null)
+            : join.Events.Count == 1;
+    }
+
+    /// <summary>Forgets the arrivals of the joins whose source is <paramref name="state"/>: they live as long as its data.</summary>
+    private void ClearJoins(int state)
+    {
+        foreach (var name in _joins.Keys.Where(name => SourceOf(name) == state).ToList())
+        {
+            _joins.Remove(name);
+        }
+    }
+
+    private int SourceOf(string join) => _model.Transitions.First(t => t.Name == join && t.IsJoin).Source;
+
+    /// <summary>The join a method belongs to.</summary>
+    private JoinModel JoinOf(MethodModel method) => _model.Transitions.First(t => t.Join is not null && t.Methods.Contains(method)).Join!;
 
     private TransitionInfo<TValue> Info(TransitionModel transition, TransitionPath path, TransitionKind kind, Trigger trigger, Phase phase) =>
         new(transition.Name,

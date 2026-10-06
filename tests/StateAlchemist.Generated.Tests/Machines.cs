@@ -4,6 +4,7 @@ using StateAlchemist.Contracts.Machines;
 using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
+using StateAlchemist.Contracts.Machines.Joins;
 using StateAlchemist.Contracts.Machines.Recording;
 using StateAlchemist.Contracts.Machines.Runs;
 using StateAlchemist.Samples.Telnet;
@@ -131,4 +132,13 @@ public sealed partial class RunsMachine
 public sealed partial class RunsSerializedMachine
 {
     public ContractHooks? Hooks { get; set; }
+}
+
+[Machine(Root = typeof(JoinRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(JoinModule))]
+public sealed partial class JoinsMachine
+{
+    public ContractHooks? Hooks { get; set; }
+
+    partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
 }

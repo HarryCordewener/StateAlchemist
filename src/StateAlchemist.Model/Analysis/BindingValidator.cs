@@ -101,6 +101,8 @@ public static class BindingValidator
                 return use == Use.Completed && transition is { IsRun: true } ? null : "only a [Run] transition's Completed takes the run as memory";
             case ParameterKind.Event when use is Use.StateAction or Use.Complete:
                 return $"{Describe(use)} cannot take the event";
+            case ParameterKind.Event when transition?.Join is { } join:
+                return join.BitOf(parameter.TypeName) >= 0 ? null : $"this join waits for {string.Join(", ", join.Events.Select(ShortName))}, not '{parameter.TypeName}'";
             case ParameterKind.Event when trigger is not { Kind: MatchKind.Event } || trigger.Value.EventType != parameter.TypeName:
                 return $"this transition fires on {trigger?.ToString() ?? "no trigger"}, not '{parameter.TypeName}'";
             case ParameterKind.Event:
@@ -117,6 +119,8 @@ public static class BindingValidator
                 return null;
         }
     }
+
+    private static string ShortName(string typeName) => typeName.Substring(typeName.LastIndexOfAny(['.', '+']) + 1);
 
     private static string Describe(Use use) => use switch
     {

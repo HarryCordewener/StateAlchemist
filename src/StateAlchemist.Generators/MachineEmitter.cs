@@ -124,6 +124,7 @@ internal sealed partial class MachineEmitter
             _w.Line($"private {S(i)} {Field(i)};");
         }
 
+        WriteJoinStorage();
         _w.Line("private StateId _leaf;");
         _w.Line($"private {Rt}MachineStatus _status;");
         _w.Line("private bool _inside;");
@@ -320,6 +321,13 @@ internal sealed partial class MachineEmitter
         foreach (var t in _model.Transitions)
         {
             var usesContext = new[] { t.Guard, t.Transform }.Any(m => m is not null && m.Parameters.Any(p => p.Kind == ParameterKind.Context));
+            if (t.Join is { } join)
+            {
+                _w.Line($"        new {Rt}TransitionDefinition({t.Index}, {Literal(t.Name)}, {t.Source}, {t.Target}, {Rt}TransitionKind.{t.Kind}, {TriggerDefinition(t.Trigger)}, " +
+                        $"{t.Order}, {Bool(usesContext)}, new {TypeType}[] {{ {string.Join(", ", join.Events.Select(e => $"typeof({Event(e)})"))} }}),");
+                continue;
+            }
+
             _w.Line($"        new {Rt}TransitionDefinition({t.Index}, {Literal(t.Name)}, {t.Source}, {t.Target}, {Rt}TransitionKind.{t.Kind}, {TriggerDefinition(t.Trigger)}, " +
                     $"{t.Order}, {Bool(t.IsGuarded)}, {Bool(t.IsRun)}, {Bool(usesContext)}, {Bool(t.IsDecision)}, {OutcomeDefinitions(t)}),");
         }
