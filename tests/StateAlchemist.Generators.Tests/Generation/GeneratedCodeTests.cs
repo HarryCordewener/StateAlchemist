@@ -71,4 +71,20 @@ public class GeneratedCodeTests
         await Assert.That(output.SyntaxTrees.Count()).IsEqualTo(2);
         await Assert.That(Problems(output)).IsEqualTo("");
     }
+
+    // lock on a Lock means EnterScope from C# 13, so below it the inbox keeps an object even where the framework has
+    // the type. The C# 13 side is in the generated tests: this Roslyn has no C# 13 to parse.
+    [Test]
+    public async Task BelowCSharp13TheInboxLocksAnObject()
+    {
+        var source = TestCompilation.Machine("M", typeof(DecideRoot), typeof(byte), typeof(RecordingContext), [typeof(DecidingModule)],
+            ", Concurrency = global::StateAlchemist.Concurrency.Serialized", " { }");
+        var compilation = TestCompilation.Create(LanguageVersion.CSharp12, source);
+
+        Driver(LanguageVersion.CSharp12).RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+
+        var generated = output.SyntaxTrees.Last().ToString();
+        await Assert.That(generated).Contains("private readonly object _sync = new object();");
+        await Assert.That(Problems(output)).IsEqualTo("");
+    }
 }

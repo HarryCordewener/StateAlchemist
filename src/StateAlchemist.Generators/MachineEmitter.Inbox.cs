@@ -25,7 +25,9 @@ internal sealed partial class MachineEmitter
 
     private void WriteInboxStorage()
     {
-        _w.Line("private readonly object _sync = new object();");
+        // Only ever taken with the lock statement, never Monitor, so it can be a Lock where there is one: lock on a
+        // Lock compiles to its EnterScope, which the lock statement's documentation recommends from .NET 9 and C# 13.
+        _w.Line(_lockType ? "private readonly global::System.Threading.Lock _sync = new global::System.Threading.Lock();" : "private readonly object _sync = new object();");
         _w.Line("private readonly global::System.Collections.Generic.List<Input> _inbox = new global::System.Collections.Generic.List<Input>();");
         _w.Line("private readonly global::System.Collections.Generic.List<Input> _queued = new global::System.Collections.Generic.List<Input>();");
         _w.Line("private readonly global::System.Collections.Generic.Stack<Input> _pool = new global::System.Collections.Generic.Stack<Input>();");
