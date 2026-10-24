@@ -188,6 +188,16 @@
         public MachineNotRunningException(StateAlchemist.MachineStatus status) { }
         public StateAlchemist.MachineStatus Status { get; }
     }
+    public sealed class MachinePath
+    {
+        public System.Type End { get; }
+        public System.Collections.Generic.IReadOnlyList<StateAlchemist.MachineStep> Steps { get; }
+        public override string ToString() { }
+    }
+    public static class MachinePaths
+    {
+        public static System.Collections.Generic.IReadOnlyList<StateAlchemist.MachinePath> Covering(StateAlchemist.MachineDefinition definition) { }
+    }
     public enum MachineStatus
     {
         NotStarted = 0,
@@ -195,6 +205,16 @@
         Stopped = 2,
         Completed = 3,
         Paused = 4,
+    }
+    public sealed class MachineStep
+    {
+        public bool AssumesGuards { get; }
+        public System.Type From { get; }
+        public StateAlchemist.OutcomeDefinition? Outcome { get; }
+        public System.Type To { get; }
+        public StateAlchemist.TransitionDefinition Transition { get; }
+        public StateAlchemist.TriggerDefinition Trigger { get; }
+        public override string ToString() { }
     }
     [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=false, Inherited=false)]
     public sealed class ModuleAttribute : System.Attribute
