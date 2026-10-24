@@ -32,6 +32,7 @@ public struct Cart : IState<OrderRoot>
     public int Items;
 }
 
+// begin-snippet: statechart-states
 [Defer(typeof(Cancel))]
 public struct Fulfilling : IState<OrderRoot>
 {
@@ -69,6 +70,7 @@ public struct Audit : IEvent
 public struct Packed : IEvent
 {
 }
+// end-snippet
 
 [Module]
 public static class OrderModule
@@ -76,6 +78,12 @@ public static class OrderModule
     [Transition(From = typeof(Cart)), On(1)]
     public static void Add(ref Cart self) => self.Items++;
 
+    [Transition(From = typeof(Cart)), OnAny]
+    public static void Browse()
+    {
+    }
+
+    // begin-snippet: statechart-internal
     [Transition(From = typeof(Cart), To = typeof(Fulfilling)), On(2)]
     public static class Checkout
     {
@@ -84,14 +92,11 @@ public static class OrderModule
         public static void Completed(OrderContext context) => context.Machine!.Enqueue(new Audit());
     }
 
-    [Transition(From = typeof(Cart)), OnAny]
-    public static void Browse()
-    {
-    }
-
     [Transition(From = typeof(OrderRoot)), OnEvent(typeof(Audit))]
     public static void Audited(OrderContext context) => context.Log.Add("audited");
+    // end-snippet
 
+    // begin-snippet: statechart-invoke
     [Invoke(typeof(Fulfilling), Forward = true)]
     public static AotPayment Pay(OrderContext context) => new(context);
 
@@ -103,12 +108,15 @@ public static class OrderModule
     {
         public static void Completed(OrderContext context) => context.Log.Add("fulfilled");
     }
+    // end-snippet
 
+    // begin-snippet: statechart-always
     [Transition(From = typeof(Review), To = typeof(Shipped)), Always]
     public static class Approve
     {
         public static bool Guard(OrderContext context) => context.Approved;
     }
+    // end-snippet
 
     [Transition(From = typeof(Review)), OnAny]
     public static void Waiting()

@@ -27,6 +27,7 @@ generator writes the machine as straight-line code.
 | [Actions](concepts/actions.md) | Code that runs after the state changes, and the exact order of a transition |
 | [Decisions](concepts/decisions.md) | When outside code chooses the outcome; pending states, deferral, backpressure |
 | [Timers](concepts/timers.md) | Transitions that fire when a state has been active for a set time |
+| [Statecharts](concepts/statecharts.md) | Final states, eventless and done transitions, deferred and internal events, invoked machines and parallel regions |
 | [Runs](concepts/runs.md) | Consuming a stretch at once, or stopping at a boundary and retaining the suffix |
 | [Machines](concepts/machines.md) | Modules, the machine declaration, and its options |
 | [Lifecycle](concepts/lifecycle.md) | Starting, stopping, disposing |
@@ -40,7 +41,8 @@ generator writes the machine as straight-line code.
 - [Testing a machine](guides/testing.md) — the pure layer, the machine interface, and the reference interpreter.
 - [Writing a module](guides/writing-a-module.md) — adding a protocol to a machine you do not own.
 - [Telemetry](guides/telemetry.md) — activities and metrics for a machine, generated on request.
-- [Hosting a machine](guides/hosting.md) — running one for the lifetime of a Generic Host, fed from a queue.
+- [Hosting a machine](guides/hosting.md) — running one for the lifetime of a Generic Host, fed from a queue, or
+  one per key.
 - [Coming from Stateless](guides/coming-from-stateless.md) — each Stateless call and its counterpart here.
 - [Contributing](../CONTRIBUTING.md) — building the repository, where the tests live, and what a change has to do.
 

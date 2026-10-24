@@ -41,6 +41,7 @@ public static class Program
     /// <summary>Invoked machines, forwarding, a deferred event, an internal event, eventless and done transitions, completion.</summary>
     private static async Task<bool> RunOrder()
     {
+        // begin-snippet: statechart-run
         var context = new OrderContext();
         await using var order = new AotOrder(context);
         context.Machine = order;
@@ -58,6 +59,7 @@ public static class Program
         await order.FireAsync(10);         // forwarded to both: the payment completes
         await order.FireAsync(new Packed()); // unknown to the order, forwarded: the packing completes
         await order.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+        // end-snippet
 
         Console.WriteLine($"order {order.Status} in {order.StateType.Name} after {observer.Transitions} transitions");
         Console.WriteLine(string.Join(" | ", context.Log));
@@ -70,6 +72,7 @@ public static class Program
     /// <summary>A machine per key: started on first use, stopped with the set.</summary>
     private static async Task<bool> RunOrders()
     {
+        // begin-snippet: machine-set
         var set = new MachineSet<int, AotOrder, byte>(_ => new AotOrder(new OrderContext()));
         await set.FireAsync(7, 1);
         await set.FireAsync(8, 1);
@@ -78,6 +81,7 @@ public static class Program
         var items = seven!.TryGetState(out Cart cart) ? cart.Items : -1;
         var keys = string.Join(", ", set.Keys.Order());
         await set.StopAllAsync();
+        // end-snippet
         Console.WriteLine($"orders {keys} stopped; order 7 had {items} items");
         return items == 2 && seven.Status == MachineStatus.Stopped && set.Count == 0;
     }

@@ -5,6 +5,39 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- `IStatechart<TValue>`, which every generated machine and the reference interpreter implement, alongside
+  `IMachine<TValue>`: `PermittedTriggers()` lists the values and events that would fire a transition now,
+  `StartAsync<TState>()` (and the generated `StartAsync(StateId)`) starts a machine in a chosen state for tests,
+  `Completion` completes when the machine completes or stops, `Observer` takes an `IMachineObserver<TValue>` that is
+  told of every transition and unhandled trigger, and `Pause()` and `Resume()` refuse triggers and hold the timers,
+  each keeping the time it had left. `MachineStatus` gains `Paused` and `Completed`.
+- Final states and completion: `[Final]` marks a leaf. Entering a final child of the root completes the machine,
+  which then refuses triggers; entering one under another state fires that state's `[OnDone]` transitions.
+  `[Always]` makes a transition eventless: it fires as soon as its source is active and its guard passes, before the
+  call that led there returns, and a chain of them stops after 64. `SALCH0005`, `SALCH0110` and `SALCH0111` report
+  a final state that is not a leaf or has transitions, an eventless transition that stays or loops unguarded, and a
+  done transition that can never fire. See [statecharts](docs/concepts/statecharts.md).
+- Deferred events: `[Defer(typeof(E))]` on a state keeps an `E` that arrives while it is active, unless a nearer
+  state handles it, and queues it again when the machine next moves. `TransitionPlan.IsDeferred` says a plan would
+  defer, a snapshot holds the kept events, and `SALCH0112` reports a state that both defers and handles one.
+- Internal events: `[Internal]` on an event type means only the machine raises it, with `Enqueue`. The generator
+  writes no `FireAsync` or `Fire` for it, `FireAsync<TEvent>` faults, and `SALCH0602` reports a call that fires one.
+- Invoked machines and parallel regions: `[Invoke(typeof(S))]` on a module method runs the machine it returns while
+  `S` is active, started after the transition into `S` and stopped at the commit of the transition out. When every
+  machine a state invokes has completed, its `[OnDone]` transitions fire. With `Forward = true`, what the parent
+  leaves unhandled goes to its running children. Several `[Invoke]` methods on one state run their machines side by
+  side, which is how a machine runs parallel regions: each region is a machine with its own active leaf. A snapshot
+  cannot be taken while a child runs. `SALCH0113` reports an invoke method with the wrong signature, and
+  `SALCH0501` does not report a leaf whose unhandled values are forwarded, or a final child of the root.
+- `MachinePaths.Covering(definition)`: for every transition and decision outcome, the shortest sequence of triggers
+  from the start that fires it, computed from the `MachineDefinition`, so a test can drive a machine through every
+  transition. See [testing a machine](docs/guides/testing.md#4-a-path-to-every-transition).
+- `MachineSet<TKey, TMachine, TValue>` in `StateAlchemist.Hosting`: machines by key, each created and started on
+  first use, once even under concurrent callers, and stopped when removed, when it completes, or by `StopAllAsync`.
+  `AddMachineSet` registers one with a hosted service that stops its machines when the host stops. See
+  [machines by key](docs/guides/hosting.md#machines-by-key).
+- The AOT sample runs an order that invokes two machines, forwards to them, defers an event, raises an internal
+  one and completes, and a `MachineSet` of orders; it still publishes native with no warnings.
 - Timers that belong to a state: `[After(Seconds = 30)]` fires a transition when its source state has been active
   that long, and a `Delay` method sets a delay known only at runtime. The timer starts when the state is entered,
   is cancelled when it is exited or the machine stops, and fires through the machine's inbox, so it never races a
@@ -24,7 +57,7 @@ All notable changes to this project are documented here.
 - Joins: `[OnAll(typeof(A), typeof(B))]` fires a transition once each listed event has arrived while its `From`
   state is active, in any order. The arrivals and the latest payload of each event live with the `From` state's
   data, and the transform and `Completed` may take every listed event's payload. `TransitionDefinition.Joins` and
-  `TransitionPlan.IsJoinArrival` describe them. Parallel regions remain out of scope. See
+  `TransitionPlan.IsJoinArrival` describe them. See
   [joins](docs/concepts/triggers.md#joins). ([#24](https://github.com/HarryCordewener/StateAlchemist/issues/24))
 - History states. `History = History.Deep` on a `[Transition]` or a decision's `[To]` enters the leaf that was
   active when the target was last exited; `History.Shallow` enters the child that was, then its `[Initial]` path.

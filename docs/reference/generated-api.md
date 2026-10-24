@@ -12,13 +12,14 @@ public sealed partial class MudTelnet;
 <sup><a href='/samples/StateAlchemist.Samples/Telnet/MudTelnet.cs#L3-L7' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-mud-telnet' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
-the generator adds the members below to `MudTelnet`, which also implements `IMachine<byte>` and
-`IBoundaryMachine<byte>`. Nothing it
+the generator adds the members below to `MudTelnet`, which also implements `IMachine<byte>`,
+`IBoundaryMachine<byte>` and `IStatechart<byte>`. Nothing it
 generates uses a dictionary, a hash lookup, or reflection: dispatch is a `switch` on the active state, then on the
 trigger; storage is fields; the definition is static arrays. The generated code is plain C# 7.3, so a
 `netstandard2.0` project compiles it on its default language version.
 
-A machine that is `Serialized`, or has an async decision, also gets an inbox: calls become inputs that whoever
+A machine that is `Serialized`, or has an async decision, a [timer](../concepts/timers.md) or an
+[invoked machine](../concepts/statecharts.md#invoked-machines-and-parallel-regions), also gets an inbox: calls become inputs that whoever
 finds the machine idle processes in turn, as [concurrency](../concepts/concurrency.md) describes. Any other machine
 runs each call inline, with no inbox and no lock.
 
@@ -32,15 +33,19 @@ where the module is written, by the [analyzer](diagnostics.md#which-component-re
 |---|---|
 | `MudTelnet(TelnetContext context)` | Resets every state and sets the initial leaf. Runs no actions. A machine with a `Config` also takes `in TConfig config` after the context; one without a `Context` takes nothing. A machine with a [timer](../concepts/timers.md) also takes `TimeProvider timeProvider = null` last; without one it uses `TimeProvider.System`. |
 | `ValueTask StartAsync()` | Runs the initial path's `[Entered]` actions once. See [lifecycle](../concepts/lifecycle.md). |
-| `ValueTask StopAsync()` | Cancels a pending decision and every timer; runs `[Exited]` actions from the leaf to the root. |
+| `ValueTask StartAsync(StateId state)`, `ValueTask StartAsync<TState>()` | Starts the machine in the state's `[Initial]` leaf instead, running the `[Entered]` actions from the root down. For tests. |
+| `ValueTask StopAsync()` | Cancels a pending decision and every timer, stops the machines it [invokes](../concepts/statecharts.md#invoked-machines-and-parallel-regions), and runs `[Exited]` actions from the leaf to the root. |
 | `ValueTask DisposeAsync()` | Stops the machine if it was started. |
-| `MachineStatus Status` | `NotStarted`, `Running` or `Stopped`. |
+| `MachineStatus Status` | `NotStarted`, `Running`, `Paused`, `Completed` or `Stopped`. |
+| `Task Completion` | Completes when the machine enters a [final](../concepts/statecharts.md#final-states-and-completion) child of the root, or stops. |
+| `void Pause()`, `void Resume()` | Refuse triggers and hold the timers until resumed. See [statecharts](../concepts/statecharts.md#observing-and-steering-a-running-machine). |
+| `IMachineObserver<byte> Observer` | Told of every transition and unhandled trigger. |
 
 ## Snapshots
 
 | Member | |
 |---|---|
-| `Snapshot TakeSnapshot()` | Copies the active leaf, the data of the active states, recorded history and join arrivals. Throws while the machine is processing input or a decision is pending. See [snapshots](../concepts/snapshots.md). |
+| `Snapshot TakeSnapshot()` | Copies the active leaf, the data of the active states, recorded history, join arrivals and [deferred](../concepts/statecharts.md#deferred-events) events. Throws while the machine is processing input, a decision is pending or an invoked machine runs. See [snapshots](../concepts/snapshots.md). |
 | `void Restore(Snapshot snapshot)` | Before `StartAsync` only: puts the machine in the snapshot's state and runs nothing; the `StartAsync` that follows runs no `[Entered]` actions. |
 | `Snapshot`, `SnapshotStates` | The snapshot's classes: settable properties, one per state, named by `StateId`. A machine with history or joins also gets `SnapshotHistory` and `SnapshotJoins`. |
 
@@ -59,7 +64,7 @@ where the module is written, by the [analyzer](diagnostics.md#which-component-re
 | `ValueTask FireAsync(byte value)` | Fires one value. Every `FireAsync` completes when its input has been processed — including waiting for any [decision](../concepts/decisions.md#deferral-and-backpressure) it started — so awaiting it is the backpressure. |
 | `ValueTask FireAsync(ReadOnlyMemory<byte> values)` | Fires values in order, consuming [runs](../concepts/runs.md) in one call. |
 | `ValueTask<int> FireUntilBoundaryAsync(ReadOnlyMemory<byte> values)` | Fires until every value is consumed or an action calls `RequestBatchBoundary()`, then returns the consumed count. |
-| `ValueTask FireAsync(in {Event} e)` | One per event type the machine handles. |
+| `ValueTask FireAsync(in {Event} e)` | One per event type the machine handles, except [internal](../concepts/statecharts.md#internal-events) ones. |
 | `void Fire(byte value)`, `void Fire(ReadOnlyMemory<byte> values)`, `void Fire(in {Event} e)` | The same calls without the `await`, for a machine whose actions and decisions are all synchronous. Using one on a machine that can suspend is [`SALCH0601`](diagnostics.md#salch0601): the call would block the calling thread until the action came back. On a `Serialized` machine the call also blocks while another thread holds the pump, which is what serialising means. The batch takes `ReadOnlyMemory` rather than a span because it is the same code path as `FireAsync`, where a suspended [run](../concepts/runs.md) needs a buffer that outlives the call. |
 | `void Enqueue(in {Event} e)` | Queues an event for after the current transition. |
 | `void RequestBatchBoundary()` | Asks a consumption-reporting batch to return after the current transition and its queued events. Calls outside the machine throw. Ordinary `FireAsync` batches continue to completion. |
@@ -68,6 +73,7 @@ where the module is written, by the [analyzer](diagnostics.md#which-component-re
 
 | Member | |
 |---|---|
+| `IReadOnlyList<TriggerDefinition> PermittedTriggers()` | The values and events that would fire a transition now. See [statecharts](../concepts/statecharts.md#observing-and-steering-a-running-machine). |
 | `TransitionPlan Plan(byte value)`, `TransitionPlan Plan(in {Event} e)` | What a trigger would do now, evaluating guards, without doing it. `Refused` lists the guards that returned `false`, in the order tried. `IsJoinArrival` is set when a [join](../concepts/triggers.md#joins) would only record the event. |
 | `static MachineDefinition Definition` | States, parents, transitions and triggers, as data. A [decision](../concepts/decisions.md) has no target — which one it takes is not known when the trigger arrives — so its `TransitionDefinition.Outcomes` name each outcome case and the state it moves to. A join is one transition per event it lists, each with the same name and `TransitionDefinition.Joins` listing them all. |
 | `const string Mermaid`, `const string Dot` | The machine as a diagram: a Mermaid `stateDiagram-v2` and a Graphviz digraph, a composite state per parent and an arrow per transition — or, for a decision, an arrow per outcome, so a state only a decision reaches is not drawn as unreachable. Written at compile time from the model the machine runs, so it cannot drift from the code. |
@@ -93,4 +99,5 @@ machine's shape: `StateType` instead of `StateId State`, `IsIn<TState>()`, `TryG
 `FireAsync<TEvent>(TEvent)`, `Enqueue<TEvent>(TEvent)` and `Plan<TEvent>(TEvent)`. The generic members compare
 `typeof` constants that the JIT folds away, so they cost no more than the typed ones — except on
 `netstandard2.0`, where `TryGetState<TState>` boxes. `IBoundaryMachine<TValue>` adds the cooperative batch members
-without requiring existing `IMachine<TValue>` implementations to provide them.
+without requiring existing `IMachine<TValue>` implementations to provide them, and `IStatechart<TValue>` adds
+`PermittedTriggers`, `StartAsync<TState>`, `Completion`, `Observer`, `Pause` and `Resume` the same way.

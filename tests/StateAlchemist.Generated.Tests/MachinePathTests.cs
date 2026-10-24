@@ -7,8 +7,10 @@ namespace StateAlchemist.Generated.Tests;
 /// <summary>Test paths from a machine's definition: every transition and outcome covered, shortest first.</summary>
 public class MachinePathTests
 {
+    // begin-snippet: machine-paths
     private static string Text(MachineDefinition definition) =>
         string.Join("\n---\n", MachinePaths.Covering(definition).Select(p => p.ToString().TrimEnd().ReplaceLineEndings("\n")));
+    // end-snippet
 
     [Test]
     public async Task EveryTransitionOfTheFinalsMachineIsCovered()
