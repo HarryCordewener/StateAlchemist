@@ -122,3 +122,9 @@ public sealed class TelemetryPermitted : PermittedContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => TelemetryHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class TelemetryStatechart : StatechartContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => TelemetryHarness.Create(shape, context, hooks);
+}

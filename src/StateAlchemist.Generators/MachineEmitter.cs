@@ -103,6 +103,7 @@ internal sealed partial class MachineEmitter
                 WriteTimers();
             }
 
+            WriteStatechart();
             WriteTransitions();
             WriteRecalls();
             if (HasInbox)
@@ -156,6 +157,7 @@ internal sealed partial class MachineEmitter
         // [Exited] actions running under that stop still read it, and so may an action the stop abandoned. It
         // holds no wait handle and no timer, so it is ordinary garbage once the machine is.
         _w.Line("private global::System.Threading.CancellationTokenSource _lifetime;");
+        WriteStatechartStorage();
         if (HasTimers)
         {
             WriteTimerStorage();
@@ -352,7 +354,7 @@ internal sealed partial class MachineEmitter
         _w.Line("    {");
         foreach (var state in _model.States)
         {
-            _w.Line($"        new {Rt}StateDefinition({state.Index}, typeof({S(state.Index)}), {state.Parent}, {Bool(state.IsInitial)}),");
+            _w.Line($"        new {Rt}StateDefinition({state.Index}, typeof({S(state.Index)}), {state.Parent}, {Bool(state.IsInitial)}{(state.IsFinal ? ", true" : string.Empty)}),");
         }
 
         _w.Line("    },");
@@ -402,6 +404,8 @@ internal sealed partial class MachineEmitter
         MatchKind.Value => $"{Rt}TriggerDefinition.ForValue({trigger.Low})",
         MatchKind.Range => $"{Rt}TriggerDefinition.ForRange({trigger.Low}, {trigger.High})",
         MatchKind.Any => $"{Rt}TriggerDefinition.ForAny()",
+        MatchKind.Always => $"{Rt}TriggerDefinition.ForAlways()",
+        MatchKind.Done => $"{Rt}TriggerDefinition.ForDone()",
         MatchKind.Timer => trigger.DelayedBy is null
             ? $"{Rt}TriggerDefinition.ForTimer(new global::System.TimeSpan({trigger.Low}L * global::System.TimeSpan.TicksPerMillisecond))"
             : $"{Rt}TriggerDefinition.ForTimer(null)",

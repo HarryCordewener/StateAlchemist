@@ -100,6 +100,8 @@ public static class BindingValidator
                 return $"{Describe(use)} cannot take the value";
             case ParameterKind.Value when trigger is { Kind: MatchKind.Timer }:
                 return "this transition fires on a timer, not a value";
+            case ParameterKind.Value when trigger is { Kind: MatchKind.Always or MatchKind.Done }:
+                return "this transition fires without a trigger, not on a value";
             case ParameterKind.Value when trigger is { IsValue: false }:
                 return "this transition fires on an event, not a value";
             case ParameterKind.Value when transition is { IsRun: true }:

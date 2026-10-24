@@ -1,3 +1,4 @@
+using StateAlchemist.Contracts.Machines.Finals;
 using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
@@ -40,6 +41,8 @@ public static class Shapes
 
     public static readonly MachineShape Recalling = new("Recalling", typeof(Jukebox), [typeof(RecallingModule)], typeof(RecordingContext));
     public static readonly MachineShape Joins = new("Joins", typeof(JoinRoot), [typeof(JoinModule)], typeof(RecordingContext));
+
+    public static readonly MachineShape Finals = new("Finals", typeof(FinRoot), [typeof(FinalModule)], typeof(RecordingContext));
 
     public static readonly MachineShape Permits = new("Permits", typeof(PermitRoot), [typeof(PermitModule)], typeof(RecordingContext));
 

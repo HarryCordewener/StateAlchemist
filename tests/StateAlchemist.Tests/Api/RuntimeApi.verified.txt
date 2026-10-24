@@ -7,6 +7,11 @@
         public int Milliseconds { get; set; }
         public int Seconds { get; set; }
     }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
+    public sealed class AlwaysAttribute : System.Attribute
+    {
+        public AlwaysAttribute() { }
+    }
     public enum Concurrency
     {
         Checked = 0,
@@ -31,6 +36,12 @@
         public string Decision { get; }
         public System.Exception Exception { get; }
         public override string ToString() { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Struct, AllowMultiple=true, Inherited=false)]
+    public sealed class DeferAttribute : System.Attribute
+    {
+        public DeferAttribute(System.Type eventType) { }
+        public System.Type EventType { get; }
     }
     [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
     public sealed class EnteredAttribute : System.Attribute
@@ -58,6 +69,11 @@
         public ExportsModuleAttribute(System.Type module) { }
         public System.Type Module { get; }
     }
+    [System.AttributeUsage(System.AttributeTargets.Struct, AllowMultiple=false, Inherited=false)]
+    public sealed class FinalAttribute : System.Attribute
+    {
+        public FinalAttribute() { }
+    }
     public enum History
     {
         None = 0,
@@ -71,6 +87,13 @@
         void RequestBatchBoundary();
     }
     public interface IEvent { }
+    public interface IMachineObserver<TValue>
+        where TValue :  struct
+    {
+        void Transitioned(in StateAlchemist.TransitionInfo<TValue> transition);
+        void UnhandledEvent(System.Type state, System.Type eventType);
+        void UnhandledValue(System.Type state, TValue value);
+    }
     public interface IMachine<TValue> : System.IAsyncDisposable
         where TValue :  struct
     {
@@ -99,7 +122,11 @@
     public interface IStatechart<TValue> : StateAlchemist.IBoundaryMachine<TValue>, StateAlchemist.IMachine<TValue>, System.IAsyncDisposable
         where TValue :  struct
     {
+        System.Threading.Tasks.Task Completion { get; }
+        StateAlchemist.IMachineObserver<TValue>? Observer { get; set; }
+        void Pause();
         System.Collections.Generic.IReadOnlyList<StateAlchemist.TriggerDefinition> PermittedTriggers();
+        void Resume();
         System.Threading.Tasks.ValueTask StartAsync<TState>()
             where TState :  struct;
     }
@@ -119,6 +146,18 @@
     public sealed class InitialAttribute : System.Attribute
     {
         public InitialAttribute() { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Struct, AllowMultiple=false, Inherited=false)]
+    public sealed class InternalAttribute : System.Attribute
+    {
+        public InternalAttribute() { }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Method, AllowMultiple=true, Inherited=false)]
+    public sealed class InvokeAttribute : System.Attribute
+    {
+        public InvokeAttribute(System.Type state) { }
+        public bool Forward { get; set; }
+        public System.Type State { get; }
     }
     [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=false, Inherited=false)]
     public sealed class MachineAttribute : System.Attribute
@@ -154,6 +193,8 @@
         NotStarted = 0,
         Running = 1,
         Stopped = 2,
+        Completed = 3,
+        Paused = 4,
     }
     [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=false, Inherited=false)]
     public sealed class ModuleAttribute : System.Attribute
@@ -176,6 +217,11 @@
     {
         public OnAttribute(object value) { }
         public object Value { get; }
+    }
+    [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
+    public sealed class OnDoneAttribute : System.Attribute
+    {
+        public OnDoneAttribute() { }
     }
     [System.AttributeUsage(System.AttributeTargets.Class | System.AttributeTargets.Method, AllowMultiple=false, Inherited=false)]
     public sealed class OnEventAttribute : System.Attribute
@@ -234,7 +280,9 @@
     public sealed class StateDefinition
     {
         public StateDefinition(int index, System.Type type, int parent, bool isInitial) { }
+        public StateDefinition(int index, System.Type type, int parent, bool isInitial, bool isFinal) { }
         public int Index { get; }
+        public bool IsFinal { get; }
         public bool IsInitial { get; }
         public bool IsRoot { get; }
         public string Name { get; }
@@ -333,7 +381,9 @@
         public override int GetHashCode() { }
         public bool Matches(long value) { }
         public override string ToString() { }
+        public static StateAlchemist.TriggerDefinition ForAlways() { }
         public static StateAlchemist.TriggerDefinition ForAny() { }
+        public static StateAlchemist.TriggerDefinition ForDone() { }
         public static StateAlchemist.TriggerDefinition ForEvent(System.Type eventType) { }
         public static StateAlchemist.TriggerDefinition ForRange(long low, long high) { }
         public static StateAlchemist.TriggerDefinition ForTimer(System.TimeSpan? delay) { }
@@ -348,6 +398,8 @@
         Any = 2,
         Event = 3,
         Timer = 4,
+        Always = 5,
+        Done = 6,
     }
     public enum Unhandled
     {

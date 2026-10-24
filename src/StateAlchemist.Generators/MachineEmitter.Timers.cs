@@ -179,6 +179,7 @@ internal sealed partial class MachineEmitter
         _w.Line("/// <summary>A timer's firing, if it is still the armed one: it is disarmed, and its transitions are tried.</summary>");
         using (_w.Block($"private {ValueTaskType} DispatchTimer(int timer, int generation)"))
         {
+            WriteCompletedGuard();
             using (_w.Block("switch (timer)"))
             {
                 foreach (var timer in _timers)

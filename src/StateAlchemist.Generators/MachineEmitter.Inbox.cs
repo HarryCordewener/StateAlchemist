@@ -437,7 +437,9 @@ internal sealed partial class MachineEmitter
         using (_w.Block($"private Step NextStep(out Input item, out Input owner{(Deciding ? ", out Pending pending" : "")})"))
         {
             _w.Line(Deciding ? "item = null; owner = null; pending = null;" : "item = null; owner = null;");
-            _w.Line($"if (_status != {Rt}MachineStatus.Running) return Step.None;");
+            _w.Line(HasCompletion
+                ? $"if (_status != {Rt}MachineStatus.Running && _status != {Rt}MachineStatus.Completed) return Step.None;"
+                : $"if (_status != {Rt}MachineStatus.Running) return Step.None;");
             if (Deciding)
             {
                 using (_w.Block("if (_pending != null)"))

@@ -51,6 +51,15 @@ public sealed record TransitionModel(
     /// <summary>Whether it fires on a timer.</summary>
     public bool IsTimer => Trigger.Kind == MatchKind.Timer;
 
+    /// <summary>Whether it is eventless: <c>[Always]</c>.</summary>
+    public bool IsAlways => Trigger.Kind == MatchKind.Always;
+
+    /// <summary>Whether it fires when its source is done: <c>[OnDone]</c>.</summary>
+    public bool IsDone => Trigger.Kind == MatchKind.Done;
+
+    /// <summary>Whether nothing outside the machine fires it: a timer, an eventless transition or a done transition.</summary>
+    public bool HasNoTriggerArgument => Trigger.Kind is MatchKind.Timer or MatchKind.Always or MatchKind.Done;
+
     /// <summary>Whether it is a decision.</summary>
     public bool IsDecision => Decision is not null;
 

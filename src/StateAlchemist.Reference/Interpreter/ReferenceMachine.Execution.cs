@@ -30,6 +30,11 @@ public sealed partial class ReferenceMachine<TValue>
             return await RunTimerAsync(armed, owner);
         }
 
+        if (Status == MachineStatus.Completed)
+        {
+            return false;
+        }
+
         var chosen = Choose(Candidates(trigger), trigger, hooks: true);
         if (chosen is null)
         {
@@ -236,6 +241,8 @@ public sealed partial class ReferenceMachine<TValue>
         }
 
         _hooks.Transitioned?.Invoke(info.With(Phase.Completed));
+        Observe(info.With(Phase.Completed));
+        await SettleAsync(path.Entering.Contains(path.TargetLeaf));
     }
 
     private async ValueTask<bool> RunStateActionsAsync(ActionPhase phase, int state, TransitionInfo<TValue> info, IReadOnlyDictionary<int, object?>? snapshots)
@@ -381,6 +388,7 @@ public sealed partial class ReferenceMachine<TValue>
             return;
         }
 
+        ObserveUnhandled(trigger);
         if (trigger.HasValue)
         {
             _hooks.UnhandledValue?.Invoke(StateType, trigger.Value);

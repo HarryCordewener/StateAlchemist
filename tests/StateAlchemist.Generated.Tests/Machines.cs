@@ -1,6 +1,7 @@
 using System;
 using StateAlchemist.Contracts;
 using StateAlchemist.Contracts.Machines;
+using StateAlchemist.Contracts.Machines.Finals;
 using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
@@ -189,4 +190,11 @@ public sealed partial class TimingSerializedMachine
     partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
 
     partial void OnTimerException(Exception exception, string transition) => Hooks?.TimerException(exception, transition);
+}
+
+[Machine(Root = typeof(FinRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(FinalModule))]
+public sealed partial class FinalsMachine
+{
+    public ContractHooks? Hooks { get; set; }
 }

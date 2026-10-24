@@ -72,6 +72,17 @@ The machine rests only in leaves, so entering a state with children must know wh
 
 **Fix:** mark exactly one child `[Initial]`.
 
+## SALCH0005
+
+**Invalid final state** · error · app
+
+> Final state '{0}' {1}
+
+A `[Final]` state ends its parent: entering it fires the parent's `[OnDone]` transitions, or, under the root,
+completes the machine. So it must be a leaf, it cannot be the root, and it is the source of no transition.
+
+**Fix:** move the transition to the parent, or drop `[Final]`.
+
 ## SALCH0101
 
 **Conflicting transitions** · error · app
@@ -168,6 +179,52 @@ package that was meant to offer a module does not, or the attribute is left over
 
 **Fix:** name the module with `[Include]`, or remove `[IncludeExported]`. See
 [modules and the machine declaration](../concepts/machines.md#modules).
+
+## SALCH0110
+
+**Invalid eventless transition** · error · app
+
+> Eventless transition '{0}' {1}
+
+An `[Always]` transition fires as soon as its guard passes, so it must move to another state. Reported for one that
+stays, one that re-enters its own state without a guard, and unguarded eventless transitions that lead back to where
+they started: each would fire forever. A guarded loop is possible, so it is not reported; at run time a chain that
+fires 64 times in a row throws `InvalidOperationException`.
+
+**Fix:** give it a `To` state, or a guard that the transition makes false.
+
+## SALCH0111
+
+**Done transition never fires** · warning · app
+
+> '{0}' fires when '{1}' is done, but {2}
+
+An `[OnDone]` transition fires when its `From` state is done: when one of its `[Final]` children is entered, or when
+every machine it invokes with `[Invoke]` has completed. A state with neither is never done. The root is never done
+either: entering its final child completes the machine instead.
+
+**Fix:** mark a child `[Final]`, or move the transition.
+
+## SALCH0112
+
+**Invalid deferred event** · error · app
+
+> State '{0}' defers '{1}': {2}
+
+`[Defer]` keeps an event until the machine leaves the state. Reported when the type is not an event, and when the same
+state also handles the event, since resolution would have to pick one.
+
+**Fix:** handle the event or defer it, not both.
+
+## SALCH0113
+
+**Invalid invoked machine** · error · app
+
+> [Invoke] '{0}' {1}
+
+An `[Invoke]` method creates a child machine for its state. It is `public static`, returns a type that implements
+`IStatechart<TValue>`, and takes only active states (`in`), the configuration and the context. With `Forward`, values
+go to the child only when its value type is the parent's.
 
 ## SALCH0201
 
@@ -314,6 +371,17 @@ Every machine has the synchronous `Fire`, because the generator writes one machi
 caller means to use it. On a machine that can suspend the call would block the calling thread until the action came
 back — a deadlock waiting for a synchronization context — so using it there is an error at the call, where the
 choice is made.
+
+## SALCH0602
+
+**Internal event fired from outside** · error · anywhere
+
+> '{0}' is [Internal]: only code inside the machine raises it, with Enqueue
+
+A machine writes no `FireAsync` or `Fire` overload for an `[Internal]` event, and its generic `FireAsync<TEvent>`
+throws `InvalidOperationException` for one. This analyzer reports the generic call where it is written.
+
+**Fix:** raise it with `Enqueue` from an action, or remove `[Internal]`.
 
 ## SALCH0701
 

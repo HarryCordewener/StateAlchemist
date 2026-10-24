@@ -120,3 +120,9 @@ public sealed class ReferencePermitted : PermittedContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class ReferenceStatechart : StatechartContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}

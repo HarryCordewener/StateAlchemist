@@ -81,6 +81,12 @@ internal sealed class TestModel
 
     public void Replace(int state, StateModel replacement) => _states[state] = replacement;
 
+    /// <summary>Marks <paramref name="state"/> <c>[Final]</c>.</summary>
+    public void Final(int state) => _states[state] = _states[state] with { IsFinal = true };
+
+    /// <summary>Has <paramref name="state"/> defer <paramref name="events"/>.</summary>
+    public void Defer(int state, params string[] events) => _states[state] = _states[state] with { Deferred = events };
+
     /// <summary>Puts <paramref name="transition"/> in place of the transition at its index.</summary>
     public TransitionModel Replace(TransitionModel transition)
     {

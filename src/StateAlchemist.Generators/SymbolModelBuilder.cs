@@ -361,7 +361,17 @@ internal static class SymbolModelBuilder
                 HasReset: reset,
                 IsPublicStruct: type.TypeKind == TypeKind.Struct && IsVisible(type),
                 ParentMarkers: markers,
-                location);
+                location,
+                IsFinal: type.GetAttributes().Any(a => Is(a.AttributeClass, known.Final)),
+                Deferred: Deferred(type));
+        }
+
+        /// <summary>The event types a state defers. A <c>[Defer]</c> naming something that is not an event is reported by the validator.</summary>
+        private IReadOnlyList<string>? Deferred(INamedTypeSymbol type)
+        {
+            var deferred = type.GetAttributes().Where(a => Is(a.AttributeClass, known.Defer)).Select(FirstArgument).OfType<INamedTypeSymbol>()
+                .Select(e => e.AllInterfaces.Any(i => Is(i, known.Event)) ? Event(e) : MetadataName(e)).ToList();
+            return deferred.Count == 0 ? null : deferred;
         }
 
         private IEnumerable<TransitionModel> TransitionModels(TransitionDeclaration declaration, IReadOnlyDictionary<ITypeSymbol, int> stateIndex)
@@ -535,6 +545,28 @@ internal static class SymbolModelBuilder
                     _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, problem!));
                     return [];
                 }
+            }
+
+            foreach (var (attribute, trigger, text) in new[] { (known.Always, TriggerModel.Always, "[Always]"), (known.OnDone, TriggerModel.Done, "[OnDone]") })
+            {
+                if (!attributes.Any(a => Is(a.AttributeClass, attribute)))
+                {
+                    continue;
+                }
+
+                if (triggers.Count > 0 || onEvent is not null)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, $"mixes {text} with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, $"is a decision, which cannot fire on {text}"));
+                    return [];
+                }
+
+                triggers.Add(trigger);
             }
 
             if (triggers.Count == 0)

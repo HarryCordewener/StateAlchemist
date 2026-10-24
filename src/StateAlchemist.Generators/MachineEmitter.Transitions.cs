@@ -209,7 +209,16 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line($"OnTransitioned({Info(transition, path, "Completed", kind: kind)});");
-            _w.Line(done);
+            _w.Line($"if (_observer != null) _observer.Transitioned({Info(transition, path, "Completed", kind: kind)});");
+            if (SettleCall(path) is { } settle)
+            {
+                _w.Line(isAsync ? $"await {settle};" : $"return {settle};");
+            }
+
+            if (isAsync || SettleCall(path) is null)
+            {
+                _w.Line(done);
+            }
         }
 
         if (transition.IsRun && transform is not null)
@@ -353,13 +362,13 @@ internal sealed partial class MachineEmitter
 
     /// <summary>The name of <see cref="TriggerParameter"/>'s parameter.</summary>
     private static string TriggerArgumentName(TransitionModel transition) =>
-        transition.IsJoin ? "join" : transition.Trigger.Kind == MatchKind.Event ? "e" : transition.IsTimer ? string.Empty : transition.IsRun ? "run" : "value";
+        transition.IsJoin ? "join" : transition.Trigger.Kind == MatchKind.Event ? "e" : transition.HasNoTriggerArgument ? string.Empty : transition.IsRun ? "run" : "value";
 
     /// <summary>What fires a transition, as its generated methods take it: the value, the event, or a run.</summary>
     private string TriggerParameter(TransitionModel transition, bool forGuard = false) =>
         transition.IsJoin ? $"{JoinType(JoinOf(transition))} join"
         : transition.Trigger.Kind == MatchKind.Event ? $"{Event(transition.Trigger.EventType!)} e"
-        : transition.IsTimer ? string.Empty
+        : transition.HasNoTriggerArgument ? string.Empty
         : transition.IsRun && !forGuard ? $"global::System.ReadOnlyMemory<{V}> run"
         : $"{V} value";
 

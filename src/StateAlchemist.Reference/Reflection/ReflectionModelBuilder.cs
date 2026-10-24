@@ -227,7 +227,9 @@ public static class ReflectionModelBuilder
                 HasReset: reset is not null && reset.ReturnType == typeof(void),
                 IsPublicStruct: type.IsValueType && !type.IsEnum && IsVisible(type),
                 ParentMarkers: markers,
-                SourceSpan.None);
+                SourceSpan.None,
+                IsFinal: type.GetCustomAttribute<FinalAttribute>() is not null,
+                Deferred: type.GetCustomAttributes<DeferAttribute>().Select(d => d.EventType.FullName!).ToList() is { Count: > 0 } deferred ? deferred : null);
         }
 
         private IEnumerable<TransitionModel> TransitionModels(TransitionDeclaration declaration, IReadOnlyDictionary<Type, int> stateIndex)
@@ -384,6 +386,32 @@ public static class ReflectionModelBuilder
                     _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, problem!));
                     return [];
                 }
+            }
+
+            foreach (var (present, trigger, text) in new[]
+                     {
+                         (member.GetCustomAttribute<AlwaysAttribute>() is not null, TriggerModel.Always, "[Always]"),
+                         (member.GetCustomAttribute<OnDoneAttribute>() is not null, TriggerModel.Done, "[OnDone]"),
+                     })
+            {
+                if (!present)
+                {
+                    continue;
+                }
+
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, $"mixes {text} with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, $"is a decision, which cannot fire on {text}"));
+                    return [];
+                }
+
+                triggers.Add(trigger);
             }
 
             if (triggers.Count == 0)

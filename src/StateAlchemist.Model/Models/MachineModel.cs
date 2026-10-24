@@ -18,7 +18,8 @@ public sealed class MachineModel
         IReadOnlyList<StateModel> states,
         IReadOnlyList<TransitionModel> transitions,
         IReadOnlyList<StateActionModel>? stateActions = null,
-        IReadOnlyList<ModelDiagnostic>? frontEndDiagnostics = null)
+        IReadOnlyList<ModelDiagnostic>? frontEndDiagnostics = null,
+        IReadOnlyList<InvokeModel>? invokes = null)
     {
         for (var i = 0; i < states.Count; i++)
         {
@@ -42,6 +43,7 @@ public sealed class MachineModel
         Transitions = transitions;
         StateActions = stateActions ?? [];
         FrontEndDiagnostics = frontEndDiagnostics ?? [];
+        Invokes = invokes ?? [];
     }
 
     /// <summary>The machine's name.</summary>
@@ -62,9 +64,12 @@ public sealed class MachineModel
     /// <summary>Problems the front-end found while building the model.</summary>
     public IReadOnlyList<ModelDiagnostic> FrontEndDiagnostics { get; }
 
+    /// <summary>The machines its states invoke (<c>[Invoke]</c>), in declaration order.</summary>
+    public IReadOnlyList<InvokeModel> Invokes { get; }
+
     /// <summary>Every declared method.</summary>
     public IEnumerable<MethodModel> AllMethods =>
-        Transitions.SelectMany(t => t.Methods).Concat(StateActions.Select(a => a.Method)).Distinct();
+        Transitions.SelectMany(t => t.Methods).Concat(StateActions.Select(a => a.Method)).Concat(Invokes.Select(i => i.Method)).Distinct();
 
     /// <summary>The index of the state named <paramref name="typeName"/>, or −1.</summary>
     public int IndexOf(string typeName)

@@ -30,6 +30,7 @@ internal static class GeneratedHarness
             ("Timing", false) => new TimingMachine((RecordingContext)context, ((RecordingContext)context).Clock) { Hooks = hooks },
             ("TimingSerialized", false) => new TimingSerializedMachine((RecordingContext)context, ((RecordingContext)context).Clock) { Hooks = hooks },
             ("Joins", false) => new JoinsMachine((RecordingContext)context) { Hooks = hooks },
+            ("Finals", false) => new FinalsMachine((RecordingContext)context) { Hooks = hooks },
             ("Permits", false) => new PermitsMachine((RecordingContext)context) { Hooks = hooks },
             _ => throw new NotSupportedException($"No generated machine for shape '{shape.Name}'{(handled ? " with exception hooks" : "")}."),
         };

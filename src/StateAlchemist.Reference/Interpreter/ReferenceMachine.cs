@@ -59,6 +59,7 @@ public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
         _time = time ?? TimeProvider.System;
         _timers = Timers.Of(_model);
         _armed = new Armed?[_timers.Count];
+        _pausedLeft = new TimeSpan?[_timers.Count];
     }
 
     /// <summary>Interprets <paramref name="machine"/>.</summary>
@@ -127,6 +128,16 @@ public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
         {
             Status = MachineStatus.Running;
             Rearm([], delays);
+        }
+
+        _inside.Value = Inside.Transition;
+        try
+        {
+            await SettleAsync(entered: true);
+        }
+        finally
+        {
+            _inside.Value = null;
         }
     }
 
@@ -206,13 +217,15 @@ public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
     /// <inheritdoc/>
     public async ValueTask StopAsync()
     {
-        if (Status != MachineStatus.Running)
+        if (Status is MachineStatus.NotStarted or MachineStatus.Stopped)
         {
             Status = MachineStatus.Stopped;
+            _completion.TrySetResult(true);
             return;
         }
 
         Abandon();
+        _completion.TrySetResult(true);
         _lifetime.Cancel();
         foreach (var state in _hierarchy.PathFromRoot(_leaf))
         {

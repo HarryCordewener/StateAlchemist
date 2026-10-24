@@ -501,6 +501,7 @@ internal sealed partial class MachineEmitter
         _w.Line();
         using (_w.Block($"private {ValueTaskType} DispatchValue({V} value)"))
         {
+            WriteCompletedGuard();
             _w.Line("var v = (int)value;");
             using (_w.Block("switch (_leaf)"))
             {
@@ -522,6 +523,7 @@ internal sealed partial class MachineEmitter
             _w.Line();
             using (_w.Block($"private {ValueTaskType} DispatchEvent{i}({Name(_events[i])} e)"))
             {
+                WriteCompletedGuard();
                 using (_w.Block("switch (_leaf)"))
                 {
                     foreach (var leaf in _hierarchy.Leaves)
@@ -552,6 +554,7 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line("OnUnhandled(_leaf, value);");
+            _w.Line("if (_observer != null) _observer.UnhandledValue(StateType, value);");
             Unhandled("value.ToString()");
         }
 
@@ -566,6 +569,7 @@ internal sealed partial class MachineEmitter
                 }
 
                 _w.Line("OnUnhandled(_leaf, in e);");
+                _w.Line($"if (_observer != null) _observer.UnhandledEvent(StateType, typeof({Name(_events[i])}));");
                 Unhandled(Literal("event " + _events[i].Name));
             }
         }
@@ -573,6 +577,7 @@ internal sealed partial class MachineEmitter
         _w.Line();
         using (_w.Block($"private void UnhandledUnknown({TypeType} type)"))
         {
+            _w.Line("if (_observer != null) _observer.UnhandledEvent(StateType, type);");
             if (Telemetry)
             {
                 WriteUnhandledCount();

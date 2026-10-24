@@ -220,6 +220,17 @@ internal sealed partial class MachineEmitter
                     }
                 }
 
+                using (_w.Block($"else if (_status == {Rt}MachineStatus.Paused)"))
+                {
+                    _w.Line("snapshot.Timers = new SnapshotTimers();");
+                    _w.Line("var now = _time.GetUtcNow();");
+                    foreach (var timer in _timers)
+                    {
+                        var k = Num(timer.Index);
+                        _w.Line($"if (_pausedLeft{k}.HasValue) snapshot.Timers.{TimerProperty(timer)} = now + _pausedLeft{k}.Value;");
+                    }
+                }
+
                 using (_w.Block("else if (_restoredTimers)"))
                 {
                     _w.Line("snapshot.Timers = new SnapshotTimers();");
@@ -370,6 +381,11 @@ internal sealed partial class MachineEmitter
             foreach (var timer in _timers)
             {
                 _w.Line($"if (due{Num(timer.Index)}) SubmitTimer({Num(timer.Index)}, generation{Num(timer.Index)});");
+            }
+
+            if (HasCompletion)
+            {
+                _w.Line(RestoredCompletion().TrimEnd());
             }
 
             _w.Line($"return default({ValueTaskType});");

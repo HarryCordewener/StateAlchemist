@@ -6,7 +6,7 @@ namespace StateAlchemist;
 
 /// <summary>
 /// What a generated machine offers beyond <see cref="IBoundaryMachine{TValue}"/>: the triggers it would accept now,
-/// starting in a chosen state, pausing, and an observer that sees every step. A separate interface so that adding it
+/// starting in a chosen state, completion, pausing, and an observer that sees every step. A separate interface so that adding it
 /// changed nothing for code that implements <see cref="IMachine{TValue}"/>.
 /// </summary>
 /// <typeparam name="TValue">The value-trigger type.</typeparam>
@@ -33,4 +33,28 @@ public interface IStatechart<TValue> : IBoundaryMachine<TValue>
     /// <exception cref="InvalidOperationException">The machine has already been started.</exception>
     ValueTask StartAsync<TState>()
         where TState : struct;
+
+    /// <summary>
+    /// Completes when the machine completes — enters a <see cref="FinalAttribute"/> child of the root — or stops.
+    /// <see cref="IMachine{TValue}.Status"/> tells which. It never faults.
+    /// </summary>
+    Task Completion { get; }
+
+    /// <summary>
+    /// Pauses a running machine: it refuses triggers with <see cref="MachineNotRunningException"/> and holds its timers,
+    /// each keeping the time it had left. Inputs already waiting in a serialized machine's inbox wait until
+    /// <see cref="Resume"/>. Call it from outside the machine.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The machine is not running, or the call comes from inside it.</exception>
+    void Pause();
+
+    /// <summary>Resumes a paused machine: it accepts triggers again, and its timers run on for the time they had left.</summary>
+    /// <exception cref="InvalidOperationException">The machine is not paused.</exception>
+    void Resume();
+
+    /// <summary>
+    /// Sees every transition and every unhandled trigger, or <see langword="null"/>. Set it from outside the machine,
+    /// before firing it or between triggers.
+    /// </summary>
+    IMachineObserver<TValue>? Observer { get; set; }
 }

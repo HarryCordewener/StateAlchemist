@@ -18,12 +18,16 @@ internal sealed partial class MachineEmitter
         {
             _w.Line($"if (_status != {Rt}MachineStatus.NotStarted) return Faulted(new global::System.InvalidOperationException(\"The machine has already been started.\"));");
             // A restored machine's states were entered before its snapshot was taken: starting it only lets it run.
-            _w.Line(HasTimers ? "if (_restored) return StartRestored();" : $"if (_restored) {{ _status = {Rt}MachineStatus.Running; return default({ValueTaskType}); }}");
+            _w.Line(HasTimers ? "if (_restored) return StartRestored();" : $"if (_restored) {{ _status = {Rt}MachineStatus.Running; {RestoredCompletion()}return default({ValueTaskType}); }}");
             _w.Line("return Start();");
         }
 
-        WriteLifecycleActions("Start", starting, Started(initialPath), null);
+        WriteLifecycleActions("Start", starting, Started(initialPath), null, StartsSettling(initialPath));
         WriteStartIn();
+        if (_hierarchy.Leaves.Any(l => StartsSettling(_hierarchy.PathFromRoot(l))))
+        {
+            WriteStartSettle();
+        }
 
         _w.Line();
         _w.Line("/// <summary>Whether a stop has already been claimed: two threads must not both run the exit actions.</summary>");
@@ -33,11 +37,12 @@ internal sealed partial class MachineEmitter
         _w.Line("/// <inheritdoc/>");
         using (_w.Block($"public {ValueTaskType} StopAsync()"))
         {
-            _w.Line($"if (_status != {Rt}MachineStatus.Running) {{ _status = {Rt}MachineStatus.Stopped; return default({ValueTaskType}); }}");
+            _w.Line($"if (_status == {Rt}MachineStatus.NotStarted || _status == {Rt}MachineStatus.Stopped) {{ _status = {Rt}MachineStatus.Stopped; SignalCompletion(); return default({ValueTaskType}); }}");
             // Disposing and stopping from two threads at once, which `await using` around an explicit StopAsync
             // does: the loser returns without waiting, rather than running every Exited action a second time.
             _w.Line($"if (global::System.Threading.Interlocked.Exchange(ref _stopping, 1) != 0) return default({ValueTaskType});");
             _w.Line(HasInbox ? "Abandon();" : $"_status = {Rt}MachineStatus.Stopped;");
+            _w.Line("SignalCompletion();");
             _w.Line("if (_lifetime != null) _lifetime.Cancel();");
             WriteStopRecording();
             _w.Line("return Stop();");
@@ -47,7 +52,7 @@ internal sealed partial class MachineEmitter
             leaf => leaf,
             leaf => _hierarchy.PathFromRoot(leaf).Reverse()
                 .SelectMany(s => StateActions(ActionPhase.Exited, s).Select(m => new TransitionAction(m, Use.Exited, "Exited", s))).ToList());
-        WriteLifecycleActions("Stop", stopping.Values.SelectMany(a => a).ToList(), null, stopping);
+        WriteLifecycleActions("Stop", stopping.Values.SelectMany(a => a).ToList(), null, stopping, settles: false);
 
         _w.Line();
         _w.Line("/// <inheritdoc/>");
@@ -124,7 +129,7 @@ internal sealed partial class MachineEmitter
         {
             var path = _hierarchy.PathFromRoot(leaf);
             var entering = path.SelectMany(s => StateActions(ActionPhase.Entered, s).Select(m => new TransitionAction(m, Use.Entered, "Entered", s))).ToList();
-            WriteLifecycleActions("StartIn" + _stateIds[leaf], entering, Started(path), null);
+            WriteLifecycleActions("StartIn" + _stateIds[leaf], entering, Started(path), null, StartsSettling(path));
         }
     }
 
@@ -132,7 +137,7 @@ internal sealed partial class MachineEmitter
     /// A lifecycle's actions, run inside the machine so they may <c>Enqueue</c>. Their exception hooks apply as in a
     /// transition; <c>Skip</c> skips the rest.
     /// </summary>
-    private void WriteLifecycleActions(string name, List<TransitionAction> all, string? after, Dictionary<int, List<TransitionAction>>? byLeaf)
+    private void WriteLifecycleActions(string name, List<TransitionAction> all, string? after, Dictionary<int, List<TransitionAction>>? byLeaf, bool settles)
     {
         var isAsync = all.Any(a => a.Method.IsAsync);
         var skip = all.Any(a => Implements($"On{a.Phase}Exception"));
@@ -186,9 +191,20 @@ internal sealed partial class MachineEmitter
                 _w.Line(after);
             }
 
-            _w.Line(isAsync ? "return;" : $"return default({ValueTaskType});");
+            if (settles)
+            {
+                _w.Line(isAsync ? "await StartSettle();" : "return StartSettle();");
+            }
+
+            if (isAsync || !settles)
+            {
+                _w.Line(isAsync ? "return;" : $"return default({ValueTaskType});");
+            }
         }
     }
+
+    /// <summary>Whether a start along <paramref name="path"/> leaves its leaf something to try.</summary>
+    private bool StartsSettling(IReadOnlyList<int> path) => NeedsSettle(path[path.Count - 1], entered: true);
 
     private void WriteLifecycleAction(TransitionAction action)
     {
