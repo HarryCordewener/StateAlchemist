@@ -5,6 +5,7 @@ using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
 using StateAlchemist.Contracts.Machines.Joins;
+using StateAlchemist.Contracts.Machines.Permits;
 using StateAlchemist.Contracts.Machines.Recalling;
 using StateAlchemist.Contracts.Machines.Recording;
 using StateAlchemist.Contracts.Machines.Runs;
@@ -150,6 +151,13 @@ public sealed partial class JoinsMachine
     public ContractHooks? Hooks { get; set; }
 
     partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
+}
+
+[Machine(Root = typeof(PermitRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(PermitModule))]
+public sealed partial class PermitsMachine
+{
+    public ContractHooks? Hooks { get; set; }
 }
 
 [Machine(Root = typeof(TimeRoot), Value = typeof(byte), Context = typeof(RecordingContext))]

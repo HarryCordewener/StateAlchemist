@@ -604,22 +604,7 @@ internal sealed partial class MachineEmitter
     /// </summary>
     private void WriteValueCases(int leaf, string argument, System.Action<IReadOnlyList<TransitionModel>, int, string, string> write)
     {
-        var runs = new List<(long Low, long High, IReadOnlyList<TransitionModel> Candidates, string Key)>();
-        foreach (var value in _model.Options.Domain.Values)
-        {
-            var candidates = _resolver.ForValue(leaf, value);
-            var key = string.Join(",", candidates.Select(c => c.Index));
-            if (runs.Count > 0 && runs[runs.Count - 1].Key == key && runs[runs.Count - 1].High == value - 1)
-            {
-                var last = runs[runs.Count - 1];
-                runs[runs.Count - 1] = (last.Low, value, last.Candidates, key);
-            }
-            else
-            {
-                runs.Add((value, value, candidates, key));
-            }
-        }
-
+        var runs = ValueRuns(leaf);
         var fallback = runs.GroupBy(r => r.Key).OrderByDescending(g => g.Sum(r => r.High - r.Low + 1)).First();
         var unhandled = $"UnhandledValue({argument})";
         foreach (var run in runs.Where(r => r.Key != fallback.Key && r.High - r.Low >= 8))
@@ -661,6 +646,28 @@ internal sealed partial class MachineEmitter
                 write(fallback.First().Candidates, leaf, argument, unhandled);
             }
         }
+    }
+
+    /// <summary>A leaf's values in runs of neighbours with the same candidates, in value order.</summary>
+    private List<(long Low, long High, IReadOnlyList<TransitionModel> Candidates, string Key)> ValueRuns(int leaf)
+    {
+        var runs = new List<(long Low, long High, IReadOnlyList<TransitionModel> Candidates, string Key)>();
+        foreach (var value in _model.Options.Domain.Values)
+        {
+            var candidates = _resolver.ForValue(leaf, value);
+            var key = string.Join(",", candidates.Select(c => c.Index));
+            if (runs.Count > 0 && runs[runs.Count - 1].Key == key && runs[runs.Count - 1].High == value - 1)
+            {
+                var last = runs[runs.Count - 1];
+                runs[runs.Count - 1] = (last.Low, value, last.Candidates, key);
+            }
+            else
+            {
+                runs.Add((value, value, candidates, key));
+            }
+        }
+
+        return runs;
     }
 
     /// <summary>

@@ -79,7 +79,7 @@ internal sealed partial class MachineEmitter
             scopes.Add(_w.Block($"partial {Keyword(outer)} {outer.Name}"));
         }
 
-        using (_w.Block($"partial class {_machine.Machine.Name} : {Rt}IBoundaryMachine<{V}>"))
+        using (_w.Block($"partial class {_machine.Machine.Name} : {Rt}IStatechart<{V}>"))
         {
             WriteStorage();
             if (Telemetry)
@@ -95,6 +95,7 @@ internal sealed partial class MachineEmitter
             WriteFiring();
             WriteDispatch();
             WritePlans();
+            WritePermitted();
             WriteRuns();
             WriteDecisions();
             if (HasTimers)

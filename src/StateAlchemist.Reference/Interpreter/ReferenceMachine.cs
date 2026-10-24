@@ -19,7 +19,7 @@ namespace StateAlchemist.Reference;
 /// what a half-run transform left behind.
 /// </remarks>
 /// <typeparam name="TValue">The value-trigger type.</typeparam>
-public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
+public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
     where TValue : struct
 {
     private readonly ReflectedMachine _machine;
@@ -128,6 +128,79 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
             Status = MachineStatus.Running;
             Rearm([], delays);
         }
+    }
+
+    /// <inheritdoc/>
+    public ValueTask StartAsync<TState>()
+        where TState : struct
+    {
+        var state = IndexOf(typeof(TState));
+        if (state < 0)
+        {
+            throw new ArgumentException($"'{typeof(TState).Name}' is not a state of this machine.", nameof(TState));
+        }
+
+        if (Status != MachineStatus.NotStarted)
+        {
+            throw new InvalidOperationException("The machine has already been started or restored.");
+        }
+
+        _leaf = _hierarchy.InitialLeaf(state);
+        return StartAsync();
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<TriggerDefinition> PermittedTriggers()
+    {
+        var permitted = new List<TriggerDefinition>();
+        foreach (var value in _model.Options.Domain.Values)
+        {
+            var typed = FromInt64(value);
+            if (Choose(_resolver.ForValue(_leaf, value), Trigger.OfValue(typed), hooks: false) is not null)
+            {
+                Permit(permitted, value);
+            }
+        }
+
+        var events = _model.Transitions.Where(t => t.Trigger.Kind == MatchKind.Event).Select(t => t.Trigger.EventType!).Distinct().OrderBy(e => e, StringComparer.Ordinal);
+        foreach (var eventType in events)
+        {
+            var candidates = _resolver.ForEvent(_leaf, eventType);
+            if (candidates.Count == 0)
+            {
+                continue;
+            }
+
+            // A guard that reads the event, or the transition info that names it, cannot be asked without a payload.
+            var unknowable = candidates.TakeWhile(c => c.Guard is not null)
+                .Any(c => c.Guard!.Parameters.Any(p => p.Kind is ParameterKind.Event or ParameterKind.TransitionInfo));
+            if (unknowable || Choose(candidates, Trigger.OfEvent(PermitProbe.Instance), hooks: false) is not null)
+            {
+                permitted.Add(TriggerDefinition.ForEvent(DefinitionBuilder.FindType(eventType)));
+            }
+        }
+
+        return permitted;
+    }
+
+    private static void Permit(List<TriggerDefinition> permitted, long value)
+    {
+        if (permitted.Count > 0 && permitted[^1] is { Kind: TriggerKind.Value or TriggerKind.Range } last && last.High == value - 1)
+        {
+            permitted[^1] = TriggerDefinition.ForRange(last.Low, value);
+            return;
+        }
+
+        permitted.Add(TriggerDefinition.ForValue(value));
+    }
+
+    private static TValue FromInt64(long value) =>
+        typeof(TValue).IsEnum ? (TValue)Enum.ToObject(typeof(TValue), value) : (TValue)Convert.ChangeType(value, typeof(TValue), System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Stands in for an event's payload when its guards do not read it.</summary>
+    private sealed class PermitProbe
+    {
+        public static readonly PermitProbe Instance = new();
     }
 
     /// <inheritdoc/>

@@ -22,16 +22,8 @@ internal sealed partial class MachineEmitter
             _w.Line("return Start();");
         }
 
-        // The initial path's timers are armed once the machine is running, so a firing is never refused as early.
-        var started = $"_status = {Rt}MachineStatus.Running;";
-        var initialTimers = TimersOn(initialPath);
-        if (initialTimers.Count > 0)
-        {
-            started = string.Concat(initialTimers.Select(t => $"var delay{Num(t.Index)} = Delay{Num(t.Index)}(); "))
-                      + ArmStatements(initialTimers, [], t => $"delay{Num(t.Index)}", started + " ");
-        }
-
-        WriteLifecycleActions("Start", starting, started, null);
+        WriteLifecycleActions("Start", starting, Started(initialPath), null);
+        WriteStartIn();
 
         _w.Line();
         _w.Line("/// <summary>Whether a stop has already been claimed: two threads must not both run the exit actions.</summary>");
@@ -70,6 +62,69 @@ internal sealed partial class MachineEmitter
                 _w.Line("if (_lifetime == null) _lifetime = new global::System.Threading.CancellationTokenSource();");
                 _w.Line("return _lifetime.Token;");
             }
+        }
+    }
+
+    /// <summary>
+    /// What runs once a start's <c>[Entered]</c> actions have: the machine is running, then the path's timers are
+    /// armed, so a firing is never refused as early.
+    /// </summary>
+    private string Started(IReadOnlyList<int> path)
+    {
+        var started = $"_status = {Rt}MachineStatus.Running;";
+        var timers = TimersOn(path);
+        if (timers.Count > 0)
+        {
+            started = string.Concat(timers.Select(t => $"var delay{Num(t.Index)} = Delay{Num(t.Index)}(); "))
+                      + ArmStatements(timers, [], t => $"delay{Num(t.Index)}", started + " ");
+        }
+
+        return started;
+    }
+
+    /// <summary>
+    /// <c>StartAsync(StateId)</c> and <c>StartAsync&lt;TState&gt;()</c>: the start of a machine placed in a chosen state's
+    /// <c>[Initial]</c> leaf first. One start per leaf, since each runs its own path's actions.
+    /// </summary>
+    private void WriteStartIn()
+    {
+        var initialLeaf = _hierarchy.InitialLeaf(_hierarchy.Root);
+        _w.Line();
+        _w.Line("/// <summary>Starts the machine in <paramref name=\"state\"/>'s <c>[Initial]</c> leaf, with fresh data, running the <c>[Entered]</c> actions from the root down. For tests.</summary>");
+        using (_w.Block($"public {ValueTaskType} StartAsync(StateId state)"))
+        {
+            _w.Line($"if (_status != {Rt}MachineStatus.NotStarted || _restored) return Faulted(new global::System.InvalidOperationException(\"The machine has already been started or restored.\"));");
+            using (_w.Block("switch (state)"))
+            {
+                for (var i = 0; i < _model.States.Count; i++)
+                {
+                    var leaf = _hierarchy.InitialLeaf(i);
+                    _w.Line(leaf == initialLeaf
+                        ? $"case StateId.{_stateIds[i]}: return Start();"
+                        : $"case StateId.{_stateIds[i]}: _leaf = StateId.{_stateIds[leaf]}; return StartIn{_stateIds[leaf]}();");
+                }
+
+                _w.Line("default: return Faulted(new global::System.ArgumentOutOfRangeException(\"state\"));");
+            }
+        }
+
+        _w.Line();
+        _w.Line("/// <inheritdoc/>");
+        using (_w.Block($"public {ValueTaskType} StartAsync<TState>() where TState : struct"))
+        {
+            for (var i = 0; i < _model.States.Count; i++)
+            {
+                _w.Line($"if (typeof(TState) == typeof({S(i)})) return StartAsync(StateId.{_stateIds[i]});");
+            }
+
+            _w.Line("return Faulted(new global::System.ArgumentException(\"'\" + typeof(TState).Name + \"' is not a state of this machine.\", \"TState\"));");
+        }
+
+        foreach (var leaf in _hierarchy.Leaves.Where(l => l != initialLeaf))
+        {
+            var path = _hierarchy.PathFromRoot(leaf);
+            var entering = path.SelectMany(s => StateActions(ActionPhase.Entered, s).Select(m => new TransitionAction(m, Use.Entered, "Entered", s))).ToList();
+            WriteLifecycleActions("StartIn" + _stateIds[leaf], entering, Started(path), null);
         }
     }
 

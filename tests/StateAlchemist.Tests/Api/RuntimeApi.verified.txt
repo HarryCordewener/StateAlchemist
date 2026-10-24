@@ -96,6 +96,13 @@
     public interface IRootState { }
     public interface IState<TParent>
         where TParent :  struct { }
+    public interface IStatechart<TValue> : StateAlchemist.IBoundaryMachine<TValue>, StateAlchemist.IMachine<TValue>, System.IAsyncDisposable
+        where TValue :  struct
+    {
+        System.Collections.Generic.IReadOnlyList<StateAlchemist.TriggerDefinition> PermittedTriggers();
+        System.Threading.Tasks.ValueTask StartAsync<TState>()
+            where TState :  struct;
+    }
     [System.AttributeUsage(System.AttributeTargets.Class, AllowMultiple=true, Inherited=false)]
     public sealed class IncludeAttribute : System.Attribute
     {
