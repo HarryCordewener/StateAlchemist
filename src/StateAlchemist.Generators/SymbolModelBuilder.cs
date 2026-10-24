@@ -369,8 +369,19 @@ internal static class SymbolModelBuilder
         /// <summary>The event types a state defers. A <c>[Defer]</c> naming something that is not an event is reported by the validator.</summary>
         private IReadOnlyList<string>? Deferred(INamedTypeSymbol type)
         {
-            var deferred = type.GetAttributes().Where(a => Is(a.AttributeClass, known.Defer)).Select(FirstArgument).OfType<INamedTypeSymbol>()
-                .Select(e => e.AllInterfaces.Any(i => Is(i, known.Event)) ? Event(e) : MetadataName(e)).ToList();
+            var deferred = new List<string>();
+            foreach (var e in type.GetAttributes().Where(a => Is(a.AttributeClass, known.Defer)).Select(FirstArgument).OfType<INamedTypeSymbol>())
+            {
+                if (e.AllInterfaces.Any(i => Is(i, known.Event)))
+                {
+                    deferred.Add(Event(e));
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidDefer, Span(type.Locations.FirstOrDefault()), type.Name, e.Name, "it is not an event type"));
+                }
+            }
+
             return deferred.Count == 0 ? null : deferred;
         }
 

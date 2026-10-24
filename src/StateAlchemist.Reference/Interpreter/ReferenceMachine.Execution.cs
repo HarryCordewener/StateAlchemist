@@ -35,9 +35,23 @@ public sealed partial class ReferenceMachine<TValue>
             return false;
         }
 
-        var chosen = Choose(Candidates(trigger), trigger, hooks: true);
+        var deferred = false;
+        var candidates = trigger is { HasValue: false, Event: { } e }
+            ? _resolver.ForEvent(_leaf, e.GetType().FullName!, out deferred)
+            : Candidates(trigger);
+        var chosen = Choose(candidates, trigger, hooks: true);
         if (chosen is null)
         {
+            if (deferred)
+            {
+                lock (_sync)
+                {
+                    _deferred.Add(trigger.Event!);
+                }
+
+                return false;
+            }
+
             Unhandled(trigger);
             return false;
         }
@@ -205,6 +219,17 @@ public sealed partial class ReferenceMachine<TValue>
                 if (path.Exiting.Count > 0 && _pending is { } pending)
                 {
                     EndPending(pending);
+                }
+
+                // A move: the events kept by [Defer] are queued again, ahead of what this transition's actions queue.
+                if (path.Exiting.Count > 0)
+                {
+                    foreach (var kept in _deferred)
+                    {
+                        _queue.Enqueue(Work.Queued(kept));
+                    }
+
+                    _deferred.Clear();
                 }
 
                 Rearm(path.Exiting, delays);
@@ -404,10 +429,15 @@ public sealed partial class ReferenceMachine<TValue>
         }
     }
 
-    private TransitionPlan PlanFor(IReadOnlyList<TransitionModel> candidates, Trigger trigger)
+    private TransitionPlan PlanFor(IReadOnlyList<TransitionModel> candidates, Trigger trigger, bool deferred = false)
     {
         var refused = new List<string>();
         var chosen = Choose(candidates, trigger, hooks: false, refused);
+        if (chosen is null && deferred)
+        {
+            return TransitionPlan.ForDeferred(StateType, refused);
+        }
+
         if (chosen is null)
         {
             return refused.Count == 0 ? TransitionPlan.None : new TransitionPlan(refused);

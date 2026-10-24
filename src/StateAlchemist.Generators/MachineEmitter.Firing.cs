@@ -528,15 +528,15 @@ internal sealed partial class MachineEmitter
                 {
                     foreach (var leaf in _hierarchy.Leaves)
                     {
-                        var candidates = _resolver.ForEvent(leaf, eventName);
-                        if (candidates.Count == 0)
+                        var candidates = _resolver.ForEvent(leaf, eventName, out var deferred);
+                        if (candidates.Count == 0 && !deferred)
                         {
                             continue;
                         }
 
                         using (_w.Block($"case StateId.{_stateIds[leaf]}:"))
                         {
-                            Candidates(candidates, leaf, "e", $"UnhandledEvent{i}(e)");
+                            Candidates(candidates, leaf, "e", deferred ? DeferCall(i) : $"UnhandledEvent{i}(e)");
                         }
                     }
 

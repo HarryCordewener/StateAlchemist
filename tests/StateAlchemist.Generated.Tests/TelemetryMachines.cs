@@ -1,6 +1,7 @@
 using System;
 using StateAlchemist.Contracts;
 using StateAlchemist.Contracts.Machines;
+using StateAlchemist.Contracts.Machines.Defers;
 using StateAlchemist.Contracts.Machines.Finals;
 using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
@@ -184,6 +185,13 @@ public sealed partial class TelemetryTimingSerializedMachine
 [Machine(Root = typeof(FinRoot), Value = typeof(byte), Context = typeof(RecordingContext), Telemetry = true)]
 [Include(typeof(FinalModule))]
 public sealed partial class TelemetryFinalsMachine
+{
+    public ContractHooks? Hooks { get; set; }
+}
+
+[Machine(Root = typeof(DefRoot), Value = typeof(byte), Context = typeof(RecordingContext), Telemetry = true)]
+[Include(typeof(DeferModule))]
+public sealed partial class TelemetryDefersMachine
 {
     public ContractHooks? Hooks { get; set; }
 }

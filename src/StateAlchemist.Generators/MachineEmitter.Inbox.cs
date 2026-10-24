@@ -671,6 +671,12 @@ internal sealed partial class MachineEmitter
                 }
 
                 _w.Line("waiting.AddRange(_queued);");
+                if (HasDefer)
+                {
+                    _w.Line("waiting.AddRange(_deferred);");
+                    _w.Line("_deferred.Clear();");
+                }
+
                 _w.Line("if (_current != null) waiting.Add(_current);");
                 _w.Line("_inbox.Clear();");
                 _w.Line("_queued.Clear();");

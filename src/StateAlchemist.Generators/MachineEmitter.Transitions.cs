@@ -166,6 +166,7 @@ internal sealed partial class MachineEmitter
             // exited states' timers are cancelled and the entered states' armed.
             _w.Line($"_leaf = StateId.{_stateIds[path.TargetLeaf]};");
             WriteRecording(path);
+            WriteRedeliver(path);
             if (Deciding && path.Exiting.Count > 0)
             {
                 _w.Line("lock (_sync) { if (_pending != null) EndPending(_pending); }");

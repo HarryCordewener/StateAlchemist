@@ -229,7 +229,26 @@ public static class ReflectionModelBuilder
                 ParentMarkers: markers,
                 SourceSpan.None,
                 IsFinal: type.GetCustomAttribute<FinalAttribute>() is not null,
-                Deferred: type.GetCustomAttributes<DeferAttribute>().Select(d => d.EventType.FullName!).ToList() is { Count: > 0 } deferred ? deferred : null);
+                Deferred: Deferred(type));
+        }
+
+        /// <summary>The event types a state defers; a type that is not an event is reported instead.</summary>
+        private List<string>? Deferred(Type type)
+        {
+            var deferred = new List<string>();
+            foreach (var attribute in type.GetCustomAttributes<DeferAttribute>())
+            {
+                if (typeof(IEvent).IsAssignableFrom(attribute.EventType))
+                {
+                    deferred.Add(attribute.EventType.FullName!);
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidDefer, SourceSpan.None, type.Name, attribute.EventType.Name, "it is not an event type"));
+                }
+            }
+
+            return deferred.Count == 0 ? null : deferred;
         }
 
         private IEnumerable<TransitionModel> TransitionModels(TransitionDeclaration declaration, IReadOnlyDictionary<Type, int> stateIndex)

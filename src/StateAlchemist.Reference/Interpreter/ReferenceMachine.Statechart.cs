@@ -19,6 +19,9 @@ public sealed partial class ReferenceMachine<TValue>
     private readonly TimeSpan?[] _pausedLeft;
     private int _settleDepth;
 
+    // The events kept by [Defer], in arrival order, until the machine next moves.
+    private readonly List<object> _deferred = [];
+
     /// <inheritdoc/>
     public Task Completion => _completion.Task;
 

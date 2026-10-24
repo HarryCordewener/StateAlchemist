@@ -104,6 +104,7 @@ internal sealed partial class MachineEmitter
             }
 
             WriteStatechart();
+            WriteDefer();
             WriteTransitions();
             WriteRecalls();
             if (HasInbox)
@@ -158,6 +159,7 @@ internal sealed partial class MachineEmitter
         // holds no wait handle and no timer, so it is ordinary garbage once the machine is.
         _w.Line("private global::System.Threading.CancellationTokenSource _lifetime;");
         WriteStatechartStorage();
+        WriteDeferStorage();
         if (HasTimers)
         {
             WriteTimerStorage();

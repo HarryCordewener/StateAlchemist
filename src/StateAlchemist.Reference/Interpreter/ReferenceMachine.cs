@@ -314,7 +314,7 @@ public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
     /// <inheritdoc/>
     public TransitionPlan Plan<TEvent>(TEvent e)
         where TEvent : struct, IEvent =>
-        PlanFor(_resolver.ForEvent(_leaf, typeof(TEvent).FullName!), Trigger.OfEvent(e));
+        PlanFor(_resolver.ForEvent(_leaf, typeof(TEvent).FullName!, out var deferred), Trigger.OfEvent(e), deferred);
 
     private async ValueTask RunLifecycleAsync(ActionPhase phase, IReadOnlyList<int> states)
     {

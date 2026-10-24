@@ -47,6 +47,13 @@ internal sealed partial class MachineEmitter
                 _w.Line("public SnapshotJoins Joins { get; set; }");
             }
 
+            if (HasDefer)
+            {
+                _w.Line();
+                _w.Line("/// <summary>The events the active states deferred, in arrival order.</summary>");
+                _w.Line("public global::System.Collections.Generic.List<SnapshotEvent> Deferred { get; set; }");
+            }
+
             if (HasTimers)
             {
                 _w.Line();
@@ -67,6 +74,11 @@ internal sealed partial class MachineEmitter
                     _w.Line($"public global::System.DateTimeOffset? {TimerProperty(timer)} {{ get; set; }}");
                 }
             }
+        }
+
+        if (HasDefer)
+        {
+            WriteDeferSnapshotType();
         }
 
         _w.Line();
@@ -205,6 +217,11 @@ internal sealed partial class MachineEmitter
                 }
             }
 
+            if (HasDefer)
+            {
+                WriteDeferCapture();
+            }
+
             if (HasTimers)
             {
                 // A running timer is due when it was armed plus its delay; one restored but not yet started keeps the
@@ -319,6 +336,11 @@ internal sealed partial class MachineEmitter
                         }
                     }
                 }
+            }
+
+            if (HasDefer)
+            {
+                WriteDeferRestore();
             }
 
             if (HasTimers)

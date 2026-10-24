@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using StateAlchemist.Contracts.Machines;
 using StateAlchemist.Contracts.Machines.Deciding;
+using Nudge = StateAlchemist.Contracts.Machines.Defers.Nudge;
 using StateAlchemist.Contracts.Machines.Joins;
 using StateAlchemist.Contracts.Machines.Recalling;
 using Timed = StateAlchemist.Contracts.Machines.Timing;
@@ -87,6 +88,42 @@ public class SnapshotTests
 
         await Assert.That(restored.TryGetShipped(out var shipped)).IsTrue();
         await Assert.That(shipped.Label).IsEqualTo("north:5");
+    }
+
+    [Test]
+    public async Task ARestoredMachineKeepsItsDeferredEvents()
+    {
+        var context = new RecordingContext();
+        var machine = new DefersMachine(context);
+        await machine.StartAsync();
+        await machine.FireAsync(new Nudge { N = 3 });
+
+        var snapshot = RoundTrip(machine.TakeSnapshot());
+        await Assert.That(snapshot.Deferred!.Count).IsEqualTo(1);
+        await Assert.That(snapshot.Deferred[0].Nudge!.Value.N).IsEqualTo(3);
+
+        var restoredContext = new RecordingContext();
+        var restored = new DefersMachine(restoredContext);
+        restored.Restore(snapshot);
+        await restored.StartAsync();
+        await restored.FireAsync(1);
+        await Assert.That(restoredContext.Trace).IsEqualTo("nudge 3");
+    }
+
+    [Test]
+    public async Task ARestoredCompletedMachineIsCompleted()
+    {
+        var context = new RecordingContext();
+        context.Allow.Add("Gate");
+        var machine = new FinalsMachine(context);
+        await machine.StartAsync(FinalsMachine.StateId.Gate);
+        await Assert.That(machine.Status).IsEqualTo(MachineStatus.Completed);
+
+        var restored = new FinalsMachine(new RecordingContext());
+        restored.Restore(RoundTrip(machine.TakeSnapshot()));
+        await restored.StartAsync();
+        await Assert.That(restored.Status).IsEqualTo(MachineStatus.Completed);
+        await restored.Completion.WaitAsync(TimeSpan.FromSeconds(5));
     }
 
     [Test]

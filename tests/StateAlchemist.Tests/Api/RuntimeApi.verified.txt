@@ -360,6 +360,7 @@
         public System.Collections.Generic.IReadOnlyList<System.Type> Exiting { get; }
         public bool Handled { get; }
         public bool IsDecision { get; }
+        public bool IsDeferred { get; }
         public bool IsJoinArrival { get; }
         public StateAlchemist.TransitionKind Kind { get; }
         public System.Type? Leaf { get; }
@@ -367,6 +368,7 @@
         public System.Type? Target { get; }
         public string? Transition { get; }
         public static StateAlchemist.TransitionPlan None { get; }
+        public static StateAlchemist.TransitionPlan ForDeferred(System.Type leaf, System.Collections.Generic.IReadOnlyList<string> refused) { }
         public static StateAlchemist.TransitionPlan ForJoinArrival(string transition, System.Type leaf, System.Collections.Generic.IReadOnlyList<string> refused) { }
     }
     public readonly struct TriggerDefinition : System.IEquatable<StateAlchemist.TriggerDefinition>

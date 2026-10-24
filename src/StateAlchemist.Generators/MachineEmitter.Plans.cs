@@ -45,12 +45,12 @@ internal sealed partial class MachineEmitter
                 {
                     foreach (var leaf in _hierarchy.Leaves)
                     {
-                        var candidates = _resolver.ForEvent(leaf, eventName);
-                        if (candidates.Count > 0)
+                        var candidates = _resolver.ForEvent(leaf, eventName, out var deferred);
+                        if (candidates.Count > 0 || deferred)
                         {
                             using (_w.Block($"case StateId.{_stateIds[leaf]}:"))
                             {
-                                PlanCandidates(candidates, leaf, "e", string.Empty);
+                                PlanCandidates(candidates, leaf, "e", string.Empty, deferred);
                             }
                         }
                     }
@@ -121,7 +121,10 @@ internal sealed partial class MachineEmitter
     /// Like dispatch, but a guard is called without its exception hook, and the answer is a plan. Guards are tried in
     /// order and each returns, so the guards refused before any candidate are known here: every plan is a static field.
     /// </summary>
-    private void PlanCandidates(IReadOnlyList<TransitionModel> candidates, int leaf, string argument, string unhandled)
+    private void PlanCandidates(IReadOnlyList<TransitionModel> candidates, int leaf, string argument, string unhandled) =>
+        PlanCandidates(candidates, leaf, argument, unhandled, deferred: false);
+
+    private void PlanCandidates(IReadOnlyList<TransitionModel> candidates, int leaf, string argument, string unhandled, bool deferred)
     {
         var tried = new List<string>();
         foreach (var candidate in candidates)
@@ -145,6 +148,12 @@ internal sealed partial class MachineEmitter
         }
 
         var none = RefusedIndex(tried);
+        if (deferred)
+        {
+            _w.Line($"return {Rt}TransitionPlan.ForDeferred(typeof({S(leaf)}), {(none < 0 ? "new string[0]" : $"s_refused{none}")});");
+            return;
+        }
+
         if (none < 0)
         {
             _w.Line($"return {Rt}TransitionPlan.None;");

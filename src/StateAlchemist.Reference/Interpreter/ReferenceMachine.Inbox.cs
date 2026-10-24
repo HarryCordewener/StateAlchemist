@@ -298,6 +298,7 @@ public sealed partial class ReferenceMachine<TValue>
 
             _inbox.Clear();
             _queue.Clear();
+            _deferred.Clear();
             _current = null;
             for (var i = 0; i < _armed.Length; i++)
             {
