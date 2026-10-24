@@ -744,19 +744,7 @@ internal static class SymbolModelBuilder
         private static INamedTypeSymbol? TypeArgument(AttributeData attribute, string name) =>
             attribute.NamedArguments.FirstOrDefault(a => a.Key == name).Value.Value as INamedTypeSymbol;
 
-        /// <summary>The <c>TValue</c> of the <c>IStatechart&lt;TValue&gt;</c> a type is or implements, or null.</summary>
-        private string? ChildValueOf(ITypeSymbol type)
-        {
-            if (known.Statechart is null)
-            {
-                return null;
-            }
-
-            var statechart = type is INamedTypeSymbol named && Is(named.OriginalDefinition, known.Statechart)
-                ? named
-                : type.AllInterfaces.FirstOrDefault(i => Is(i.OriginalDefinition, known.Statechart));
-            return statechart is null ? null : MetadataName(statechart.TypeArguments[0]);
-        }
+        private static string? ChildValueOf(ITypeSymbol type) => ChildValueSymbol(type) is { } value ? MetadataName(value) : null;
 
         private static int IntArgument(AttributeData attribute, string name) =>
             attribute.NamedArguments.FirstOrDefault(a => a.Key == name).Value.Value is int value ? value : 0;
@@ -801,6 +789,26 @@ internal static class SymbolModelBuilder
                 var ns = type.ContainingNamespace is { IsGlobalNamespace: false } n ? n.ToDisplayString() + "." : string.Empty;
                 return ns + type.MetadataName;
         }
+    }
+
+    /// <summary>
+    /// The <c>TValue</c> of the <c>IStatechart&lt;TValue&gt;</c> a type is or implements, or null. A <c>[Machine]</c>
+    /// class in this compilation implements it in the part the generator writes, which a generator cannot see, so its
+    /// attribute's <c>Value</c> stands in.
+    /// </summary>
+    internal static ITypeSymbol? ChildValueSymbol(ITypeSymbol type)
+    {
+        static bool IsStatechart(INamedTypeSymbol t) =>
+            t.OriginalDefinition.MetadataName == "IStatechart`1" && t.ContainingNamespace.ToDisplayString() == "StateAlchemist";
+
+        var statechart = type is INamedTypeSymbol named && IsStatechart(named) ? named : type.AllInterfaces.FirstOrDefault(IsStatechart);
+        if (statechart is not null)
+        {
+            return statechart.TypeArguments[0];
+        }
+
+        var machine = type.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "StateAlchemist.MachineAttribute");
+        return machine?.NamedArguments.FirstOrDefault(a => a.Key == "Value").Value.Value as ITypeSymbol;
     }
 
     /// <summary>A parameter type's name as the reference front-end records it: generic types written out with their arguments.</summary>

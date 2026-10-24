@@ -33,7 +33,7 @@ internal sealed partial class MachineEmitter
                         for (var i = 0; i < _events.Count; i++)
                         {
                             var candidates = _resolver.ForEvent(leaf, SymbolModelBuilder.MetadataName(_events[i]));
-                            if (candidates.Count == 0)
+                            if (candidates.Count == 0 || IsInternal(i))
                             {
                                 continue;
                             }

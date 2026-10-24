@@ -29,15 +29,7 @@ internal sealed partial class MachineEmitter
     /// <summary>The states whose children start or stop along <paramref name="states"/>, in its order.</summary>
     private List<int> Invoking(IEnumerable<int> states) => states.Where(Invokes).ToList();
 
-    private ITypeSymbol ChildValue(int k)
-    {
-        var type = _machine.Methods[_model.Invokes[k].Method].ReturnType;
-        var statechart = type is INamedTypeSymbol named && IsStatechart(named) ? named : type.AllInterfaces.First(IsStatechart);
-        return statechart.TypeArguments[0];
-    }
-
-    private static bool IsStatechart(INamedTypeSymbol type) =>
-        type.OriginalDefinition.MetadataName == "IStatechart`1" && type.ContainingNamespace.ToDisplayString() == "StateAlchemist";
+    private ITypeSymbol ChildValue(int k) => SymbolModelBuilder.ChildValueSymbol(_machine.Methods[_model.Invokes[k].Method].ReturnType)!;
 
     private string ChildType(int k) => $"{Rt}IStatechart<{Name(ChildValue(k))}>";
 

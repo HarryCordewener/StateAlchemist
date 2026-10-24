@@ -187,7 +187,7 @@ public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
         foreach (var eventType in events)
         {
             var candidates = _resolver.ForEvent(_leaf, eventType);
-            if (candidates.Count == 0)
+            if (candidates.Count == 0 || DefinitionBuilder.FindType(eventType).IsDefined(typeof(InternalAttribute), inherit: false))
             {
                 continue;
             }

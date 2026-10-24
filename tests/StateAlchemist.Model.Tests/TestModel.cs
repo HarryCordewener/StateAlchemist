@@ -92,6 +92,10 @@ internal sealed class TestModel
     public void Invoke(int state, string? childValue, params ParameterModel[] parameters) =>
         _invokes.Add(new InvokeModel(state, Method("T.Module", "Child" + _invokes.Count, ReturnShape.Other, parameters), false, childValue, "T.Module", _invokes.Count));
 
+    /// <summary>Has <paramref name="state"/> invoke a machine that takes what the parent leaves unhandled.</summary>
+    public void InvokeForwarding(int state, string childValue) =>
+        _invokes.Add(new InvokeModel(state, Method("T.Module", "Child" + _invokes.Count, ReturnShape.Other), true, childValue, "T.Module", _invokes.Count));
+
     /// <summary>Puts <paramref name="transition"/> in place of the transition at its index.</summary>
     public TransitionModel Replace(TransitionModel transition)
     {

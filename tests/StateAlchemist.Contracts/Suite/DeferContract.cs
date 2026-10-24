@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 using StateAlchemist.Contracts.Machines;
 using StateAlchemist.Contracts.Machines.Defers;
@@ -58,6 +59,9 @@ public abstract class DeferContract : MachineContract
 #pragma warning restore SALCH0602
         await machine.FireAsync(5);
         await Assert.That(context.Trace).IsEqualTo("tick");
+        var permitted = ((IStatechart<byte>)machine).PermittedTriggers();
+        await Assert.That(permitted.Any(t => t.EventType == typeof(Tick))).IsFalse();
+        await Assert.That(permitted.Any(t => t.EventType == typeof(Nudge))).IsTrue();
     }
 
     [Test]

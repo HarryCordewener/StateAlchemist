@@ -61,8 +61,6 @@ internal sealed class KnownTypes(Compilation compilation)
 
     public INamedTypeSymbol? Invoke { get; } = compilation.GetTypeByMetadataName("StateAlchemist.InvokeAttribute");
 
-    public INamedTypeSymbol? Statechart { get; } = compilation.GetTypeByMetadataName("StateAlchemist.IStatechart`1");
-
     public INamedTypeSymbol? RootState { get; } = compilation.GetTypeByMetadataName("StateAlchemist.IRootState");
 
     public INamedTypeSymbol? State { get; } = compilation.GetTypeByMetadataName("StateAlchemist.IState`1");

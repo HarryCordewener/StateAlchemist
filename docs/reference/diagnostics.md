@@ -351,7 +351,9 @@ Every case of a decision's outcome union needs exactly one `Complete` overload.
 
 In that leaf, those values match no transition at any level and fall to the machine's
 [unhandled](../concepts/triggers.md#unhandled-triggers) behaviour. Add an `[OnAny]` on the leaf or an ancestor if
-that is not what you want.
+that is not what you want. A final child of the root is not checked, since a completed machine refuses values, and
+neither is a leaf under a state whose `[Invoke(Forward = true)]` child takes the same value type: what the leaf leaves
+unhandled goes to the child.
 
 ## SALCH0502
 

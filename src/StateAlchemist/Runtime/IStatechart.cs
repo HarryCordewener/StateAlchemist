@@ -18,7 +18,8 @@ public interface IStatechart<TValue> : IBoundaryMachine<TValue>
     /// else: values first, in order, with neighbouring values joined into ranges, then events by full name. A guard that
     /// reads an event's payload cannot be evaluated without one, so that event is listed; ask
     /// <see cref="IMachine{TValue}.Plan{TEvent}(TEvent)"/> with the payload. Timers, eventless transitions and
-    /// <c>[OnDone]</c> fire on their own and are not listed. Allocates the list: for interfaces and tests, not for every
+    /// <c>[OnDone]</c> fire on their own, and <see cref="InternalAttribute"/> events cannot be fired from outside: none
+    /// is listed. Allocates the list: for interfaces and tests, not for every
     /// trigger.
     /// </summary>
     IReadOnlyList<TriggerDefinition> PermittedTriggers();
