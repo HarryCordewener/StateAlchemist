@@ -119,9 +119,9 @@ internal sealed partial class MachineEmitter
         _w.Line("/// <inheritdoc/>");
         using (_w.Block("public void Pause()"))
         {
-            _w.Line("if (_inside) throw new global::System.InvalidOperationException(\"Pause is for code outside the machine.\");");
             if (HasInbox)
             {
+                // An inbox machine's step may be running on another thread: the pump stops after it.
                 using (_w.Block("lock (_sync)"))
                 {
                     _w.Line($"if (_status != {Rt}MachineStatus.Running) throw new global::System.InvalidOperationException(\"Only a running machine can be paused.\");");
@@ -132,9 +132,15 @@ internal sealed partial class MachineEmitter
                         _w.Line($"if (_armed{k}) {{ _pausedLeft{k} = _armedFor{k} - _time.GetElapsedTime(_armedAt{k}); Disarm{k}(); }}");
                     }
                 }
+
+                if (HasInvokes)
+                {
+                    _w.Line("PauseChildren();");
+                }
             }
             else
             {
+                _w.Line("if (_inside) throw new global::System.InvalidOperationException(\"Pause is for code outside the machine.\");");
                 _w.Line($"if (_status != {Rt}MachineStatus.Running) throw new global::System.InvalidOperationException(\"Only a running machine can be paused.\");");
                 if (IsChecked)
                 {
@@ -170,6 +176,11 @@ internal sealed partial class MachineEmitter
                 foreach (var timer in _timers)
                 {
                     _w.Line($"if (due{Num(timer.Index)}) SubmitTimer({Num(timer.Index)}, generation{Num(timer.Index)});");
+                }
+
+                if (HasInvokes)
+                {
+                    _w.Line("ResumeChildren();");
                 }
 
                 _w.Line("PumpNow();");

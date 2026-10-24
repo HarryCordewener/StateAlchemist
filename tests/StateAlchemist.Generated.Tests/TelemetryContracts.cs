@@ -134,3 +134,9 @@ public sealed class TelemetryDefer : DeferContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => TelemetryHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class TelemetryInvoke : InvokeContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => TelemetryHarness.Create(shape, context, hooks);
+}

@@ -128,17 +128,27 @@ public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
         {
             Status = MachineStatus.Running;
             Rearm([], delays);
+            _pumping = true;
         }
 
+        // The pump is held while the start's children start and its eventless transitions run: what arrives meanwhile,
+        // a child's completion included, waits its turn.
         _inside.Value = Inside.Transition;
         try
         {
+            await StartChildrenAsync(path);
             await SettleAsync(entered: true);
         }
         finally
         {
             _inside.Value = null;
+            lock (_sync)
+            {
+                _pumping = false;
+            }
         }
+
+        await PumpAsync();
     }
 
     /// <inheritdoc/>
@@ -232,6 +242,7 @@ public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
             _recorded[state] = _leaf;
         }
 
+        await StopAllChildrenAsync();
         await RunLifecycleAsync(ActionPhase.Exited, _hierarchy.PathFromRoot(_leaf).Reverse().ToList());
     }
 

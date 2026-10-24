@@ -43,9 +43,11 @@ public interface IStatechart<TValue> : IBoundaryMachine<TValue>
     /// <summary>
     /// Pauses a running machine: it refuses triggers with <see cref="MachineNotRunningException"/> and holds its timers,
     /// each keeping the time it had left. Inputs already waiting in a serialized machine's inbox wait until
-    /// <see cref="Resume"/>. Call it from outside the machine.
+    /// <see cref="Resume"/>. A machine with an inbox finishes the transition it is running first; it also pauses the
+    /// machines it invokes (<see cref="InvokeAttribute"/>), and <see cref="Resume"/> resumes them.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The machine is not running, or the call comes from inside it.</exception>
+    /// <exception cref="InvalidOperationException">The machine is not running, or it runs each call inline and the call
+    /// comes from inside it.</exception>
     void Pause();
 
     /// <summary>Resumes a paused machine: it accepts triggers again, and its timers run on for the time they had left.</summary>

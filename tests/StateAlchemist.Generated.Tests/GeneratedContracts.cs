@@ -140,3 +140,9 @@ public sealed class GeneratedDefer : DeferContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class GeneratedInvoke : InvokeContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => GeneratedHarness.Create(shape, context, hooks);
+}

@@ -70,7 +70,40 @@ public static class StatechartValidator
             }
         }
 
+        foreach (var invoke in model.Invokes)
+        {
+            diagnostics.AddRange(CheckInvoke(model, hierarchy, invoke));
+        }
+
         return diagnostics;
+    }
+
+    /// <summary>An invoke method returns a statechart and takes only what an <c>[Entered]</c> action of its state could.</summary>
+    private static IEnumerable<ModelDiagnostic> CheckInvoke(MachineModel model, Hierarchy hierarchy, InvokeModel invoke)
+    {
+        var method = invoke.Method;
+        if (invoke.ChildValueType is null)
+        {
+            yield return new(DiagnosticCatalog.InvalidInvoke, method.Location, method.FullName, "must return a type that implements IStatechart<TValue>");
+        }
+
+        var active = hierarchy.PathFromRoot(invoke.State);
+        foreach (var parameter in method.Parameters)
+        {
+            var why = parameter.Kind switch
+            {
+                ParameterKind.State when !active.Contains(parameter.State) =>
+                    $"takes '{parameter.Name}', but '{model.States[parameter.State].Name}' is not active in '{model.States[invoke.State].Name}'",
+                ParameterKind.State or ParameterKind.Config when parameter.Passing is Passing.Ref or Passing.Out =>
+                    $"takes '{parameter.Name}' by ref: it reads states and the configuration, take them by in",
+                ParameterKind.State or ParameterKind.Context or ParameterKind.Config or ParameterKind.CancellationToken => null,
+                _ => $"takes '{parameter.Name}': it may take only active states, the context, the configuration and a CancellationToken",
+            };
+            if (why is not null)
+            {
+                yield return new(DiagnosticCatalog.InvalidInvoke, parameter.Location ?? method.Location, method.FullName, why);
+            }
+        }
     }
 
     /// <summary>Whether <paramref name="state"/> invokes a machine, whose completion makes it done.</summary>

@@ -153,6 +153,12 @@ internal sealed partial class MachineEmitter
         {
             _w.Line($"if (_status == {Rt}MachineStatus.Stopped) throw new global::System.InvalidOperationException({Literal("The machine has been stopped: its states have been exited.")});");
             _w.Line($"if (_inside) throw new global::System.InvalidOperationException({Literal("TakeSnapshot is for code outside the machine. An action or hook runs mid-transition.")});");
+            if (HasInvokes)
+            {
+                // A child's own state is not the parent's to record: a snapshot is taken where no child runs.
+                _w.Line($"if ({string.Join(" || ", Enumerable.Range(0, _model.Invokes.Count).Select(k => $"_child{k} != null"))}) throw new global::System.InvalidOperationException({Literal("A state that invokes a machine is active. Take a snapshot where no invoked machine runs.")});");
+            }
+
             if (HasInbox)
             {
                 using (_w.Block("lock (_sync)"))
@@ -295,6 +301,11 @@ internal sealed partial class MachineEmitter
             _w.Line($"if (_status != {Rt}MachineStatus.NotStarted) throw new global::System.InvalidOperationException({Literal("Restore is for a machine that has not been started.")});");
             _w.Line("StateId leaf;");
             _w.Line("if (!TryLeaf(snapshot.State, out leaf)) throw new global::System.ArgumentException(\"'\" + snapshot.State + \"' is not a leaf of this machine.\", \"snapshot\");");
+            var invoking = _hierarchy.Leaves.Where(l => _hierarchy.PathFromRoot(l).Any(Invokes)).ToList();
+            if (invoking.Count > 0)
+            {
+                _w.Line($"if ({string.Join(" || ", invoking.Select(l => $"leaf == StateId.{_stateIds[l]}"))}) throw new global::System.ArgumentException(\"'\" + snapshot.State + \"' is in a state that invokes a machine, which a snapshot cannot hold.\", \"snapshot\");");
+            }
             if (history.Count > 0)
             {
                 _w.Line("var history = snapshot.History ?? new SnapshotHistory();");

@@ -1,3 +1,4 @@
+using StateAlchemist.Contracts.Machines.Invokes;
 using StateAlchemist.Contracts.Machines.Defers;
 using StateAlchemist.Contracts.Machines.Finals;
 using StateAlchemist.Contracts.Machines.Deciding;
@@ -46,6 +47,10 @@ public static class Shapes
     public static readonly MachineShape Finals = new("Finals", typeof(FinRoot), [typeof(FinalModule)], typeof(RecordingContext));
 
     public static readonly MachineShape Defers = new("Defers", typeof(DefRoot), [typeof(DeferModule)], typeof(RecordingContext));
+
+    public static readonly MachineShape Invokes = new("Invokes", typeof(InvRoot), [typeof(InvokeModule)], typeof(RecordingContext));
+
+    public static readonly MachineShape Worker = new("Worker", typeof(WorkRoot), [typeof(WorkerModule)], typeof(RecordingContext));
 
     public static readonly MachineShape Permits = new("Permits", typeof(PermitRoot), [typeof(PermitModule)], typeof(RecordingContext));
 

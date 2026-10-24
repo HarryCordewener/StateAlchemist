@@ -22,7 +22,7 @@ internal sealed partial class MachineEmitter
             _w.Line("return Start();");
         }
 
-        WriteLifecycleActions("Start", starting, Started(initialPath), null, StartsSettling(initialPath));
+        WriteLifecycleActions("Start", starting, Started(initialPath), null, StartsSettling(initialPath), Invoking(initialPath));
         WriteStartIn();
         if (_hierarchy.Leaves.Any(l => StartsSettling(_hierarchy.PathFromRoot(l))))
         {
@@ -52,7 +52,7 @@ internal sealed partial class MachineEmitter
             leaf => leaf,
             leaf => _hierarchy.PathFromRoot(leaf).Reverse()
                 .SelectMany(s => StateActions(ActionPhase.Exited, s).Select(m => new TransitionAction(m, Use.Exited, "Exited", s))).ToList());
-        WriteLifecycleActions("Stop", stopping.Values.SelectMany(a => a).ToList(), null, stopping, settles: false);
+        WriteLifecycleActions("Stop", stopping.Values.SelectMany(a => a).ToList(), null, stopping, settles: false, stopsChildren: HasInvokes);
 
         _w.Line();
         _w.Line("/// <inheritdoc/>");
@@ -129,17 +129,20 @@ internal sealed partial class MachineEmitter
         {
             var path = _hierarchy.PathFromRoot(leaf);
             var entering = path.SelectMany(s => StateActions(ActionPhase.Entered, s).Select(m => new TransitionAction(m, Use.Entered, "Entered", s))).ToList();
-            WriteLifecycleActions("StartIn" + _stateIds[leaf], entering, Started(path), null, StartsSettling(path));
+            WriteLifecycleActions("StartIn" + _stateIds[leaf], entering, Started(path), null, StartsSettling(path), Invoking(path));
         }
     }
 
     /// <summary>
     /// A lifecycle's actions, run inside the machine so they may <c>Enqueue</c>. Their exception hooks apply as in a
-    /// transition; <c>Skip</c> skips the rest.
+    /// transition; <c>Skip</c> skips the rest. A start then starts the children of <paramref name="invoking"/>, holding
+    /// the pump so a child that completes at once waits its turn; a stop first stops every child.
     /// </summary>
-    private void WriteLifecycleActions(string name, List<TransitionAction> all, string? after, Dictionary<int, List<TransitionAction>>? byLeaf, bool settles)
+    private void WriteLifecycleActions(string name, List<TransitionAction> all, string? after, Dictionary<int, List<TransitionAction>>? byLeaf, bool settles,
+        List<int>? invoking = null, bool stopsChildren = false)
     {
-        var isAsync = all.Any(a => a.Method.IsAsync);
+        var startsChildren = invoking is { Count: > 0 };
+        var isAsync = all.Any(a => a.Method.IsAsync) || startsChildren || stopsChildren;
         var skip = all.Any(a => Implements($"On{a.Phase}Exception"));
         _w.Line();
         if (isAsync)
@@ -149,6 +152,11 @@ internal sealed partial class MachineEmitter
 
         using (_w.Block($"private {(isAsync ? "async " : "")}{ValueTaskType} {name}()"))
         {
+            if (stopsChildren)
+            {
+                _w.Line("await StopAllChildren();");
+            }
+
             if (all.Count > 0)
             {
                 _w.Line("_inside = true;");
@@ -189,6 +197,21 @@ internal sealed partial class MachineEmitter
             if (after is not null)
             {
                 _w.Line(after);
+            }
+
+            if (startsChildren)
+            {
+                _w.Line("lock (_sync) { _pumping = true; }");
+                using (_w.Block("try"))
+                {
+                    WriteStarting(invoking!);
+                }
+
+                _w.Line("finally { lock (_sync) { _pumping = false; } }");
+                if (!settles)
+                {
+                    _w.Line("PumpNow();");
+                }
             }
 
             if (settles)

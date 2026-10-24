@@ -223,8 +223,8 @@ state also handles the event, since resolution would have to pick one.
 > [Invoke] '{0}' {1}
 
 An `[Invoke]` method creates a child machine for its state. It is `public static`, returns a type that implements
-`IStatechart<TValue>`, and takes only active states (`in`), the configuration and the context. With `Forward`, values
-go to the child only when its value type is the parent's.
+`IStatechart<TValue>`, and takes only active states (`in`), the configuration, the context and a `CancellationToken`
+(the parent's lifetime token). With `Forward`, values go to the child only when its value type is the parent's.
 
 ## SALCH0201
 

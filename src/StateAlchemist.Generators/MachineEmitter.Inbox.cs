@@ -108,6 +108,17 @@ internal sealed partial class MachineEmitter
                 _w.Line("public int TimerGeneration;");
             }
 
+            if (HasInvokes)
+            {
+                _w.Line("public int Child;");
+                _w.Line("public int ChildGeneration;");
+            }
+
+            if (HasForwarding)
+            {
+                _w.Line("public Forwarded Forwarded;");
+            }
+
             _w.Line($"public {Sources}ManualResetValueTaskSourceCore<bool> Core;");
             _w.Line($"public Input({machine} machine) {{ Machine = machine; Core.RunContinuationsAsynchronously = true; }}");
             _w.Line("public bool IsEvent { get { return Tag != -2; } }");
@@ -174,6 +185,10 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line("input.Unknown = null;");
+            if (HasForwarding)
+            {
+                _w.Line("input.Forwarded = null;");
+            }
             _w.Line("input.HasCaller = false;");
             _w.Line("input.StopAtBoundary = false;");
             _w.Line("input.BoundaryDone = null;");
@@ -598,13 +613,20 @@ internal sealed partial class MachineEmitter
                     _w.Line($"case {TimerTag}: return DispatchTimer(input.Timer, input.TimerGeneration);");
                 }
 
-                _w.Line($"default: UnhandledUnknown(input.Unknown); return default({ValueTaskType});");
+                if (HasInvokes)
+                {
+                    _w.Line($"case {ChildTag}: return DispatchChild(input.Child, input.ChildGeneration);");
+                }
+
+                _w.Line(HasForwarding
+                    ? "default: return ForwardUnknown(input.Unknown, input.Forwarded);"
+                    : $"default: UnhandledUnknown(input.Unknown); return default({ValueTaskType});");
             }
         }
     }
 
-    /// <summary>Releases an input's room as it leaves a bounded inbox; a timer's firing took none.</summary>
-    private string ReleaseRoom(string input) => HasTimers ? $" if ({input}.Tag != {TimerTag}) _room.Release();" : " _room.Release();";
+    /// <summary>Releases an input's room as it leaves a bounded inbox; a timer's firing or a child's completion took none.</summary>
+    private string ReleaseRoom(string input) => HasOwnInputs ? $" if (!({IsOwnInput(input)})) _room.Release();" : " _room.Release();";
 
     private void WriteEndings()
     {
@@ -653,11 +675,11 @@ internal sealed partial class MachineEmitter
                 }
 
                 _w.Line("waiting.AddRange(_inbox);");
-                if (Bounded && HasTimers)
+                if (Bounded && HasOwnInputs)
                 {
-                    // A timer's firing took no room.
+                    // A timer's firing or a child's completion took no room.
                     _w.Line("var room = 0;");
-                    _w.Line($"foreach (var inboxed in _inbox) if (inboxed.Tag != {TimerTag}) room++;");
+                    _w.Line($"foreach (var inboxed in _inbox) if (!({IsOwnInput("inboxed")})) room++;");
                     _w.Line("if (room > 0) _room.Release(room);");
                 }
                 else if (Bounded)
@@ -717,7 +739,7 @@ internal sealed partial class MachineEmitter
                 using (_w.Block("for (var i = 0; i < _inbox.Count;)"))
                 {
                     _w.Line("var waited = _inbox[i];");
-                    var waits = HasTimers ? $"waited.IsEvent && waited.ArrivedWhilePending && waited.Tag != {TimerTag}" : "waited.IsEvent && waited.ArrivedWhilePending";
+                    var waits = HasOwnInputs ? $"waited.IsEvent && waited.ArrivedWhilePending && !({IsOwnInput("waited")})" : "waited.IsEvent && waited.ArrivedWhilePending";
                     _w.Line($"if ({waits}) {{ _inbox.RemoveAt(i);{(Bounded ? " _room.Release();" : string.Empty)} waited.ArrivedWhilePending = false; _queued.Add(waited); }} else i++;");
                 }
 

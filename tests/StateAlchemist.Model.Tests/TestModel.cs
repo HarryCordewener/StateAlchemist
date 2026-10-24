@@ -9,6 +9,7 @@ internal sealed class TestModel
     private readonly List<StateModel> _states = [];
     private readonly List<TransitionModel> _transitions = [];
     private readonly List<StateActionModel> _actions = [];
+    private readonly List<InvokeModel> _invokes = [];
 
     public ValueDomain Domain { get; set; } = ValueDomain.Byte;
 
@@ -87,6 +88,10 @@ internal sealed class TestModel
     /// <summary>Has <paramref name="state"/> defer <paramref name="events"/>.</summary>
     public void Defer(int state, params string[] events) => _states[state] = _states[state] with { Deferred = events };
 
+    /// <summary>Has <paramref name="state"/> invoke a machine whose value type is <paramref name="childValue"/>; null for a method that returns no statechart.</summary>
+    public void Invoke(int state, string? childValue, params ParameterModel[] parameters) =>
+        _invokes.Add(new InvokeModel(state, Method("T.Module", "Child" + _invokes.Count, ReturnShape.Other, parameters), false, childValue, "T.Module", _invokes.Count));
+
     /// <summary>Puts <paramref name="transition"/> in place of the transition at its index.</summary>
     public TransitionModel Replace(TransitionModel transition)
     {
@@ -95,7 +100,7 @@ internal sealed class TestModel
     }
 
     public MachineModel Build(string name = "TestMachine") =>
-        new(name, new MachineOptions("System.Byte", Domain, Concurrency: Concurrency, Purity: Purity), _states.ToList(), _transitions.ToList(), _actions.ToList());
+        new(name, new MachineOptions("System.Byte", Domain, Concurrency: Concurrency, Purity: Purity), _states.ToList(), _transitions.ToList(), _actions.ToList(), invokes: _invokes.ToList());
 
     private int AddState(string name, int parent, bool initial, bool hasData)
     {

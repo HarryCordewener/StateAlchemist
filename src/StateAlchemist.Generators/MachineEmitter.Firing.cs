@@ -107,6 +107,11 @@ internal sealed partial class MachineEmitter
                 _w.Line("var input = Rent();");
                 _w.Line("input.Tag = -1;");
                 _w.Line("input.Unknown = typeof(TEvent);");
+                if (HasForwarding)
+                {
+                    _w.Line("input.Forwarded = new Forwarded<TEvent> { E = e };");
+                }
+
                 _w.Line("return Submit(input);");
             }
             else
@@ -154,6 +159,11 @@ internal sealed partial class MachineEmitter
                 _w.Line("var queued = Rent();");
                 _w.Line("queued.Tag = -1;");
                 _w.Line("queued.Unknown = typeof(TEvent);");
+                if (HasForwarding)
+                {
+                    _w.Line("queued.Forwarded = new Forwarded<TEvent> { E = e };");
+                }
+
                 _w.Line("EnqueueInput(queued);");
             }
             else
@@ -560,6 +570,11 @@ internal sealed partial class MachineEmitter
         _w.Line();
         using (_w.Block($"private {ValueTaskType} UnhandledValue({V} value)"))
         {
+            if (ForwardingValues.Count > 0)
+            {
+                _w.Line("if (ForwardsValues()) return ForwardValue(value);");
+            }
+
             if (Telemetry)
             {
                 WriteUnhandledCount();
@@ -575,6 +590,11 @@ internal sealed partial class MachineEmitter
             _w.Line();
             using (_w.Block($"private {ValueTaskType} UnhandledEvent{i}({Name(_events[i])} e)"))
             {
+                if (HasForwarding)
+                {
+                    _w.Line($"if (Forwards()) return ForwardEvent{i}(e);");
+                }
+
                 if (Telemetry)
                 {
                     WriteUnhandledCount();

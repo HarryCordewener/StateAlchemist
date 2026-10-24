@@ -1,6 +1,7 @@
 using System;
 using StateAlchemist.Contracts;
 using StateAlchemist.Contracts.Machines;
+using StateAlchemist.Contracts.Machines.Invokes;
 using StateAlchemist.Contracts.Machines.Defers;
 using StateAlchemist.Contracts.Machines.Finals;
 using StateAlchemist.Contracts.Machines.Deciding;
@@ -203,6 +204,20 @@ public sealed partial class FinalsMachine
 [Machine(Root = typeof(DefRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
 [Include(typeof(DeferModule))]
 public sealed partial class DefersMachine
+{
+    public ContractHooks? Hooks { get; set; }
+}
+
+[Machine(Root = typeof(InvRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(InvokeModule))]
+public sealed partial class InvokesMachine
+{
+    public ContractHooks? Hooks { get; set; }
+}
+
+[Machine(Root = typeof(WorkRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(WorkerModule))]
+public sealed partial class WorkerMachine
 {
     public ContractHooks? Hooks { get; set; }
 }

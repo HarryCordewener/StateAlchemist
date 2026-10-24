@@ -207,6 +207,11 @@ internal sealed partial class MachineEmitter
                 _w.Line($"if (tag == {TimerTag}) return true;");
             }
 
+            if (HasInvokes)
+            {
+                _w.Line($"if (tag == {ChildTag}) return true;");
+            }
+
             using (_w.Block("switch (decision)"))
             {
                 foreach (var decision in _model.Transitions.Where(t => t.Decision?.DecideAsync is not null))

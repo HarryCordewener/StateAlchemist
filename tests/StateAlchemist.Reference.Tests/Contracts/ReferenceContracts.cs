@@ -132,3 +132,9 @@ public sealed class ReferenceDefer : DeferContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class ReferenceInvoke : InvokeContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}

@@ -127,6 +127,23 @@ public class SnapshotTests
     }
 
     [Test]
+    public async Task AMachineRunningAnInvokedMachineIsNotSnapshotted()
+    {
+        var context = new RecordingContext();
+        context.CreateChild = () => new WorkerMachine(context);
+        var machine = new InvokesMachine(context);
+        await machine.StartAsync();
+        var idle = machine.TakeSnapshot();
+        await machine.FireAsync(1);
+
+        await Assert.That(() => machine.TakeSnapshot()).Throws<InvalidOperationException>();
+
+        var restored = new InvokesMachine(new RecordingContext());
+        idle.State = "InvRunning";
+        await Assert.That(() => restored.Restore(idle)).Throws<ArgumentException>();
+    }
+
+    [Test]
     public async Task OnlyActiveStatesAreWritten()
     {
         var machine = new RecallingMachine(new RecordingContext());

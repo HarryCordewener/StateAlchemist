@@ -35,6 +35,12 @@ public sealed partial class ReferenceMachine<TValue>
             return false;
         }
 
+        if (trigger.Event is ChildDone done)
+        {
+            await RunChildDoneAsync(done);
+            return false;
+        }
+
         var deferred = false;
         var candidates = trigger is { HasValue: false, Event: { } e }
             ? _resolver.ForEvent(_leaf, e.GetType().FullName!, out deferred)
@@ -52,7 +58,11 @@ public sealed partial class ReferenceMachine<TValue>
                 return false;
             }
 
-            Unhandled(trigger);
+            if (!await ForwardAsync(trigger))
+            {
+                Unhandled(trigger);
+            }
+
             return false;
         }
 
@@ -236,6 +246,7 @@ public sealed partial class ReferenceMachine<TValue>
             }
         }
 
+        await StopChildrenAsync(path.Exiting);
         try
         {
             // 5. exited, leaf first; 6. entered, outermost first; 7. completed
@@ -265,6 +276,7 @@ public sealed partial class ReferenceMachine<TValue>
             }
         }
 
+        await StartChildrenAsync(path.Entering);
         _hooks.Transitioned?.Invoke(info.With(Phase.Completed));
         Observe(info.With(Phase.Completed));
         await SettleAsync(path.Entering.Contains(path.TargetLeaf));

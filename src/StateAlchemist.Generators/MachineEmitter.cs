@@ -59,7 +59,8 @@ internal sealed partial class MachineEmitter
     /// decision, while which it must accept events from other callers, or has a timer, whose firing comes from another
     /// thread. Every other machine runs each call inline.
     /// </summary>
-    private bool HasInbox => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.Decision?.DecideAsync is not null || t.IsTimer);
+    private bool HasInbox => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.Decision?.DecideAsync is not null || t.IsTimer)
+        || _model.Invokes.Count > 0;
 
     private bool HasRuns => _model.Transitions.Any(t => t.IsRun);
 
@@ -105,6 +106,7 @@ internal sealed partial class MachineEmitter
 
             WriteStatechart();
             WriteDefer();
+            WriteInvokes();
             WriteTransitions();
             WriteRecalls();
             if (HasInbox)
@@ -160,6 +162,7 @@ internal sealed partial class MachineEmitter
         _w.Line("private global::System.Threading.CancellationTokenSource _lifetime;");
         WriteStatechartStorage();
         WriteDeferStorage();
+        WriteInvokeStorage();
         if (HasTimers)
         {
             WriteTimerStorage();

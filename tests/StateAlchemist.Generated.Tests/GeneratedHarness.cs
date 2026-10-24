@@ -32,6 +32,8 @@ internal static class GeneratedHarness
             ("Joins", false) => new JoinsMachine((RecordingContext)context) { Hooks = hooks },
             ("Finals", false) => new FinalsMachine((RecordingContext)context) { Hooks = hooks },
             ("Defers", false) => new DefersMachine((RecordingContext)context) { Hooks = hooks },
+            ("Invokes", false) => new InvokesMachine((RecordingContext)context) { Hooks = hooks },
+            ("Worker", false) => new WorkerMachine((RecordingContext)context) { Hooks = hooks },
             ("Permits", false) => new PermitsMachine((RecordingContext)context) { Hooks = hooks },
             _ => throw new NotSupportedException($"No generated machine for shape '{shape.Name}'{(handled ? " with exception hooks" : "")}."),
         };

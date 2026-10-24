@@ -67,7 +67,7 @@ internal sealed partial class MachineEmitter
     {
         var startedOver = new HashSet<int>(path.Exiting.Intersect(path.Entering));
         var actions = Actions(completed, path);
-        var isAsync = actions.Any(a => a.Method.IsAsync);
+        var isAsync = actions.Any(a => a.Method.IsAsync) || StartsOrStopsChildren(path);
         var skip = actions.Any(a => Implements($"On{a.Phase}Exception"));
         var done = isAsync ? "return;" : $"return default({ValueTaskType});";
         var transformPhase = outcome is null ? "Transform" : "Complete";
@@ -178,6 +178,7 @@ internal sealed partial class MachineEmitter
                 _w.Line(ArmStatements(arming, disarming, t => $"delay{Num(t.Index)}"));
             }
 
+            WriteStopping(path);
             var cleared = path.Exiting.Where(s => !startedOver.Contains(s)).ToList();
             if (actions.Count > 0 || cleared.Count > 0)
             {
@@ -204,6 +205,7 @@ internal sealed partial class MachineEmitter
                 }
             }
 
+            WriteStarting(path.Entering);
             if (Telemetry)
             {
                 WriteTransitionCount(transition);

@@ -31,11 +31,6 @@ public sealed partial class ReferenceMachine<TValue>
     /// <inheritdoc/>
     public void Pause()
     {
-        if (_inside.Value is not null)
-        {
-            throw new InvalidOperationException("Pause is for code outside the machine.");
-        }
-
         lock (_sync)
         {
             if (Status != MachineStatus.Running)
@@ -54,6 +49,8 @@ public sealed partial class ReferenceMachine<TValue>
                 }
             }
         }
+
+        PauseChildren();
     }
 
     /// <inheritdoc/>
@@ -80,6 +77,7 @@ public sealed partial class ReferenceMachine<TValue>
             Rearm([], delays);
         }
 
+        ResumeChildren();
         _ = PumpAsync();
     }
 

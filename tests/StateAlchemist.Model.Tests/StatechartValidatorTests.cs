@@ -148,4 +148,23 @@ public class StatechartValidatorTests
         await Assert.That(string.Join(",", candidates.Select(t => t.Name))).IsEqualTo("Guarded");
         await Assert.That(deferred).IsTrue();
     }
+
+    [Test]
+    public async Task AnInvokeMethodReturnsAStatechartAndTakesWhatAnEnteredActionCould()
+    {
+        var model = new TestModel();
+        var root = model.Root();
+        var idle = model.State("Idle", root, initial: true);
+        var busy = model.State("Busy", root);
+        model.Add("Go", idle, busy, TriggerModel.Value(1));
+        model.Invoke(busy, null);
+        model.Invoke(busy, "System.Byte", model.In(busy), model.In(idle), model.Ref(root), TestModel.Value());
+        model.Invoke(busy, "System.Byte", model.In(root), new ParameterModel("context", "T.Context", ParameterKind.Context, Passing.Value));
+
+        await Assert.That(Validate(model)).IsEqualTo(
+            "SALCH0113: [Invoke] 'T.Module.Child0' must return a type that implements IStatechart<TValue>\n" +
+            "SALCH0113: [Invoke] 'T.Module.Child1' takes 'idle', but 'Idle' is not active in 'Busy'\n" +
+            "SALCH0113: [Invoke] 'T.Module.Child1' takes 'root' by ref: it reads states and the configuration, take them by in\n" +
+            "SALCH0113: [Invoke] 'T.Module.Child1' takes 'value': it may take only active states, the context, the configuration and a CancellationToken");
+    }
 }
