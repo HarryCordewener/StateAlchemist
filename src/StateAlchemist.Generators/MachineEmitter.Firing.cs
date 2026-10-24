@@ -68,6 +68,11 @@ internal sealed partial class MachineEmitter
 
         for (var i = 0; i < _events.Count; i++)
         {
+            if (IsInternal(i))
+            {
+                continue;
+            }
+
             _w.Line();
             _w.Line($"/// <summary>Fires a <see cref=\"{Name(_events[i])}\"/>.</summary>");
             using (_w.Block($"public {ValueTaskType} FireAsync(in {Name(_events[i])} e)"))
@@ -92,7 +97,9 @@ internal sealed partial class MachineEmitter
         {
             for (var i = 0; i < _events.Count; i++)
             {
-                _w.Line($"if (typeof(TEvent) == typeof({Name(_events[i])})) return FireAsync(in global::System.Runtime.CompilerServices.Unsafe.As<TEvent, {Name(_events[i])}>(ref e));");
+                _w.Line(IsInternal(i)
+                    ? $"if (typeof(TEvent) == typeof({Name(_events[i])})) return Faulted(new global::System.InvalidOperationException({Literal($"'{_events[i].Name}' is [Internal]: raise it with Enqueue from inside the machine.")}));"
+                    : $"if (typeof(TEvent) == typeof({Name(_events[i])})) return FireAsync(in global::System.Runtime.CompilerServices.Unsafe.As<TEvent, {Name(_events[i])}>(ref e));");
             }
 
             if (HasInbox)
@@ -434,6 +441,11 @@ internal sealed partial class MachineEmitter
         _w.Line($"public int FireUntilBoundary(global::System.ReadOnlyMemory<{V}> values) {{ return Await(FireUntilBoundaryAsync(values)); }}");
         for (var i = 0; i < _events.Count; i++)
         {
+            if (IsInternal(i))
+            {
+                continue;
+            }
+
             _w.Line();
             _w.Line($"/// <summary>Fires a <see cref=\"{Name(_events[i])}\"/> and returns when it has been processed.</summary>");
             _w.Line($"public void Fire(in {Name(_events[i])} e) {{ Await(FireAsync(in e)); }}");
@@ -716,6 +728,9 @@ internal sealed partial class MachineEmitter
 
         _w.Line($"return {unhandled};");
     }
+
+    /// <summary>Whether event <paramref name="tag"/> is <c>[Internal]</c>: only <c>Enqueue</c> raises it.</summary>
+    private bool IsInternal(int tag) => _events[tag].GetAttributes().Any(a => a.AttributeClass is { } c && SymbolModelBuilder.MetadataName(c) == "StateAlchemist.InternalAttribute");
 
     private string TransitionName(int transition, int leaf) => $"T{transition}_{_stateIds[leaf]}";
 

@@ -26,6 +26,12 @@ public struct Nudge : IEvent
     public int N;
 }
 
+/// <summary>Raised only from inside the machine.</summary>
+[Internal]
+public struct Tick : IEvent
+{
+}
+
 /// <summary>An event deferred while busy, delivered once the machine moves.</summary>
 [Module]
 public static class DeferModule
@@ -44,6 +50,15 @@ public static class DeferModule
     public static void Fidget(ref Busy self)
     {
     }
+
+    [Transition(From = typeof(Free)), On(5)]
+    public static class Raise
+    {
+        public static void Completed(RecordingContext context) => context.Machine!.Enqueue(new Tick());
+    }
+
+    [Transition(From = typeof(Free)), OnEvent(typeof(Tick))]
+    public static void Ticked(RecordingContext context) => context.Record("tick");
 
     [Transition(From = typeof(Free)), OnEvent(typeof(Nudge))]
     public static void Nudged(in Nudge ping, RecordingContext context) => context.Record("nudge " + ping.N);

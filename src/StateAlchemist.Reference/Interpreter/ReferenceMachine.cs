@@ -255,7 +255,9 @@ public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
     /// <inheritdoc/>
     public ValueTask FireAsync<TEvent>(TEvent e)
         where TEvent : struct, IEvent =>
-        SubmitAsync(Work.ForEvent(e));
+        typeof(TEvent).IsDefined(typeof(InternalAttribute), inherit: false)
+            ? ValueTask.FromException(new InvalidOperationException($"'{typeof(TEvent).Name}' is [Internal]: raise it with Enqueue from inside the machine."))
+            : SubmitAsync(Work.ForEvent(e));
 
     /// <inheritdoc/>
     public void Enqueue<TEvent>(TEvent e)

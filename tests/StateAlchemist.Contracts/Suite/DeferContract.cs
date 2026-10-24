@@ -48,6 +48,19 @@ public abstract class DeferContract : MachineContract
     }
 
     [Test]
+    public async Task AnInternalEventIsRaisedOnlyFromInside()
+    {
+        var context = new RecordingContext();
+        var machine = await StartAsync(Shapes.Defers, context);
+        await machine.FireAsync(1);
+#pragma warning disable SALCH0602 // the contract checks what the call does at run time
+        await Assert.That(async () => await machine.FireAsync(new Tick())).Throws<System.InvalidOperationException>();
+#pragma warning restore SALCH0602
+        await machine.FireAsync(5);
+        await Assert.That(context.Trace).IsEqualTo("tick");
+    }
+
+    [Test]
     public async Task ThePlanOfADeferredEventSaysSo()
     {
         var machine = await StartAsync(Shapes.Defers, new RecordingContext());
