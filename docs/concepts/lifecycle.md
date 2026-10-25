@@ -16,7 +16,9 @@ await telnet.StopAsync();                             // [Exited] actions from t
 | Status | How it gets there | Firing |
 |---|---|---|
 | `NotStarted` | construction | throws `MachineNotRunningException` |
-| `Running` | `StartAsync` completed | allowed |
+| `Running` | `StartAsync` completed, or `Resume` | allowed |
+| `Paused` | `Pause` | throws `MachineNotRunningException` until `Resume` |
+| `Completed` | a [final](statecharts.md#final-states-and-completion) child of the root was entered | throws `MachineNotRunningException` |
 | `Stopped` | `StopAsync`, or disposal after starting | throws `MachineNotRunningException` |
 
 ## Why starting is separate

@@ -25,4 +25,28 @@
         public bool TryWrite(TInput input) { }
         public System.Threading.Tasks.ValueTask WriteAsync(TInput input, System.Threading.CancellationToken cancellationToken = default) { }
     }
+    public static class MachineSetServiceCollectionExtensions
+    {
+        public static Microsoft.Extensions.DependencyInjection.IServiceCollection AddMachineSet<TKey, TMachine, TValue>(this Microsoft.Extensions.DependencyInjection.IServiceCollection services, System.Func<System.IServiceProvider, TKey, TMachine> factory, System.Collections.Generic.IEqualityComparer<TKey>? comparer = null)
+            where TKey :  notnull
+            where TMachine :  class, StateAlchemist.IMachine<TValue>
+            where TValue :  struct { }
+    }
+    public sealed class MachineSet<TKey, TMachine, TValue> : System.IAsyncDisposable
+        where TKey :  notnull
+        where TMachine :  class, StateAlchemist.IMachine<TValue>
+        where TValue :  struct
+    {
+        public MachineSet(System.Func<TKey, TMachine> factory, System.Collections.Generic.IEqualityComparer<TKey>? comparer = null) { }
+        public int Count { get; }
+        public System.Collections.Generic.IReadOnlyCollection<TKey> Keys { get; }
+        public System.Threading.Tasks.ValueTask DisposeAsync() { }
+        public System.Threading.Tasks.ValueTask FireAsync(TKey key, TValue value) { }
+        public System.Threading.Tasks.ValueTask FireAsync<TEvent>(TKey key, TEvent e)
+            where TEvent :  struct, StateAlchemist.IEvent { }
+        public System.Threading.Tasks.ValueTask<TMachine> GetOrStartAsync(TKey key) { }
+        public System.Threading.Tasks.ValueTask<bool> RemoveAsync(TKey key) { }
+        public System.Threading.Tasks.ValueTask StopAllAsync() { }
+        public bool TryGet(TKey key, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out TMachine machine) { }
+    }
 }

@@ -30,10 +30,39 @@ public sealed partial class ReferenceMachine<TValue>
             return await RunTimerAsync(armed, owner);
         }
 
-        var chosen = Choose(Candidates(trigger), trigger, hooks: true);
+        if (Status == MachineStatus.Completed)
+        {
+            return false;
+        }
+
+        if (trigger.Event is ChildDone done)
+        {
+            await RunChildDoneAsync(done);
+            return false;
+        }
+
+        var deferred = false;
+        var candidates = trigger is { HasValue: false, Event: { } e }
+            ? _resolver.ForEvent(_leaf, e.GetType().FullName!, out deferred)
+            : Candidates(trigger);
+        var chosen = Choose(candidates, trigger, hooks: true);
         if (chosen is null)
         {
-            Unhandled(trigger);
+            if (deferred)
+            {
+                lock (_sync)
+                {
+                    _deferred.Add(trigger.Event!);
+                }
+
+                return false;
+            }
+
+            if (!await ForwardAsync(trigger))
+            {
+                Unhandled(trigger);
+            }
+
             return false;
         }
 
@@ -202,10 +231,22 @@ public sealed partial class ReferenceMachine<TValue>
                     EndPending(pending);
                 }
 
+                // A move: the events kept by [Defer] are queued again, ahead of what this transition's actions queue.
+                if (path.Exiting.Count > 0)
+                {
+                    foreach (var kept in _deferred)
+                    {
+                        _queue.Enqueue(Work.Queued(kept));
+                    }
+
+                    _deferred.Clear();
+                }
+
                 Rearm(path.Exiting, delays);
             }
         }
 
+        await StopChildrenAsync(path.Exiting);
         try
         {
             // 5. exited, leaf first; 6. entered, outermost first; 7. completed
@@ -235,7 +276,10 @@ public sealed partial class ReferenceMachine<TValue>
             }
         }
 
+        await StartChildrenAsync(path.Entering);
         _hooks.Transitioned?.Invoke(info.With(Phase.Completed));
+        Observe(info.With(Phase.Completed));
+        await SettleAsync(path.Entering.Contains(path.TargetLeaf));
     }
 
     private async ValueTask<bool> RunStateActionsAsync(ActionPhase phase, int state, TransitionInfo<TValue> info, IReadOnlyDictionary<int, object?>? snapshots)
@@ -381,6 +425,7 @@ public sealed partial class ReferenceMachine<TValue>
             return;
         }
 
+        ObserveUnhandled(trigger);
         if (trigger.HasValue)
         {
             _hooks.UnhandledValue?.Invoke(StateType, trigger.Value);
@@ -396,10 +441,15 @@ public sealed partial class ReferenceMachine<TValue>
         }
     }
 
-    private TransitionPlan PlanFor(IReadOnlyList<TransitionModel> candidates, Trigger trigger)
+    private TransitionPlan PlanFor(IReadOnlyList<TransitionModel> candidates, Trigger trigger, bool deferred = false)
     {
         var refused = new List<string>();
         var chosen = Choose(candidates, trigger, hooks: false, refused);
+        if (chosen is null && deferred)
+        {
+            return TransitionPlan.ForDeferred(StateType, refused);
+        }
+
         if (chosen is null)
         {
             return refused.Count == 0 ? TransitionPlan.None : new TransitionPlan(refused);

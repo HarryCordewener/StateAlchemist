@@ -85,6 +85,7 @@ public static class ReflectionModelBuilder
 
             var transitions = new List<TransitionModel>();
             var actions = new List<StateActionModel>();
+            var invokes = new List<InvokeModel>();
             foreach (var declaration in declarations)
             {
                 switch (declaration)
@@ -100,10 +101,14 @@ public static class ReflectionModelBuilder
                         actions.Add(new StateActionModel(action.Phase, stateIndex[action.State], action.Order, action.Module.FullName!, action.DeclarationIndex,
                             MethodModelOf(action.Method, DisplayName(action.Module), stateIndex, [])));
                         break;
+                    case InvokeDeclaration invoke:
+                        invokes.Add(new InvokeModel(stateIndex[invoke.State], MethodModelOf(invoke.Method, DisplayName(invoke.Module), stateIndex, []), invoke.Forward,
+                            ChildValueOf(invoke.Method.ReturnType), invoke.Module.FullName!, invoke.DeclarationIndex));
+                        break;
                 }
             }
 
-            var model = new MachineModel(spec.Name, _options, states, transitions, actions, _diagnostics);
+            var model = new MachineModel(spec.Name, _options, states, transitions, actions, _diagnostics, invokes);
             return new ReflectedMachine(spec, model, _stateTypes, _methods);
         }
 
@@ -137,6 +142,11 @@ public static class ReflectionModelBuilder
                         foreach (var entered in method.GetCustomAttributes<EnteredAttribute>())
                         {
                             yield return new ActionDeclaration(module, method, ActionPhase.Entered, entered.State, entered.Order, index++);
+                        }
+
+                        foreach (var invoke in method.GetCustomAttributes<InvokeAttribute>())
+                        {
+                            yield return new InvokeDeclaration(module, method, invoke.State, invoke.Forward, index++);
                         }
 
                         break;
@@ -181,6 +191,9 @@ public static class ReflectionModelBuilder
                         break;
                     case ActionDeclaration a:
                         pending.Add(a.State);
+                        break;
+                    case InvokeDeclaration i:
+                        pending.Add(i.State);
                         break;
                 }
             }
@@ -227,7 +240,28 @@ public static class ReflectionModelBuilder
                 HasReset: reset is not null && reset.ReturnType == typeof(void),
                 IsPublicStruct: type.IsValueType && !type.IsEnum && IsVisible(type),
                 ParentMarkers: markers,
-                SourceSpan.None);
+                SourceSpan.None,
+                IsFinal: type.GetCustomAttribute<FinalAttribute>() is not null,
+                Deferred: Deferred(type));
+        }
+
+        /// <summary>The event types a state defers; a type that is not an event is reported instead.</summary>
+        private List<string>? Deferred(Type type)
+        {
+            var deferred = new List<string>();
+            foreach (var attribute in type.GetCustomAttributes<DeferAttribute>())
+            {
+                if (typeof(IEvent).IsAssignableFrom(attribute.EventType))
+                {
+                    deferred.Add(attribute.EventType.FullName!);
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidDefer, SourceSpan.None, type.Name, attribute.EventType.Name, "it is not an event type"));
+                }
+            }
+
+            return deferred.Count == 0 ? null : deferred;
         }
 
         private IEnumerable<TransitionModel> TransitionModels(TransitionDeclaration declaration, IReadOnlyDictionary<Type, int> stateIndex)
@@ -386,6 +420,32 @@ public static class ReflectionModelBuilder
                 }
             }
 
+            foreach (var (present, trigger, text) in new[]
+                     {
+                         (member.GetCustomAttribute<AlwaysAttribute>() is not null, TriggerModel.Always, "[Always]"),
+                         (member.GetCustomAttribute<OnDoneAttribute>() is not null, TriggerModel.Done, "[OnDone]"),
+                     })
+            {
+                if (!present)
+                {
+                    continue;
+                }
+
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, $"mixes {text} with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, $"is a decision, which cannot fire on {text}"));
+                    return [];
+                }
+
+                triggers.Add(trigger);
+            }
+
             if (triggers.Count == 0)
             {
                 _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, "has no trigger"));
@@ -514,4 +574,16 @@ public static class ReflectionModelBuilder
     private sealed record TransitionDeclaration(Type Module, MethodInfo? Method, Type? Class, Type? From, Type? To, int Order, bool IsDecision, Type[] Handle, HistoryKind History);
 
     private sealed record ActionDeclaration(Type Module, MethodInfo Method, ActionPhase Phase, Type State, int Order, int DeclarationIndex);
+
+    private sealed record InvokeDeclaration(Type Module, MethodInfo Method, Type State, bool Forward, int DeclarationIndex);
+
+    /// <summary>The <c>TValue</c> of the <c>IStatechart&lt;TValue&gt;</c> a type is or implements, or null.</summary>
+    internal static Type? ChildValueTypeOf(Type type)
+    {
+        static bool IsStatechart(Type t) => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IStatechart<>);
+        var statechart = IsStatechart(type) ? type : type.GetInterfaces().FirstOrDefault(IsStatechart);
+        return statechart?.GetGenericArguments()[0];
+    }
+
+    private static string? ChildValueOf(Type type) => ChildValueTypeOf(type)?.FullName;
 }

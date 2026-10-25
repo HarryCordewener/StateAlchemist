@@ -63,7 +63,7 @@ internal static class DefinitionBuilder
         _ => TriggerDefinition.ForEvent(FindType(trigger.EventType!)),
     };
 
-    private static Type FindType(string fullName) =>
+    internal static Type FindType(string fullName) =>
         AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(fullName)).FirstOrDefault(t => t is not null)
         ?? throw new InvalidOperationException($"Event type '{fullName}' is not loaded.");
 }

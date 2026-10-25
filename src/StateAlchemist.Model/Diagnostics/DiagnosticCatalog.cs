@@ -24,6 +24,9 @@ public static class DiagnosticCatalog
     public static readonly DiagnosticDescriptor InitialChild = new("SALCH0004", Severity.Error, "Initial child required",
         "State '{0}' has {1} [Initial] children; it needs exactly one", App);
 
+    public static readonly DiagnosticDescriptor InvalidFinal = new("SALCH0005", Severity.Error, "Invalid final state",
+        "Final state '{0}' {1}", App);
+
     public static readonly DiagnosticDescriptor ConflictingTransitions = new("SALCH0101", Severity.Error, "Conflicting transitions",
         "'{0}' and '{1}' both handle {2} in state '{3}' without a guard", App);
 
@@ -50,6 +53,18 @@ public static class DiagnosticCatalog
 
     public static readonly DiagnosticDescriptor NothingExported = new("SALCH0109", Severity.Warning, "Nothing exported to include",
         "'{0}' includes exported modules, but nothing this assembly references exports one", App);
+
+    public static readonly DiagnosticDescriptor InvalidEventless = new("SALCH0110", Severity.Error, "Invalid eventless transition",
+        "Eventless transition '{0}' {1}", App);
+
+    public static readonly DiagnosticDescriptor DoneNeverFires = new("SALCH0111", Severity.Warning, "Done transition never fires",
+        "'{0}' fires when '{1}' is done, but {2}", App);
+
+    public static readonly DiagnosticDescriptor InvalidDefer = new("SALCH0112", Severity.Error, "Invalid deferred event",
+        "State '{0}' defers '{1}': {2}", App);
+
+    public static readonly DiagnosticDescriptor InvalidInvoke = new("SALCH0113", Severity.Error, "Invalid invoked machine",
+        "[Invoke] '{0}' {1}", App);
 
     public static readonly DiagnosticDescriptor RefOnExitingState = new("SALCH0201", Severity.Error, "Writing to an exiting state",
         "Parameter '{0}' of '{1}' takes '{2}' by ref, but the transition exits it; take it as in", App);
@@ -99,6 +114,9 @@ public static class DiagnosticCatalog
     public static readonly DiagnosticDescriptor SyncFireOnAsyncMachine = new("SALCH0601", Severity.Error, "Synchronous fire on an async machine",
         "'{0}' has async actions or decisions: fire it with FireAsync and await that", App);
 
+    public static readonly DiagnosticDescriptor InternalEventFired = new("SALCH0602", Severity.Error, "Internal event fired from outside",
+        "'{0}' is [Internal]: only code inside the machine raises it, with Enqueue", Anywhere);
+
     public static readonly DiagnosticDescriptor InvalidRun = new("SALCH0701", Severity.Error, "Invalid run transition",
         "[Run] on '{0}' is invalid: {1}", App);
 
@@ -117,14 +135,14 @@ public static class DiagnosticCatalog
     /// <summary>Every descriptor, in identifier order.</summary>
     public static IReadOnlyList<DiagnosticDescriptor> All { get; } =
     [
-        InvalidState, NotPublicStatic, InvalidHierarchy, InitialChild,
+        InvalidState, NotPublicStatic, InvalidHierarchy, InitialChild, InvalidFinal,
         ConflictingTransitions, AmbiguousGuardOrder, AmbiguousActionOrder, TriggerOutOfRange, UnsupportedValueType, InvalidTransition, IncompleteMachine,
-        ExportedTypeIsNotAModule, NothingExported,
+        ExportedTypeIsNotAModule, NothingExported, InvalidEventless, DoneNeverFires, InvalidDefer, InvalidInvoke,
         RefOnExitingState, StateNotAvailable, InvalidPhaseSignature, UnbindableParameter, ContextUnderStrictPurity, UnknownPhase, AsyncSuffix, TwoDecideMethods, UncheckedWithAsync, InvalidHistory,
         ReentryClearsData,
         OutcomeCompletions, UnknownOutcome,
         UnhandledValues, UnreachableState,
-        SyncFireOnAsyncMachine,
+        SyncFireOnAsyncMachine, InternalEventFired,
         InvalidRun, RunShadowsTrigger,
         FiredBeforeStarted,
         NoPhases, PhaseCanBeAdded,

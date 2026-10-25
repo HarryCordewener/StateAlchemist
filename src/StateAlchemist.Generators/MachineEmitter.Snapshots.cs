@@ -47,6 +47,13 @@ internal sealed partial class MachineEmitter
                 _w.Line("public SnapshotJoins Joins { get; set; }");
             }
 
+            if (HasDefer)
+            {
+                _w.Line();
+                _w.Line("/// <summary>The events the active states deferred, in arrival order.</summary>");
+                _w.Line("public global::System.Collections.Generic.List<SnapshotEvent> Deferred { get; set; }");
+            }
+
             if (HasTimers)
             {
                 _w.Line();
@@ -67,6 +74,11 @@ internal sealed partial class MachineEmitter
                     _w.Line($"public global::System.DateTimeOffset? {TimerProperty(timer)} {{ get; set; }}");
                 }
             }
+        }
+
+        if (HasDefer)
+        {
+            WriteDeferSnapshotType();
         }
 
         _w.Line();
@@ -141,6 +153,12 @@ internal sealed partial class MachineEmitter
         {
             _w.Line($"if (_status == {Rt}MachineStatus.Stopped) throw new global::System.InvalidOperationException({Literal("The machine has been stopped: its states have been exited.")});");
             _w.Line($"if (_inside) throw new global::System.InvalidOperationException({Literal("TakeSnapshot is for code outside the machine. An action or hook runs mid-transition.")});");
+            if (HasInvokes)
+            {
+                // A child's own state is not the parent's to record: a snapshot is taken where no child runs.
+                _w.Line($"if ({string.Join(" || ", Enumerable.Range(0, _model.Invokes.Count).Select(k => $"_child{k} != null"))}) throw new global::System.InvalidOperationException({Literal("A state that invokes a machine is active. Take a snapshot where no invoked machine runs.")});");
+            }
+
             if (HasInbox)
             {
                 using (_w.Block("lock (_sync)"))
@@ -205,6 +223,11 @@ internal sealed partial class MachineEmitter
                 }
             }
 
+            if (HasDefer)
+            {
+                WriteDeferCapture();
+            }
+
             if (HasTimers)
             {
                 // A running timer is due when it was armed plus its delay; one restored but not yet started keeps the
@@ -217,6 +240,17 @@ internal sealed partial class MachineEmitter
                     {
                         var k = Num(timer.Index);
                         _w.Line($"if (_armed{k}) snapshot.Timers.{TimerProperty(timer)} = now + (_armedFor{k} - _time.GetElapsedTime(_armedAt{k}));");
+                    }
+                }
+
+                using (_w.Block($"else if (_status == {Rt}MachineStatus.Paused)"))
+                {
+                    _w.Line("snapshot.Timers = new SnapshotTimers();");
+                    _w.Line("var now = _time.GetUtcNow();");
+                    foreach (var timer in _timers)
+                    {
+                        var k = Num(timer.Index);
+                        _w.Line($"if (_pausedLeft{k}.HasValue) snapshot.Timers.{TimerProperty(timer)} = now + _pausedLeft{k}.Value;");
                     }
                 }
 
@@ -267,6 +301,11 @@ internal sealed partial class MachineEmitter
             _w.Line($"if (_status != {Rt}MachineStatus.NotStarted) throw new global::System.InvalidOperationException({Literal("Restore is for a machine that has not been started.")});");
             _w.Line("StateId leaf;");
             _w.Line("if (!TryLeaf(snapshot.State, out leaf)) throw new global::System.ArgumentException(\"'\" + snapshot.State + \"' is not a leaf of this machine.\", \"snapshot\");");
+            var invoking = _hierarchy.Leaves.Where(l => _hierarchy.PathFromRoot(l).Any(Invokes)).ToList();
+            if (invoking.Count > 0)
+            {
+                _w.Line($"if ({string.Join(" || ", invoking.Select(l => $"leaf == StateId.{_stateIds[l]}"))}) throw new global::System.ArgumentException(\"'\" + snapshot.State + \"' is in a state that invokes a machine, which a snapshot cannot hold.\", \"snapshot\");");
+            }
             if (history.Count > 0)
             {
                 _w.Line("var history = snapshot.History ?? new SnapshotHistory();");
@@ -308,6 +347,11 @@ internal sealed partial class MachineEmitter
                         }
                     }
                 }
+            }
+
+            if (HasDefer)
+            {
+                WriteDeferRestore();
             }
 
             if (HasTimers)
@@ -370,6 +414,11 @@ internal sealed partial class MachineEmitter
             foreach (var timer in _timers)
             {
                 _w.Line($"if (due{Num(timer.Index)}) SubmitTimer({Num(timer.Index)}, generation{Num(timer.Index)});");
+            }
+
+            if (HasCompletion)
+            {
+                _w.Line(RestoredCompletion().TrimEnd());
             }
 
             _w.Line($"return default({ValueTaskType});");

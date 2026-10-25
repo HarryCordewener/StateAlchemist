@@ -54,6 +54,12 @@ public readonly struct TriggerDefinition : IEquatable<TriggerDefinition>
     /// <param name="delay">Its fixed delay, or <see langword="null"/> when a <c>Delay</c> method computes it.</param>
     public static TriggerDefinition ForTimer(TimeSpan? delay) => new(TriggerKind.Timer, 0, 0, null, delay);
 
+    /// <summary>An eventless transition's trigger: see <see cref="AlwaysAttribute"/>.</summary>
+    public static TriggerDefinition ForAlways() => new(TriggerKind.Always, 0, 0, null);
+
+    /// <summary>A transition that fires when its source state is done: see <see cref="OnDoneAttribute"/>.</summary>
+    public static TriggerDefinition ForDone() => new(TriggerKind.Done, 0, 0, null);
+
     /// <summary>Whether this trigger matches <paramref name="value"/>. Event and timer triggers match no value.</summary>
     /// <param name="value">The value.</param>
     public bool Matches(long value) => Kind switch
@@ -83,6 +89,8 @@ public readonly struct TriggerDefinition : IEquatable<TriggerDefinition>
         TriggerKind.Value => Low.ToString(System.Globalization.CultureInfo.InvariantCulture),
         TriggerKind.Range => string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0}..{1}", Low, High),
         TriggerKind.Any => "any",
+        TriggerKind.Always => "always",
+        TriggerKind.Done => "done",
         TriggerKind.Timer => "after " + (Delay is { } delay ? DelayText((long)delay.TotalMilliseconds) : "Delay"),
         _ => "event " + EventType!.Name,
     };

@@ -71,6 +71,15 @@ public sealed class TransitionPlan
     public static TransitionPlan ForJoinArrival(string transition, Type leaf, IReadOnlyList<string> refused) =>
         new(transition, leaf, leaf, TransitionKind.Stay, [], [], false, refused) { IsJoinArrival = true };
 
+    /// <summary>
+    /// The plan for an event the active state defers with <see cref="DeferAttribute"/>: no transition fires, and the
+    /// event is kept until the machine moves.
+    /// </summary>
+    /// <param name="leaf">The active leaf.</param>
+    /// <param name="refused">The guarded transitions that refused it first, in the order they were tried.</param>
+    public static TransitionPlan ForDeferred(Type leaf, IReadOnlyList<string> refused) =>
+        new(refused) { Leaf = leaf, IsDeferred = true };
+
     /// <summary>The plan for a trigger nothing handles, where no guard was tried.</summary>
     public static TransitionPlan None { get; } = new();
 
@@ -81,7 +90,7 @@ public sealed class TransitionPlan
     public string? Transition { get; }
 
     /// <summary>The active leaf.</summary>
-    public Type? Leaf { get; }
+    public Type? Leaf { get; private set; }
 
     /// <summary>The leaf it would end in. For a decision, the pending state.</summary>
     public Type? Target { get; }
@@ -103,6 +112,9 @@ public sealed class TransitionPlan
     /// <see cref="Transition"/> names the join and nothing exits or enters.
     /// </summary>
     public bool IsJoinArrival { get; private set; }
+
+    /// <summary>Whether the active state defers the event: it is kept, and resolved again after the machine next moves.</summary>
+    public bool IsDeferred { get; private set; }
 
     /// <summary>
     /// The guarded transitions whose guard returned <see langword="false"/>, in the order they were tried; empty when

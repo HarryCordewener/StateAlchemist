@@ -48,6 +48,12 @@ public enum MatchKind
     Any,
     Event,
     Timer,
+
+    /// <summary>No trigger: <c>[Always]</c>.</summary>
+    Always,
+
+    /// <summary>The source state is done: <c>[OnDone]</c>.</summary>
+    Done,
 }
 
 /// <summary>What a transition does to the active path.</summary>

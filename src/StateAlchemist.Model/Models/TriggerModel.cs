@@ -32,6 +32,12 @@ public readonly record struct TriggerModel(MatchKind Kind, long Low, long High, 
     public static TriggerModel Timer(long milliseconds) => new(MatchKind.Timer, milliseconds, milliseconds, null);
 
     /// <summary>A timer whose delay <paramref name="transition"/>'s <c>Delay</c> method computes.</summary>
+    /// <summary>An eventless transition's trigger.</summary>
+    public static TriggerModel Always { get; } = new(MatchKind.Always, 0, 0, null);
+
+    /// <summary>A trigger that fires when the source state is done.</summary>
+    public static TriggerModel Done { get; } = new(MatchKind.Done, 0, 0, null);
+
     public static TriggerModel TimerByDelay(string transition) => new(MatchKind.Timer, 0, 0, null, transition);
 
     /// <summary>Whether it matches values rather than an event or a timer.</summary>
@@ -51,6 +57,8 @@ public readonly record struct TriggerModel(MatchKind Kind, long Low, long High, 
     {
         (MatchKind.Event, MatchKind.Event) => EventType == other.EventType,
         (MatchKind.Timer, MatchKind.Timer) => Low == other.Low && DelayedBy == other.DelayedBy,
+        (MatchKind.Always, MatchKind.Always) or (MatchKind.Done, MatchKind.Done) => true,
+        (MatchKind.Always, _) or (_, MatchKind.Always) or (MatchKind.Done, _) or (_, MatchKind.Done) => false,
         (MatchKind.Event, _) or (_, MatchKind.Event) or (MatchKind.Timer, _) or (_, MatchKind.Timer) => false,
         (MatchKind.Any, _) or (_, MatchKind.Any) => true,
         _ => Low <= other.High && other.Low <= High,
@@ -62,6 +70,8 @@ public readonly record struct TriggerModel(MatchKind Kind, long Low, long High, 
         MatchKind.Value => Low.ToString(CultureInfo.InvariantCulture),
         MatchKind.Range => string.Format(CultureInfo.InvariantCulture, "{0}..{1}", Low, High),
         MatchKind.Any => "any",
+        MatchKind.Always => "always",
+        MatchKind.Done => "done",
         MatchKind.Timer => "after " + (DelayedBy is null ? DelayText(Low) : "Delay"),
         _ => "event " + ShortName(EventType ?? string.Empty),
     };

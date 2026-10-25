@@ -128,7 +128,7 @@ public sealed partial class ReferenceMachine<TValue>
     /// <summary>The next runnable step, or <see langword="null"/>. Called under the lock.</summary>
     private Func<Task>? NextStep()
     {
-        if (Status != MachineStatus.Running)
+        if (Status is not (MachineStatus.Running or MachineStatus.Completed))
         {
             return null;
         }
@@ -298,6 +298,7 @@ public sealed partial class ReferenceMachine<TValue>
 
             _inbox.Clear();
             _queue.Clear();
+            _deferred.Clear();
             _current = null;
             for (var i = 0; i < _armed.Length; i++)
             {

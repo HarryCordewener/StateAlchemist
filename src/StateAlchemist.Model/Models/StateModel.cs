@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace StateAlchemist.Model;
 
 /// <summary>A state in a machine.</summary>
@@ -10,6 +12,8 @@ namespace StateAlchemist.Model;
 /// <param name="IsPublicStruct">Whether it is a public struct.</param>
 /// <param name="ParentMarkers">How many parent markers (<c>IState&lt;T&gt;</c>, <c>IRootState</c>) it implements.</param>
 /// <param name="Location">Where it is declared.</param>
+/// <param name="IsFinal">Whether it is marked <c>[Final]</c>.</param>
+/// <param name="Deferred">The event types it defers with <c>[Defer]</c>, by full name.</param>
 public sealed record StateModel(
     int Index,
     string TypeName,
@@ -19,8 +23,13 @@ public sealed record StateModel(
     bool HasReset,
     bool IsPublicStruct,
     int ParentMarkers,
-    SourceSpan Location)
+    SourceSpan Location,
+    bool IsFinal = false,
+    IReadOnlyList<string>? Deferred = null)
 {
+    /// <summary>The event types it defers, by full name; empty when it defers none.</summary>
+    public IReadOnlyList<string> Defers => Deferred ?? [];
+
     /// <summary>Whether it is a root.</summary>
     public bool IsRoot => Parent < 0;
 

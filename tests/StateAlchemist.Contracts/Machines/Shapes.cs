@@ -1,7 +1,11 @@
+using StateAlchemist.Contracts.Machines.Invokes;
+using StateAlchemist.Contracts.Machines.Defers;
+using StateAlchemist.Contracts.Machines.Finals;
 using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
 using StateAlchemist.Contracts.Machines.Joins;
+using StateAlchemist.Contracts.Machines.Permits;
 using StateAlchemist.Contracts.Machines.Recalling;
 using StateAlchemist.Contracts.Machines.Recording;
 using StateAlchemist.Contracts.Machines.Runs;
@@ -39,6 +43,16 @@ public static class Shapes
 
     public static readonly MachineShape Recalling = new("Recalling", typeof(Jukebox), [typeof(RecallingModule)], typeof(RecordingContext));
     public static readonly MachineShape Joins = new("Joins", typeof(JoinRoot), [typeof(JoinModule)], typeof(RecordingContext));
+
+    public static readonly MachineShape Finals = new("Finals", typeof(FinRoot), [typeof(FinalModule)], typeof(RecordingContext));
+
+    public static readonly MachineShape Defers = new("Defers", typeof(DefRoot), [typeof(DeferModule)], typeof(RecordingContext));
+
+    public static readonly MachineShape Invokes = new("Invokes", typeof(InvRoot), [typeof(InvokeModule)], typeof(RecordingContext));
+
+    public static readonly MachineShape Worker = new("Worker", typeof(WorkRoot), [typeof(WorkerModule)], typeof(RecordingContext));
+
+    public static readonly MachineShape Permits = new("Permits", typeof(PermitRoot), [typeof(PermitModule)], typeof(RecordingContext));
 
     public static readonly MachineShape Telnet = new("SampleTelnet", typeof(Connected), [typeof(TelnetCore), typeof(GmcpModule), typeof(NawsModule)], typeof(TelnetContext));
 }
