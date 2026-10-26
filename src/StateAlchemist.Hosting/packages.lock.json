@@ -83,7 +83,6 @@
         "type": "Project"
       }
     },
-    "net10.0/linux-x64": {},
     "net11.0": {
       "Microsoft.Extensions.Hosting.Abstractions": {
         "type": "Direct",
@@ -107,7 +106,6 @@
         "type": "Project"
       }
     },
-    "net11.0/linux-x64": {},
     "net8.0": {
       "Microsoft.Extensions.Hosting.Abstractions": {
         "type": "Direct",
@@ -196,7 +194,6 @@
       "statealchemist": {
         "type": "Project"
       }
-    },
-    "net8.0/linux-x64": {}
+    }
   }
 }
