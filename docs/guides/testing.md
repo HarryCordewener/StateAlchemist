@@ -79,6 +79,33 @@ public async Task GmcpIsAcceptedAndEverythingElseRefused()
 Tests written against `IMachine<TValue>` do not care what implements it — which is how StateAlchemist tests
 itself.
 
+## 4. A path to every transition
+
+`MachinePaths.Covering(definition)` computes, from a machine's `Definition`, the shortest sequence of triggers from
+the start that fires each transition and each decision outcome, leaving out a path that is the start of a longer
+one. A test that drives the machine along every path fires every transition at least once. Each step names its
+trigger, the transition, and whether it relies on a guard going the way the path needs (`AssumesGuards`, a `*` in
+the text form). Eventless and done transitions are steps the machine takes on its own.
+
+<!-- snippet: machine-paths -->
+<a id='snippet-machine-paths'></a>
+```cs
+private static string Text(MachineDefinition definition) =>
+    string.Join("\n---\n", MachinePaths.Covering(definition).Select(p => p.ToString().TrimEnd().ReplaceLineEndings("\n")));
+```
+<sup><a href='/tests/StateAlchemist.Generated.Tests/MachinePathTests.cs#L10-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-machine-paths' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+For the [statecharts](../concepts/statecharts.md) test machine, the first two of its paths read:
+
+```text
+Idle --[7]--> Idle: FinalModule.Ping
+---
+Idle --[9]--> LoopA: FinalModule.ToLoop
+LoopA --[always]--> LoopB: FinalModule.AToB *
+LoopB --[always]--> LoopA: FinalModule.BToA *
+```
+
 ## How StateAlchemist tests itself
 
 The library ships with a **reference interpreter**: Stateless, a reflection-based `IMachine<TValue>` that runs the same

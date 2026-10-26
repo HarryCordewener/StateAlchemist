@@ -19,6 +19,12 @@ internal sealed partial class MachineEmitter
         _w.Line();
         _w.Line("/// <summary>The machine as a Graphviz digraph.</summary>");
         _w.Line($"public const string Dot = {Literal(Dot())};");
+        _w.Line();
+        _w.Line("/// <summary><see cref=\"Dot\"/> with the active leaf filled in: a live view of where the machine is. Allocates the string.</summary>");
+        using (_w.Block("public string DotNow()"))
+        {
+            _w.Line($"return Dot.Substring(0, Dot.Length - 1) + \"    \" + NameOf(_leaf) + \" [style=filled, fillcolor=lightblue];\\n}}\";");
+        }
     }
 
     /// <summary>A Mermaid <c>stateDiagram-v2</c>: composite states for the hierarchy, one arrow per transition.</summary>
@@ -52,6 +58,11 @@ internal sealed partial class MachineEmitter
             }
 
             // After the children, so a bare state is never followed by a nested one (above).
+            foreach (var final in children.Where(c => c.IsFinal))
+            {
+                lines.Add($"{indent}    {_stateIds[final.Index]} --> [*]");
+            }
+
             foreach (var history in HistoryMoves.Where(m => m.State == index).Select(m => m.History))
             {
                 lines.Add($"{indent}    state \"{HistoryLabel(history)}\" as {HistoryNode(index, history)}");
@@ -80,7 +91,7 @@ internal sealed partial class MachineEmitter
             var name = _stateIds[index];
             if (children.Count == 0)
             {
-                lines.Add($"{indent}{name};");
+                lines.Add(_model.States[index].IsFinal ? $"{indent}{name} [peripheries=2];" : $"{indent}{name};");
                 return;
             }
 
@@ -159,7 +170,7 @@ internal sealed partial class MachineEmitter
             MatchKind.Value => transition.Trigger.Low.ToString(System.Globalization.CultureInfo.InvariantCulture),
             MatchKind.Range => $"{transition.Trigger.Low}..{transition.Trigger.High}",
             MatchKind.Any => "any",
-            MatchKind.Timer => transition.Trigger.ToString(),
+            MatchKind.Timer or MatchKind.Always or MatchKind.Done => transition.Trigger.ToString(),
             _ => transition.Trigger.EventType is { } name ? name.Substring(name.LastIndexOf('.') + 1) : "event",
         };
         var kind = transition.IsRun ? " run" : transition.IsDecision ? " decide" : string.Empty;

@@ -210,6 +210,6 @@ public sealed partial class ReferenceMachine<TValue>
         public Exception? Failure { get; set; }
 
         /// <summary>Whether <paramref name="e"/> is an event the decision lists in <c>Handle</c>, or a timer's firing: run at once, not deferred.</summary>
-        public bool Handles(object? e) => e is Armed || (e is not null && Decision.Decision!.Handle.Contains(e.GetType().FullName!));
+        public bool Handles(object? e) => e is Armed or ChildDone || (e is not null && Decision.Decision!.Handle.Contains(e.GetType().FullName!));
     }
 }

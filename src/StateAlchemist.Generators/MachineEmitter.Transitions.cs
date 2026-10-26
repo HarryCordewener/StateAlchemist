@@ -67,7 +67,7 @@ internal sealed partial class MachineEmitter
     {
         var startedOver = new HashSet<int>(path.Exiting.Intersect(path.Entering));
         var actions = Actions(completed, path);
-        var isAsync = actions.Any(a => a.Method.IsAsync);
+        var isAsync = actions.Any(a => a.Method.IsAsync) || StartsOrStopsChildren(path);
         var skip = actions.Any(a => Implements($"On{a.Phase}Exception"));
         var done = isAsync ? "return;" : $"return default({ValueTaskType});";
         var transformPhase = outcome is null ? "Transform" : "Complete";
@@ -166,6 +166,7 @@ internal sealed partial class MachineEmitter
             // exited states' timers are cancelled and the entered states' armed.
             _w.Line($"_leaf = StateId.{_stateIds[path.TargetLeaf]};");
             WriteRecording(path);
+            WriteRedeliver(path);
             if (Deciding && path.Exiting.Count > 0)
             {
                 _w.Line("lock (_sync) { if (_pending != null) EndPending(_pending); }");
@@ -177,6 +178,7 @@ internal sealed partial class MachineEmitter
                 _w.Line(ArmStatements(arming, disarming, t => $"delay{Num(t.Index)}"));
             }
 
+            WriteStopping(path);
             var cleared = path.Exiting.Where(s => !startedOver.Contains(s)).ToList();
             if (actions.Count > 0 || cleared.Count > 0)
             {
@@ -203,13 +205,23 @@ internal sealed partial class MachineEmitter
                 }
             }
 
+            WriteStarting(path.Entering);
             if (Telemetry)
             {
                 WriteTransitionCount(transition);
             }
 
             _w.Line($"OnTransitioned({Info(transition, path, "Completed", kind: kind)});");
-            _w.Line(done);
+            _w.Line($"if (_observer != null) _observer.Transitioned({Info(transition, path, "Completed", kind: kind)});");
+            if (SettleCall(path) is { } settle)
+            {
+                _w.Line(isAsync ? $"await {settle};" : $"return {settle};");
+            }
+
+            if (isAsync || SettleCall(path) is null)
+            {
+                _w.Line(done);
+            }
         }
 
         if (transition.IsRun && transform is not null)
@@ -353,13 +365,13 @@ internal sealed partial class MachineEmitter
 
     /// <summary>The name of <see cref="TriggerParameter"/>'s parameter.</summary>
     private static string TriggerArgumentName(TransitionModel transition) =>
-        transition.IsJoin ? "join" : transition.Trigger.Kind == MatchKind.Event ? "e" : transition.IsTimer ? string.Empty : transition.IsRun ? "run" : "value";
+        transition.IsJoin ? "join" : transition.Trigger.Kind == MatchKind.Event ? "e" : transition.HasNoTriggerArgument ? string.Empty : transition.IsRun ? "run" : "value";
 
     /// <summary>What fires a transition, as its generated methods take it: the value, the event, or a run.</summary>
     private string TriggerParameter(TransitionModel transition, bool forGuard = false) =>
         transition.IsJoin ? $"{JoinType(JoinOf(transition))} join"
         : transition.Trigger.Kind == MatchKind.Event ? $"{Event(transition.Trigger.EventType!)} e"
-        : transition.IsTimer ? string.Empty
+        : transition.HasNoTriggerArgument ? string.Empty
         : transition.IsRun && !forGuard ? $"global::System.ReadOnlyMemory<{V}> run"
         : $"{V} value";
 

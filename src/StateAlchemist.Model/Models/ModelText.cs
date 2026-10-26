@@ -19,7 +19,7 @@ public static class ModelText
                         $"context={o.ContextType} config={o.ConfigType} {o.Concurrency} inbox={o.InboxCapacity} {o.Purity} {o.Unhandled}");
         foreach (var s in model.States)
         {
-            text.AppendLine($"state {s.Index} {s.TypeName} parent={s.Parent} initial={s.IsInitial} data={s.HasData} reset={s.HasReset} public={s.IsPublicStruct} markers={s.ParentMarkers}");
+            text.AppendLine($"state {s.Index} {s.TypeName} parent={s.Parent} initial={s.IsInitial} data={s.HasData} reset={s.HasReset} public={s.IsPublicStruct} markers={s.ParentMarkers} final={s.IsFinal} defers=[{string.Join(",", s.Defers)}]");
         }
 
         foreach (var t in model.Transitions)
@@ -54,6 +54,12 @@ public static class ModelText
         {
             text.AppendLine($"action {a.Phase} state={a.State} order={a.Order} module={a.Module} index={a.DeclarationIndex}");
             Method(text, "method", a.Method);
+        }
+
+        foreach (var i in model.Invokes)
+        {
+            text.AppendLine($"invoke state={i.State} forward={i.Forward} child-value={i.ChildValueType} module={i.Module} index={i.DeclarationIndex}");
+            Method(text, "method", i.Method);
         }
 
         foreach (var d in model.FrontEndDiagnostics)

@@ -140,6 +140,7 @@ internal static class SymbolModelBuilder
             var states = _stateTypes.Select((type, index) => StateModelOf(type, index, stateIndex)).ToList();
             var transitions = new List<TransitionModel>();
             var actions = new List<StateActionModel>();
+            var invokes = new List<InvokeModel>();
             foreach (var declaration in declarations)
             {
                 switch (declaration)
@@ -155,6 +156,10 @@ internal static class SymbolModelBuilder
                         actions.Add(new StateActionModel(action.Phase, stateIndex[action.State], action.Order, MetadataName(action.Module), action.DeclarationIndex,
                             MethodModelOf(action.Method, DisplayName(action.Module), stateIndex, [])));
                         break;
+                    case InvokeDeclaration invoke:
+                        invokes.Add(new InvokeModel(stateIndex[invoke.State], MethodModelOf(invoke.Method, DisplayName(invoke.Module), stateIndex, []), invoke.Forward,
+                            ChildValueOf(invoke.Method.ReturnType), MetadataName(invoke.Module), invoke.DeclarationIndex));
+                        break;
                 }
             }
 
@@ -164,7 +169,7 @@ internal static class SymbolModelBuilder
                 Event(failed);
             }
 
-            var model = new MachineModel(machine.Name, _options, states, transitions, actions, _diagnostics);
+            var model = new MachineModel(machine.Name, _options, states, transitions, actions, _diagnostics, invokes);
             return new SymbolMachine(machine, model, _stateTypes, _methods, _events, _value, _context, _config, _locations, machineLocation,
                 modules.Select(m => MetadataName(m)).ToList(), _telemetry);
         }
@@ -276,6 +281,15 @@ internal static class SymbolModelBuilder
                         yield return new ActionDeclaration(module, method, ActionPhase.Entered, state, IntArgument(entered, "Order"), index++);
                     }
                 }
+
+                foreach (var invoke in method.GetAttributes().Where(a => Is(a.AttributeClass, known.Invoke)))
+                {
+                    if (FirstArgument(invoke) is INamedTypeSymbol state)
+                    {
+                        var forward = invoke.NamedArguments.FirstOrDefault(a => a.Key == "Forward").Value.Value is true;
+                        yield return new InvokeDeclaration(module, method, state, forward, index++);
+                    }
+                }
             }
         }
 
@@ -312,6 +326,9 @@ internal static class SymbolModelBuilder
                         break;
                     case ActionDeclaration a:
                         pending.Add(a.State);
+                        break;
+                    case InvokeDeclaration i:
+                        pending.Add(i.State);
                         break;
                 }
             }
@@ -361,7 +378,28 @@ internal static class SymbolModelBuilder
                 HasReset: reset,
                 IsPublicStruct: type.TypeKind == TypeKind.Struct && IsVisible(type),
                 ParentMarkers: markers,
-                location);
+                location,
+                IsFinal: type.GetAttributes().Any(a => Is(a.AttributeClass, known.Final)),
+                Deferred: Deferred(type));
+        }
+
+        /// <summary>The event types a state defers. A <c>[Defer]</c> naming something that is not an event is reported by the validator.</summary>
+        private IReadOnlyList<string>? Deferred(INamedTypeSymbol type)
+        {
+            var deferred = new List<string>();
+            foreach (var e in type.GetAttributes().Where(a => Is(a.AttributeClass, known.Defer)).Select(FirstArgument).OfType<INamedTypeSymbol>())
+            {
+                if (e.AllInterfaces.Any(i => Is(i, known.Event)))
+                {
+                    deferred.Add(Event(e));
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidDefer, Span(type.Locations.FirstOrDefault()), type.Name, e.Name, "it is not an event type"));
+                }
+            }
+
+            return deferred.Count == 0 ? null : deferred;
         }
 
         private IEnumerable<TransitionModel> TransitionModels(TransitionDeclaration declaration, IReadOnlyDictionary<ITypeSymbol, int> stateIndex)
@@ -537,6 +575,28 @@ internal static class SymbolModelBuilder
                 }
             }
 
+            foreach (var (attribute, trigger, text) in new[] { (known.Always, TriggerModel.Always, "[Always]"), (known.OnDone, TriggerModel.Done, "[OnDone]") })
+            {
+                if (!attributes.Any(a => Is(a.AttributeClass, attribute)))
+                {
+                    continue;
+                }
+
+                if (triggers.Count > 0 || onEvent is not null)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, $"mixes {text} with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, $"is a decision, which cannot fire on {text}"));
+                    return [];
+                }
+
+                triggers.Add(trigger);
+            }
+
             if (triggers.Count == 0)
             {
                 _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "has no trigger"));
@@ -684,6 +744,8 @@ internal static class SymbolModelBuilder
         private static INamedTypeSymbol? TypeArgument(AttributeData attribute, string name) =>
             attribute.NamedArguments.FirstOrDefault(a => a.Key == name).Value.Value as INamedTypeSymbol;
 
+        private static string? ChildValueOf(ITypeSymbol type) => ChildValueSymbol(type) is { } value ? MetadataName(value) : null;
+
         private static int IntArgument(AttributeData attribute, string name) =>
             attribute.NamedArguments.FirstOrDefault(a => a.Key == name).Value.Value is int value ? value : 0;
 
@@ -729,6 +791,26 @@ internal static class SymbolModelBuilder
         }
     }
 
+    /// <summary>
+    /// The <c>TValue</c> of the <c>IStatechart&lt;TValue&gt;</c> a type is or implements, or null. A <c>[Machine]</c>
+    /// class in this compilation implements it in the part the generator writes, which a generator cannot see, so its
+    /// attribute's <c>Value</c> stands in.
+    /// </summary>
+    internal static ITypeSymbol? ChildValueSymbol(ITypeSymbol type)
+    {
+        static bool IsStatechart(INamedTypeSymbol t) =>
+            t.OriginalDefinition.MetadataName == "IStatechart`1" && t.ContainingNamespace.ToDisplayString() == "StateAlchemist";
+
+        var statechart = type is INamedTypeSymbol named && IsStatechart(named) ? named : type.AllInterfaces.FirstOrDefault(IsStatechart);
+        if (statechart is not null)
+        {
+            return statechart.TypeArguments[0];
+        }
+
+        var machine = type.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "StateAlchemist.MachineAttribute");
+        return machine?.NamedArguments.FirstOrDefault(a => a.Key == "Value").Value.Value as ITypeSymbol;
+    }
+
     /// <summary>A parameter type's name as the reference front-end records it: generic types written out with their arguments.</summary>
     internal static string FriendlyName(ITypeSymbol type) => type is INamedTypeSymbol { IsGenericType: true } generic
         ? $"{MetadataName(generic.OriginalDefinition).Split('`')[0]}<{string.Join(", ", generic.TypeArguments.Select(FriendlyName))}>"
@@ -737,4 +819,6 @@ internal static class SymbolModelBuilder
     private sealed record TransitionDeclaration(INamedTypeSymbol Module, IMethodSymbol? Method, INamedTypeSymbol? Class, INamedTypeSymbol? From, INamedTypeSymbol? To, int Order, bool IsDecision, INamedTypeSymbol[] Handle, HistoryKind History);
 
     private sealed record ActionDeclaration(INamedTypeSymbol Module, IMethodSymbol Method, ActionPhase Phase, INamedTypeSymbol State, int Order, int DeclarationIndex);
+
+    private sealed record InvokeDeclaration(INamedTypeSymbol Module, IMethodSymbol Method, INamedTypeSymbol State, bool Forward, int DeclarationIndex);
 }

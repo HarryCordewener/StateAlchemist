@@ -49,6 +49,18 @@ internal sealed class KnownTypes(Compilation compilation)
 
     public INamedTypeSymbol? Initial { get; } = compilation.GetTypeByMetadataName("StateAlchemist.InitialAttribute");
 
+    public INamedTypeSymbol? Final { get; } = compilation.GetTypeByMetadataName("StateAlchemist.FinalAttribute");
+
+    public INamedTypeSymbol? Defer { get; } = compilation.GetTypeByMetadataName("StateAlchemist.DeferAttribute");
+
+    public INamedTypeSymbol? Always { get; } = compilation.GetTypeByMetadataName("StateAlchemist.AlwaysAttribute");
+
+    public INamedTypeSymbol? OnDone { get; } = compilation.GetTypeByMetadataName("StateAlchemist.OnDoneAttribute");
+
+    public INamedTypeSymbol? Internal { get; } = compilation.GetTypeByMetadataName("StateAlchemist.InternalAttribute");
+
+    public INamedTypeSymbol? Invoke { get; } = compilation.GetTypeByMetadataName("StateAlchemist.InvokeAttribute");
+
     public INamedTypeSymbol? RootState { get; } = compilation.GetTypeByMetadataName("StateAlchemist.IRootState");
 
     public INamedTypeSymbol? State { get; } = compilation.GetTypeByMetadataName("StateAlchemist.IState`1");

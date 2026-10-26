@@ -59,7 +59,8 @@ internal sealed partial class MachineEmitter
     /// decision, while which it must accept events from other callers, or has a timer, whose firing comes from another
     /// thread. Every other machine runs each call inline.
     /// </summary>
-    private bool HasInbox => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.Decision?.DecideAsync is not null || t.IsTimer);
+    private bool HasInbox => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.Decision?.DecideAsync is not null || t.IsTimer)
+        || _model.Invokes.Count > 0;
 
     private bool HasRuns => _model.Transitions.Any(t => t.IsRun);
 
@@ -79,7 +80,7 @@ internal sealed partial class MachineEmitter
             scopes.Add(_w.Block($"partial {Keyword(outer)} {outer.Name}"));
         }
 
-        using (_w.Block($"partial class {_machine.Machine.Name} : {Rt}IBoundaryMachine<{V}>"))
+        using (_w.Block($"partial class {_machine.Machine.Name} : {Rt}IStatechart<{V}>"))
         {
             WriteStorage();
             if (Telemetry)
@@ -95,6 +96,7 @@ internal sealed partial class MachineEmitter
             WriteFiring();
             WriteDispatch();
             WritePlans();
+            WritePermitted();
             WriteRuns();
             WriteDecisions();
             if (HasTimers)
@@ -102,6 +104,9 @@ internal sealed partial class MachineEmitter
                 WriteTimers();
             }
 
+            WriteStatechart();
+            WriteDefer();
+            WriteInvokes();
             WriteTransitions();
             WriteRecalls();
             if (HasInbox)
@@ -155,6 +160,9 @@ internal sealed partial class MachineEmitter
         // [Exited] actions running under that stop still read it, and so may an action the stop abandoned. It
         // holds no wait handle and no timer, so it is ordinary garbage once the machine is.
         _w.Line("private global::System.Threading.CancellationTokenSource _lifetime;");
+        WriteStatechartStorage();
+        WriteDeferStorage();
+        WriteInvokeStorage();
         if (HasTimers)
         {
             WriteTimerStorage();
@@ -351,7 +359,7 @@ internal sealed partial class MachineEmitter
         _w.Line("    {");
         foreach (var state in _model.States)
         {
-            _w.Line($"        new {Rt}StateDefinition({state.Index}, typeof({S(state.Index)}), {state.Parent}, {Bool(state.IsInitial)}),");
+            _w.Line($"        new {Rt}StateDefinition({state.Index}, typeof({S(state.Index)}), {state.Parent}, {Bool(state.IsInitial)}{(state.IsFinal ? ", true" : string.Empty)}),");
         }
 
         _w.Line("    },");
@@ -401,6 +409,8 @@ internal sealed partial class MachineEmitter
         MatchKind.Value => $"{Rt}TriggerDefinition.ForValue({trigger.Low})",
         MatchKind.Range => $"{Rt}TriggerDefinition.ForRange({trigger.Low}, {trigger.High})",
         MatchKind.Any => $"{Rt}TriggerDefinition.ForAny()",
+        MatchKind.Always => $"{Rt}TriggerDefinition.ForAlways()",
+        MatchKind.Done => $"{Rt}TriggerDefinition.ForDone()",
         MatchKind.Timer => trigger.DelayedBy is null
             ? $"{Rt}TriggerDefinition.ForTimer(new global::System.TimeSpan({trigger.Low}L * global::System.TimeSpan.TicksPerMillisecond))"
             : $"{Rt}TriggerDefinition.ForTimer(null)",

@@ -37,6 +37,7 @@ public static class ModelValidator
         diagnostics.AddRange(RunValidator.Validate(model, hierarchy));
         diagnostics.AddRange(CoverageValidator.Validate(model, hierarchy));
         diagnostics.AddRange(ReachabilityValidator.Validate(model, hierarchy));
+        diagnostics.AddRange(StatechartValidator.Validate(model, hierarchy));
         return diagnostics;
     }
 }

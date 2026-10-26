@@ -44,6 +44,10 @@ public class GeneratedCodeTests
     [Arguments("RecorderWithTelemetry")]
     [Arguments("DecidingWithTelemetry")]
     [Arguments("RunsWithTelemetry")]
+    [Arguments("Finals")]
+    [Arguments("Defers")]
+    [Arguments("Invokes")]
+    [Arguments("InvokesWithTelemetry")]
     public async Task TheGeneratedCodeIsCSharp73AndCompilesWithoutAWarning(string machine)
     {
         var source = machine switch
@@ -60,6 +64,11 @@ public class GeneratedCodeTests
             "RecorderWithTelemetry" => TestCompilation.Machine("M", typeof(Root), typeof(byte), typeof(RecordingContext), [typeof(RecorderModule), typeof(RecorderExtras)],
                 ", Telemetry = true", " { }"),
             "DecidingWithTelemetry" => TestCompilation.Machine("M", typeof(DecideRoot), typeof(byte), typeof(RecordingContext), [typeof(DecidingModule)],
+                ", Telemetry = true", " { }"),
+            "Finals" => TestCompilation.Machine("M", typeof(Contracts.Machines.Finals.FinRoot), typeof(byte), typeof(RecordingContext), [typeof(Contracts.Machines.Finals.FinalModule)], body: " { }"),
+            "Defers" => TestCompilation.Machine("M", typeof(Contracts.Machines.Defers.DefRoot), typeof(byte), typeof(RecordingContext), [typeof(Contracts.Machines.Defers.DeferModule)], body: " { }"),
+            "Invokes" => TestCompilation.Machine("M", typeof(Contracts.Machines.Invokes.InvRoot), typeof(byte), typeof(RecordingContext), [typeof(Contracts.Machines.Invokes.InvokeModule)], body: " { }"),
+            "InvokesWithTelemetry" => TestCompilation.Machine("M", typeof(Contracts.Machines.Invokes.InvRoot), typeof(byte), typeof(RecordingContext), [typeof(Contracts.Machines.Invokes.InvokeModule)],
                 ", Telemetry = true", " { }"),
             "RunsWithTelemetry" => TestCompilation.Machine("M", typeof(RunRoot), typeof(byte), typeof(RecordingContext), [typeof(RunModule)], ", Telemetry = true", " { }"),
             _ => TestCompilation.Machine("M", typeof(FailRoot), typeof(byte), typeof(RecordingContext), [typeof(FailureModule)], body: """

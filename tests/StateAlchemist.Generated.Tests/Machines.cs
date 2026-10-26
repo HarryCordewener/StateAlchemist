@@ -1,10 +1,14 @@
 using System;
 using StateAlchemist.Contracts;
 using StateAlchemist.Contracts.Machines;
+using StateAlchemist.Contracts.Machines.Invokes;
+using StateAlchemist.Contracts.Machines.Defers;
+using StateAlchemist.Contracts.Machines.Finals;
 using StateAlchemist.Contracts.Machines.Deciding;
 using StateAlchemist.Contracts.Machines.Failures;
 using StateAlchemist.Contracts.Machines.Guards;
 using StateAlchemist.Contracts.Machines.Joins;
+using StateAlchemist.Contracts.Machines.Permits;
 using StateAlchemist.Contracts.Machines.Recalling;
 using StateAlchemist.Contracts.Machines.Recording;
 using StateAlchemist.Contracts.Machines.Runs;
@@ -152,6 +156,13 @@ public sealed partial class JoinsMachine
     partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
 }
 
+[Machine(Root = typeof(PermitRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(PermitModule))]
+public sealed partial class PermitsMachine
+{
+    public ContractHooks? Hooks { get; set; }
+}
+
 [Machine(Root = typeof(TimeRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
 [Include(typeof(TimingModule))]
 public sealed partial class TimingMachine
@@ -181,4 +192,32 @@ public sealed partial class TimingSerializedMachine
     partial void OnTransitioned(in TransitionInfo<byte> transition) => Hooks?.Transitioned(transition);
 
     partial void OnTimerException(Exception exception, string transition) => Hooks?.TimerException(exception, transition);
+}
+
+[Machine(Root = typeof(FinRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(FinalModule))]
+public sealed partial class FinalsMachine
+{
+    public ContractHooks? Hooks { get; set; }
+}
+
+[Machine(Root = typeof(DefRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(DeferModule))]
+public sealed partial class DefersMachine
+{
+    public ContractHooks? Hooks { get; set; }
+}
+
+[Machine(Root = typeof(InvRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(InvokeModule))]
+public sealed partial class InvokesMachine
+{
+    public ContractHooks? Hooks { get; set; }
+}
+
+[Machine(Root = typeof(WorkRoot), Value = typeof(byte), Context = typeof(RecordingContext))]
+[Include(typeof(WorkerModule))]
+public sealed partial class WorkerMachine
+{
+    public ContractHooks? Hooks { get; set; }
 }

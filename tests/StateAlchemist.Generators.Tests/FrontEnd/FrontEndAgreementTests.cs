@@ -28,6 +28,7 @@ public class FrontEndAgreementTests
     {
         Shapes.Recorder, Shapes.Guards, Shapes.GuardsThatThrow, Shapes.Failures, Shapes.RecorderSerialized,
         Shapes.Deciding, Shapes.Runs, Shapes.RunsSerialized, Shapes.Joins, Shapes.Telnet, Shapes.Timing, Shapes.TimingSerialized,
+        Shapes.Permits, Shapes.Finals, Shapes.Defers, Shapes.Invokes, Shapes.Worker,
     }.ToDictionary(s => s.Name);
 
     /// <summary>The Roslyn front-end's model of <paramref name="machine"/>, as text.</summary>
@@ -53,6 +54,11 @@ public class FrontEndAgreementTests
     [Arguments("SampleTelnet")]
     [Arguments("Timing")]
     [Arguments("TimingSerialized")]
+    [Arguments("Permits")]
+    [Arguments("Finals")]
+    [Arguments("Defers")]
+    [Arguments("Invokes")]
+    [Arguments("Worker")]
     public async Task EveryContractMachineIsModelledAlike(string name)
     {
         var shape = ShapesByName[name];

@@ -6,11 +6,15 @@ namespace StateAlchemist;
 public sealed class MachineNotRunningException : InvalidOperationException
 {
     /// <summary>Creates the exception.</summary>
-    /// <param name="status">The machine's status: <see cref="MachineStatus.NotStarted"/> or <see cref="MachineStatus.Stopped"/>.</param>
+    /// <param name="status">The machine's status: anything but <see cref="MachineStatus.Running"/>.</param>
     public MachineNotRunningException(MachineStatus status)
-        : base(status == MachineStatus.NotStarted
-            ? "The machine has not been started. Call StartAsync before firing it."
-            : "The machine has been stopped and cannot be fired.")
+        : base(status switch
+        {
+            MachineStatus.NotStarted => "The machine has not been started. Call StartAsync before firing it.",
+            MachineStatus.Completed => "The machine has completed: it entered a final state and cannot be fired.",
+            MachineStatus.Paused => "The machine is paused. Call Resume before firing it.",
+            _ => "The machine has been stopped and cannot be fired.",
+        })
     {
         Status = status;
     }
