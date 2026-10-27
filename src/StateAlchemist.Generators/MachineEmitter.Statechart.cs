@@ -73,6 +73,16 @@ internal sealed partial class MachineEmitter
         _w.Line("/// <inheritdoc/>");
         _w.Line($"public {Rt}IMachineObserver<{V}> Observer {{ get {{ return _observer; }} set {{ _observer = value; }} }}");
 
+        // The observer is told in a method of its own, never inlined: a TransitionInfo built at each transition's call
+        // site is a struct of references, which the JIT zeroes on every transition whether or not an observer is set.
+        _w.Line();
+        _w.Line("[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]");
+        using (_w.Block($"private void Observe(string transition, {TypeType} source, {TypeType} leaf, {TypeType} target, {Rt}TransitionKind kind, {Rt}Phase phase, {V} value, bool hasValue, {TypeType} eventType, {TypeType} state)"))
+        {
+            _w.Line("var observer = _observer;");
+            _w.Line($"if (observer != null) observer.Transitioned(new {Rt}TransitionInfo<{V}>(transition, source, leaf, target, kind, phase, value, hasValue, eventType, state));");
+        }
+
         WritePause();
         if (HasCompletion)
         {

@@ -212,7 +212,7 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line($"OnTransitioned({Info(transition, path, "Completed", kind: kind)});");
-            _w.Line($"if (_observer != null) _observer.Transitioned({Info(transition, path, "Completed", kind: kind)});");
+            _w.Line($"if (_observer != null) Observe({InfoArguments(transition, path, "Completed", kind: kind)});");
             if (SettleCall(path) is { } settle)
             {
                 _w.Line(isAsync ? $"await {settle};" : $"return {settle};");
@@ -354,13 +354,17 @@ internal sealed partial class MachineEmitter
     };
 
     /// <summary>The <c>TransitionInfo</c> for one phase of a transition fired from <paramref name="path"/>'s leaf.</summary>
-    private string Info(TransitionModel transition, TransitionPath path, string phase, int state = -1, string? kind = null)
+    private string Info(TransitionModel transition, TransitionPath path, string phase, int state = -1, string? kind = null) =>
+        $"new {Rt}TransitionInfo<{V}>({InfoArguments(transition, path, phase, state, kind)})";
+
+    /// <summary>What <see cref="Info"/> passes to the <c>TransitionInfo</c> constructor, and the observer's <c>Observe</c> takes.</summary>
+    private string InfoArguments(TransitionModel transition, TransitionPath path, string phase, int state = -1, string? kind = null)
     {
         var isEvent = transition.Trigger.Kind == MatchKind.Event;
         var isValue = transition.Trigger.IsValue;
-        return $"new {Rt}TransitionInfo<{V}>({Literal(transition.Name)}, typeof({S(transition.Source)}), typeof({S(path.Leaf)}), {TargetType(transition, path, phase)}, " +
+        return $"{Literal(transition.Name)}, typeof({S(transition.Source)}), typeof({S(path.Leaf)}), {TargetType(transition, path, phase)}, " +
                $"{Rt}TransitionKind.{kind ?? transition.Kind.ToString()}, {Rt}Phase.{phase}, {(isValue ? "value" : $"default({V})")}, {Bool(isValue)}, " +
-               $"{(isEvent ? $"typeof({Event(transition.Trigger.EventType!)})" : "null")}, {(state < 0 ? "null" : $"typeof({S(state)})")})";
+               $"{(isEvent ? $"typeof({Event(transition.Trigger.EventType!)})" : "null")}, {(state < 0 ? "null" : $"typeof({S(state)})")}";
     }
 
     /// <summary>The name of <see cref="TriggerParameter"/>'s parameter.</summary>
