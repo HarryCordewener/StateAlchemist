@@ -115,7 +115,7 @@ public class DocumentationTests
     {
         var reference = File.ReadAllText(Path.Combine(Docs(), "reference", "generated-api.md"));
         // The hooks are private partial methods, so they are looked up too — an application implements them.
-        var members = new[] { typeof(MudTelnet), typeof(TelnetMachine), typeof(RecorderMachine) }
+        var members = new[] { typeof(MudTelnet), typeof(TelnetMachine), typeof(RecorderMachine), typeof(TimingHandledMachine) }
             .SelectMany(type => type.GetMembers(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
             .Select(m => m.Name)
             .ToHashSet();
@@ -141,7 +141,7 @@ public class DocumentationTests
             foreach (Match member in Regex.Matches(row.Groups["signature"].Value, @"(?<name>[A-Z][A-Za-z]*|\{State\}|\{Event\})\s*(?=[(<]|$|,)"))
             {
                 var name = member.Groups["name"].Value;
-                if (name is not ("{State}" or "{Event}" or "ReadOnlyMemory" or "ReadOnlySpan" or "ValueTask" or "TransitionInfo" or "MachineDefinition" or "MachineStatus" or "StateId" or "TransitionPlan" or "TEvent" or "Exception" or "ExceptionResolution"))
+                if (name is not ("{State}" or "{Event}" or "ReadOnlyMemory" or "ReadOnlySpan" or "ValueTask" or "TransitionInfo" or "MachineDefinition" or "MachineStatus" or "StateId" or "TransitionPlan" or "TEvent" or "Exception" or "ExceptionResolution" or "IMachineObserver" or "IReadOnlyList"))
                 {
                     yield return name;
                 }

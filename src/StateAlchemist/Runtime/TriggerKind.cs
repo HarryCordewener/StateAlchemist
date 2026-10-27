@@ -14,4 +14,13 @@ public enum TriggerKind
 
     /// <summary>An event type.</summary>
     Event,
+
+    /// <summary>A timer that belongs to the source state: see <see cref="AfterAttribute"/>.</summary>
+    Timer,
+
+    /// <summary>No trigger: the transition fires as soon as its guard passes. See <see cref="AlwaysAttribute"/>.</summary>
+    Always,
+
+    /// <summary>Its source state is done. See <see cref="OnDoneAttribute"/>.</summary>
+    Done,
 }

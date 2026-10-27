@@ -89,3 +89,52 @@ public sealed class ReferenceSerialized : SerializedContract
 {
     protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
 }
+
+[InheritsTests]
+public sealed class ReferenceHistory : HistoryContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceJoins : JoinContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceTimers : TimerContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceSerializedTimers : TimerContract
+{
+    protected override MachineShape Shape => StateAlchemist.Contracts.Machines.Shapes.TimingSerialized;
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferencePermitted : PermittedContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceStatechart : StatechartContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceDefer : DeferContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}
+
+[InheritsTests]
+public sealed class ReferenceInvoke : InvokeContract
+{
+    protected override IMachine<byte> Create(MachineShape shape, object context, ContractHooks? hooks) => ReferenceHarness.Create(shape, context, hooks);
+}

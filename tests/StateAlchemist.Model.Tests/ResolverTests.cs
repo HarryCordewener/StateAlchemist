@@ -25,6 +25,26 @@ public class ResolverTests
     }
 
     [Test]
+    public async Task AGuardedEventTransitionIsTriedBeforeAJoinAndAChildsBeforeBoth()
+    {
+        var join = new JoinModel(["T.Paid", "T.Reserved"]);
+        foreach (var e in join.Events)
+        {
+            _model.Add(new TransitionModel(0, "Ship", _root, -1, TriggerModel.Event(e), 0, false, null, null, [], null, [], "T.Module", SourceSpan.None, join));
+        }
+
+        _model.Add("Audit", _root, -1, TriggerModel.Event("T.Paid"), guarded: true, order: 1);
+        var built = _model.Build();
+        var resolver = new Resolver(built, new Hierarchy(built.States));
+        await Assert.That(string.Join(",", resolver.ForEvent(_willing, "T.Paid").Select(t => t.Name))).IsEqualTo("Audit,Ship");
+
+        _model.Add("Refund", _willing, -1, TriggerModel.Event("T.Paid"));
+        built = _model.Build();
+        resolver = new Resolver(built, new Hierarchy(built.States));
+        await Assert.That(string.Join(",", resolver.ForEvent(_willing, "T.Paid").Select(t => t.Name))).IsEqualTo("Refund");
+    }
+
+    [Test]
     public async Task ExactBeatsRangeBeatsAnyWithinALevel()
     {
         _model.Add("Any", _willing, -1, TriggerModel.Any);

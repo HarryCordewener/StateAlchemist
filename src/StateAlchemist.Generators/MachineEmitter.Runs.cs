@@ -98,6 +98,7 @@ internal sealed partial class MachineEmitter
         _w.Line();
         using (_w.Block($"private {ValueTaskType} DispatchRun(global::System.ReadOnlyMemory<{V}> run)"))
         {
+            WriteCompletedGuard();
             using (_w.Block("switch (RunOf(run.Span[0]))"))
             {
                 foreach (var group in runs.GroupBy(r => r.Transition))

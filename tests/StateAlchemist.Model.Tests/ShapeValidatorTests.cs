@@ -67,7 +67,7 @@ public class ShapeValidatorTests
     {
         _model.Add(ClassForm("T.Go", _idle, -1, unknown: ["Helper", "TransformAsync"]));
         await Assert.That(Problems()).IsEqualTo(
-            "SALCH0206: 'T.Go.Helper' is not a phase; a class-form transition may declare Guard, Transform, Decide, DecideAsync, Complete, Completed and CompletedAsync\n" +
+            "SALCH0206: 'T.Go.Helper' is not a phase; a class-form transition may declare Guard, Transform, Delay, Decide, DecideAsync, Complete, Completed and CompletedAsync\n" +
             "SALCH0207: 'T.Go.TransformAsync' cannot be async: it runs before the state changes");
     }
 

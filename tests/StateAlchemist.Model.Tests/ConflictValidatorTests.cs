@@ -17,6 +17,19 @@ public class ConflictValidatorTests
     private string Problems() => ConflictValidator.Validate(_model.Build()).Describe();
 
     [Test]
+    public async Task AJoinConflictsWithAnUnguardedTransitionOnOneOfItsEvents()
+    {
+        var join = new JoinModel(["T.Paid", "T.Reserved"]);
+        foreach (var e in join.Events)
+        {
+            _model.Add(new TransitionModel(0, "Ship", _willing, -1, TriggerModel.Event(e), 0, false, null, null, [], null, [], "T.Module", SourceSpan.None, join));
+        }
+
+        _model.Add("Refund", _willing, -1, TriggerModel.Event("T.Paid"));
+        await Assert.That(Problems()).IsEqualTo("SALCH0101: 'Ship' and 'Refund' both handle event Paid in state 'Willing' without a guard");
+    }
+
+    [Test]
     public async Task TwoUnguardedTransitionsOnTheSameValueConflict()
     {
         _model.Add("Gmcp.Accept", _willing, -1, TriggerModel.Value(201));

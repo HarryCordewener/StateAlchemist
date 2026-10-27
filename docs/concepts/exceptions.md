@@ -16,6 +16,9 @@ One consequence to design around: a `Transform` that throws halfway has already 
 to states that stay. Those are **not** rolled back — rolling back would mean copying every staying state before
 every transition. Check what you need before you mutate.
 
+A [timer](timers.md)'s transition has no `FireAsync` to propagate from: what it would throw goes to
+`OnTimerException` instead, and the machine keeps running.
+
 ### A batch that throws
 
 When a transition throws out of `FireAsync(ReadOnlyMemory<TValue>)`, the rest of that batch is not processed — as if

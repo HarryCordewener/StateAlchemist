@@ -1,5 +1,9 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Time.Testing;
+using StateAlchemist.Samples.Login;
+using StateAlchemist.Samples.Radio;
 using StateAlchemist.Samples.Telnet;
 using TUnit.Core;
 using static StateAlchemist.Samples.Telnet.TelnetBytes;
@@ -47,6 +51,27 @@ public class DocumentationExampleTests
         await Assert.That(context.Log).IsEquivalentTo(new[] { "ready" });
     }
 
+    /// <summary>Quoted by the timers page.</summary>
+    [Test]
+    public async Task ATestMovesTheMachinesClock()
+    {
+        // begin-snippet: sample-login-clock
+        var clock = new FakeTimeProvider();
+        var context = new SessionContext { IdleLimit = TimeSpan.FromMinutes(5) };
+        await using var login = new LoginMachine(context, clock);
+        await login.StartAsync();                          // Prompting's 30-second timer starts
+        await login.FireAsync((byte)1);                    // logged in: that timer is cancelled, Playing's starts
+
+        clock.Advance(TimeSpan.FromMinutes(4));
+        await login.FireAsync((byte)'x');                  // input re-enters Playing: five minutes from now
+        clock.Advance(TimeSpan.FromMinutes(5));            // the timer fires while Advance runs
+        // login.IsIn<Disconnected>() is now true, and context.Log holds "idled".
+        // end-snippet
+
+        await Assert.That(login.IsIn<Disconnected>()).IsTrue();
+        await Assert.That(context.Log).IsEquivalentTo(new[] { "idled" });
+    }
+
     // begin-snippet: sample-test-transform
     [Test]
     public async Task FinishReadsTheWindowSize()
@@ -90,4 +115,24 @@ public class DocumentationExampleTests
         await Assert.That(telnet.TryGetState(out Connected root) && root.GmcpEnabled).IsTrue();
     }
     // end-snippet
+
+    /// <summary>Quoted by the states page's "Going back with history".</summary>
+    [Test]
+    public async Task TheRadioComesBackOnTheBandItWasPlaying()
+    {
+        // begin-snippet: sample-radio-run
+        await using var radio = new CarRadio();
+        await radio.StartAsync();
+
+        await radio.FireAsync(Knob.Power);   // on: FM, Playing's [Initial] child
+        await radio.FireAsync(Knob.Band);    // AM
+        await radio.FireAsync(Knob.Power);   // off
+        await radio.FireAsync(Knob.Power);   // on again, by history: AM
+        // radio.State == CarRadio.StateId.Am
+        // end-snippet
+
+        await Assert.That(radio.State).IsEqualTo(CarRadio.StateId.Am);
+        await radio.FireAsync(Knob.Reset);
+        await Assert.That(radio.State).IsEqualTo(CarRadio.StateId.Fm);
+    }
 }

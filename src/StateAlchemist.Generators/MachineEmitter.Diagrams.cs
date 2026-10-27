@@ -19,6 +19,12 @@ internal sealed partial class MachineEmitter
         _w.Line();
         _w.Line("/// <summary>The machine as a Graphviz digraph.</summary>");
         _w.Line($"public const string Dot = {Literal(Dot())};");
+        _w.Line();
+        _w.Line("/// <summary><see cref=\"Dot\"/> with the active leaf filled in: a live view of where the machine is. Allocates the string.</summary>");
+        using (_w.Block("public string DotNow()"))
+        {
+            _w.Line($"return Dot.Substring(0, Dot.Length - 1) + \"    \" + NameOf(_leaf) + \" [style=filled, fillcolor=lightblue];\\n}}\";");
+        }
     }
 
     /// <summary>A Mermaid <c>stateDiagram-v2</c>: composite states for the hierarchy, one arrow per transition.</summary>
@@ -51,13 +57,25 @@ internal sealed partial class MachineEmitter
                 WriteState(child.Index, indent + "    ");
             }
 
+            // After the children, so a bare state is never followed by a nested one (above).
+            foreach (var final in children.Where(c => c.IsFinal))
+            {
+                lines.Add($"{indent}    {_stateIds[final.Index]} --> [*]");
+            }
+
+            foreach (var history in HistoryMoves.Where(m => m.State == index).Select(m => m.History))
+            {
+                lines.Add($"{indent}    state \"{HistoryLabel(history)}\" as {HistoryNode(index, history)}");
+                lines.Add($"{indent}    {HistoryNode(index, history)} --> {_stateIds[initial!.Index]}");
+            }
+
             lines.Add($"{indent}}}");
         }
 
         WriteState(_hierarchy.Root, "    ");
         foreach (var arrow in Arrows())
         {
-            lines.Add($"    {_stateIds[arrow.Source]} --> {_stateIds[arrow.Target]} : {arrow.Label}");
+            lines.Add($"    {_stateIds[arrow.Source]} --> {arrow.Target} : {arrow.Label}");
         }
 
         return string.Join("\n", lines);
@@ -73,7 +91,7 @@ internal sealed partial class MachineEmitter
             var name = _stateIds[index];
             if (children.Count == 0)
             {
-                lines.Add($"{indent}{name};");
+                lines.Add(_model.States[index].IsFinal ? $"{indent}{name} [peripheries=2];" : $"{indent}{name};");
                 return;
             }
 
@@ -84,13 +102,20 @@ internal sealed partial class MachineEmitter
                 WriteState(child.Index, indent + "    ");
             }
 
+            foreach (var history in HistoryMoves.Where(m => m.State == index).Select(m => m.History))
+            {
+                var initial = children.First(c => c.IsInitial);
+                lines.Add($"{indent}    {HistoryNode(index, history)} [label=\"{HistoryLabel(history)}\", shape=circle];");
+                lines.Add($"{indent}    {HistoryNode(index, history)} -> {_stateIds[initial.Index]} [style=dashed];");
+            }
+
             lines.Add($"{indent}}}");
         }
 
         WriteState(_hierarchy.Root, "    ");
         foreach (var arrow in Arrows())
         {
-            lines.Add($"    {_stateIds[arrow.Source]} -> {_stateIds[arrow.Target]} [label=\"{arrow.Label}\"];");
+            lines.Add($"    {_stateIds[arrow.Source]} -> {arrow.Target} [label=\"{arrow.Label}\"];");
         }
 
         lines.Add("}");
@@ -101,38 +126,56 @@ internal sealed partial class MachineEmitter
     /// One arrow per transition — except a decision, which is one arrow per outcome. A decision does not know its
     /// target when the trigger arrives, so drawing it as a stay would leave the states only its outcomes reach
     /// with nothing pointing at them: the door sample's <c>Unlocked</c> is reached by exactly one thing, and that
-    /// thing is an outcome. A decision whose outcomes did not resolve falls back to the stay.
+    /// thing is an outcome. A decision whose outcomes did not resolve falls back to the stay. A move by history points
+    /// at its target's history node.
     /// </summary>
-    private IEnumerable<(int Source, int Target, string Label)> Arrows()
+    private IEnumerable<(int Source, string Target, string Label)> Arrows()
     {
+        var drawn = new HashSet<string>();
         foreach (var transition in _model.Transitions)
         {
+            if (transition.IsJoin && !drawn.Add(transition.Name))
+            {
+                continue; // a join is one transition per event, and one arrow
+            }
+
             var completions = transition.Decision?.Completions ?? [];
             if (completions.Count == 0)
             {
-                yield return (transition.Source, transition.Target < 0 ? transition.Source : transition.Target, Label(transition));
+                yield return (transition.Source, transition.Target < 0 ? _stateIds[transition.Source] : ArrowTarget(transition.Target, transition.History), Label(transition));
                 continue;
             }
 
             foreach (var completion in completions)
             {
                 var outcome = completion.OutcomeType;
-                yield return (transition.Source, completion.Target, $"{Label(transition)} / {outcome.Substring(outcome.LastIndexOf('.') + 1)}");
+                yield return (transition.Source, ArrowTarget(completion.Target, completion.History), $"{Label(transition)} / {outcome.Substring(outcome.LastIndexOf('.') + 1)}");
             }
         }
     }
 
+    private string ArrowTarget(int target, HistoryKind history) =>
+        HistoryMoves.Contains((target, history)) ? HistoryNode(target, history) : _stateIds[target];
+
+    /// <summary>The diagram node for <paramref name="state"/>'s history: <c>H</c> for shallow, <c>H*</c> for deep, as UML draws them.</summary>
+    private string HistoryNode(int state, HistoryKind history) => $"{_stateIds[state]}_{(history == HistoryKind.Deep ? "DeepHistory" : "History")}";
+
+    private static string HistoryLabel(HistoryKind history) => history == HistoryKind.Deep ? "H*" : "H";
+
     /// <summary>What an arrow says: its trigger, and whether it is a run or a decision.</summary>
     private static string Label(TransitionModel transition)
     {
-        var trigger = transition.Trigger.Kind switch
+        var trigger = transition.Join is { } join ? $"all({string.Join(", ", join.Events.Select(ShortName))})" : transition.Trigger.Kind switch
         {
             MatchKind.Value => transition.Trigger.Low.ToString(System.Globalization.CultureInfo.InvariantCulture),
             MatchKind.Range => $"{transition.Trigger.Low}..{transition.Trigger.High}",
             MatchKind.Any => "any",
+            MatchKind.Timer or MatchKind.Always or MatchKind.Done => transition.Trigger.ToString(),
             _ => transition.Trigger.EventType is { } name ? name.Substring(name.LastIndexOf('.') + 1) : "event",
         };
         var kind = transition.IsRun ? " run" : transition.IsDecision ? " decide" : string.Empty;
         return trigger + kind;
     }
+
+    private static string ShortName(string typeName) => typeName.Substring(typeName.LastIndexOfAny(['.', '+']) + 1);
 }

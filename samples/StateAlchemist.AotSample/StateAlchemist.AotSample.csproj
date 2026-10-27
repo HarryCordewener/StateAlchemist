@@ -15,6 +15,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />
+    <ProjectReference Include="..\..\src\StateAlchemist.Hosting\StateAlchemist.Hosting.csproj" />
     <ProjectReference Include="..\StateAlchemist.Samples\StateAlchemist.Samples.csproj" />
     <ProjectReference Include="..\..\src\StateAlchemist.Generators\StateAlchemist.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>

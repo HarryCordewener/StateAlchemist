@@ -22,6 +22,12 @@ public sealed class TransitionAttribute : Attribute
     /// <summary>The target state, or <see langword="null"/> for a stay.</summary>
     public Type? To { get; set; }
 
+    /// <summary>
+    /// Whether a move to a state with children enters what was active when that state was last exited, instead of its
+    /// <c>[Initial]</c> path. <see cref="History.None"/> by default.
+    /// </summary>
+    public History History { get; set; }
+
     /// <summary>Where this transition is tried among guarded transitions for the same source and trigger; lower first.</summary>
     public int Order { get; set; }
 }

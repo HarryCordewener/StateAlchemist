@@ -20,7 +20,7 @@ public async Task FinishReadsTheWindowSize()
     await Assert.That((root.Width, root.Height)).IsEqualTo((80, 24));
 }
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L50-L61' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-transform' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L75-L86' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-transform' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 No machine, no context, no mocks. Guards are the same: `NawsModule.Finish.Guard(in escaping)`.
@@ -38,7 +38,7 @@ await Assert.That(plan.Transition).IsEqualTo("TelnetCore.BeginCommand");
 await Assert.That(plan.Target).IsEqualTo(typeof(AwaitingVerb));
 await Assert.That(string.Join(",", plan.Exiting.Select(t => t.Name))).IsEqualTo("Idle");
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L70-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-plan' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L95-L100' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-plan' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 `Refused` names the guarded transitions whose guard returned `false` on the way, in the order they were tried,
@@ -73,11 +73,38 @@ public async Task GmcpIsAcceptedAndEverythingElseRefused()
     await Assert.That(telnet.TryGetState(out Connected root) && root.GmcpEnabled).IsTrue();
 }
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L78-L92' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-machine' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L103-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-test-machine' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Tests written against `IMachine<TValue>` do not care what implements it — which is how StateAlchemist tests
 itself.
+
+## 4. A path to every transition
+
+`MachinePaths.Covering(definition)` computes, from a machine's `Definition`, the shortest sequence of triggers from
+the start that fires each transition and each decision outcome, leaving out a path that is the start of a longer
+one. A test that drives the machine along every path fires every transition at least once. Each step names its
+trigger, the transition, and whether it relies on a guard going the way the path needs (`AssumesGuards`, a `*` in
+the text form). Eventless and done transitions are steps the machine takes on its own.
+
+<!-- snippet: machine-paths -->
+<a id='snippet-machine-paths'></a>
+```cs
+private static string Text(MachineDefinition definition) =>
+    string.Join("\n---\n", MachinePaths.Covering(definition).Select(p => p.ToString().TrimEnd().ReplaceLineEndings("\n")));
+```
+<sup><a href='/tests/StateAlchemist.Generated.Tests/MachinePathTests.cs#L10-L13' title='Snippet source file'>snippet source</a> | <a href='#snippet-machine-paths' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+For the [statecharts](../concepts/statecharts.md) test machine, the first two of its paths read:
+
+```text
+Idle --[7]--> Idle: FinalModule.Ping
+---
+Idle --[9]--> LoopA: FinalModule.ToLoop
+LoopA --[always]--> LoopB: FinalModule.AToB *
+LoopB --[always]--> LoopA: FinalModule.BToA *
+```
 
 ## How StateAlchemist tests itself
 

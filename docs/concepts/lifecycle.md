@@ -10,13 +10,15 @@ await telnet.StartAsync();                            // [Entered] actions on th
 await telnet.FireAsync(bytes);                        // running
 await telnet.StopAsync();                             // [Exited] actions from the leaf to the root
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L39-L44' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-lifecycle' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L43-L48' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-lifecycle' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 | Status | How it gets there | Firing |
 |---|---|---|
 | `NotStarted` | construction | throws `MachineNotRunningException` |
-| `Running` | `StartAsync` completed | allowed |
+| `Running` | `StartAsync` completed, or `Resume` | allowed |
+| `Paused` | `Pause` | throws `MachineNotRunningException` until `Resume` |
+| `Completed` | a [final](statecharts.md#final-states-and-completion) child of the root was entered | throws `MachineNotRunningException` |
 | `Stopped` | `StopAsync`, or disposal after starting | throws `MachineNotRunningException` |
 
 ## Why starting is separate
@@ -45,3 +47,8 @@ Forgetting to start is caught twice:
 `StopAsync` cancels a pending [decision](decisions.md), then runs `[Exited]` actions from the active leaf up to the
 root. `DisposeAsync` stops the machine if it was started, and does nothing if it was not. Stopping twice is
 harmless.
+
+## Restoring
+
+A machine restored from a [snapshot](snapshots.md) before it starts is already in its states: its `StartAsync`
+runs no `[Entered]` actions.

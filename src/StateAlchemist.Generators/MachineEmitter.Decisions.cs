@@ -115,8 +115,8 @@ internal sealed partial class MachineEmitter
                 .Where(m => m.Parameters.FirstOrDefault(p => p.Kind == ParameterKind.Outcome) is not { } taken || taken.TypeName == completion.OutcomeType)
                 .ToList();
             var kind = completion.Target == decision.Source ? "Reenter" : "Move";
-            WriteSteps(OutcomeName(decision.Index, i, leaf), $"{TriggerParameter(decision)}, {Name(type)} outcome", decision,
-                PathPlanner.Move(_hierarchy, leaf, completion.Target), completion.Complete, completed, kind, outcome: Name(type));
+            WriteMove(OutcomeName(decision.Index, i, leaf), $"{TriggerParameter(decision)}, {Name(type)} outcome", $"{TriggerArgument(decision)}, outcome", decision,
+                PathPlanner.Moves(_hierarchy, leaf, completion.Target, completion.History), completion.Target, completion.History, completion.Complete, completed, kind, outcome: Name(type));
         }
     }
 
@@ -202,6 +202,16 @@ internal sealed partial class MachineEmitter
         _w.Line("/// <summary>Whether the pending decision lists the event in <c>Handle</c>: it runs at once instead of waiting.</summary>");
         using (_w.Block("private static bool Handles(int decision, int tag)"))
         {
+            if (HasTimers)
+            {
+                _w.Line($"if (tag == {TimerTag}) return true;");
+            }
+
+            if (HasInvokes)
+            {
+                _w.Line($"if (tag == {ChildTag}) return true;");
+            }
+
             using (_w.Block("switch (decision)"))
             {
                 foreach (var decision in _model.Transitions.Where(t => t.Decision?.DecideAsync is not null))

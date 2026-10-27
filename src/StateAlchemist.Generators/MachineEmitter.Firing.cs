@@ -68,6 +68,11 @@ internal sealed partial class MachineEmitter
 
         for (var i = 0; i < _events.Count; i++)
         {
+            if (IsInternal(i))
+            {
+                continue;
+            }
+
             _w.Line();
             _w.Line($"/// <summary>Fires a <see cref=\"{Name(_events[i])}\"/>.</summary>");
             using (_w.Block($"public {ValueTaskType} FireAsync(in {Name(_events[i])} e)"))
@@ -92,7 +97,9 @@ internal sealed partial class MachineEmitter
         {
             for (var i = 0; i < _events.Count; i++)
             {
-                _w.Line($"if (typeof(TEvent) == typeof({Name(_events[i])})) return FireAsync(in global::System.Runtime.CompilerServices.Unsafe.As<TEvent, {Name(_events[i])}>(ref e));");
+                _w.Line(IsInternal(i)
+                    ? $"if (typeof(TEvent) == typeof({Name(_events[i])})) return Faulted(new global::System.InvalidOperationException({Literal($"'{_events[i].Name}' is [Internal]: raise it with Enqueue from inside the machine.")}));"
+                    : $"if (typeof(TEvent) == typeof({Name(_events[i])})) return FireAsync(in global::System.Runtime.CompilerServices.Unsafe.As<TEvent, {Name(_events[i])}>(ref e));");
             }
 
             if (HasInbox)
@@ -100,6 +107,11 @@ internal sealed partial class MachineEmitter
                 _w.Line("var input = Rent();");
                 _w.Line("input.Tag = -1;");
                 _w.Line("input.Unknown = typeof(TEvent);");
+                if (HasForwarding)
+                {
+                    _w.Line("input.Forwarded = new Forwarded<TEvent> { E = e };");
+                }
+
                 _w.Line("return Submit(input);");
             }
             else
@@ -147,6 +159,11 @@ internal sealed partial class MachineEmitter
                 _w.Line("var queued = Rent();");
                 _w.Line("queued.Tag = -1;");
                 _w.Line("queued.Unknown = typeof(TEvent);");
+                if (HasForwarding)
+                {
+                    _w.Line("queued.Forwarded = new Forwarded<TEvent> { E = e };");
+                }
+
                 _w.Line("EnqueueInput(queued);");
             }
             else
@@ -434,6 +451,11 @@ internal sealed partial class MachineEmitter
         _w.Line($"public int FireUntilBoundary(global::System.ReadOnlyMemory<{V}> values) {{ return Await(FireUntilBoundaryAsync(values)); }}");
         for (var i = 0; i < _events.Count; i++)
         {
+            if (IsInternal(i))
+            {
+                continue;
+            }
+
             _w.Line();
             _w.Line($"/// <summary>Fires a <see cref=\"{Name(_events[i])}\"/> and returns when it has been processed.</summary>");
             _w.Line($"public void Fire(in {Name(_events[i])} e) {{ Await(FireAsync(in e)); }}");
@@ -501,6 +523,7 @@ internal sealed partial class MachineEmitter
         _w.Line();
         using (_w.Block($"private {ValueTaskType} DispatchValue({V} value)"))
         {
+            WriteCompletedGuard();
             _w.Line("var v = (int)value;");
             using (_w.Block("switch (_leaf)"))
             {
@@ -522,19 +545,20 @@ internal sealed partial class MachineEmitter
             _w.Line();
             using (_w.Block($"private {ValueTaskType} DispatchEvent{i}({Name(_events[i])} e)"))
             {
+                WriteCompletedGuard();
                 using (_w.Block("switch (_leaf)"))
                 {
                     foreach (var leaf in _hierarchy.Leaves)
                     {
-                        var candidates = _resolver.ForEvent(leaf, eventName);
-                        if (candidates.Count == 0)
+                        var candidates = _resolver.ForEvent(leaf, eventName, out var deferred);
+                        if (candidates.Count == 0 && !deferred)
                         {
                             continue;
                         }
 
                         using (_w.Block($"case StateId.{_stateIds[leaf]}:"))
                         {
-                            Candidates(candidates, leaf, "e", $"UnhandledEvent{i}(e)");
+                            Candidates(candidates, leaf, "e", deferred ? DeferCall(i) : $"UnhandledEvent{i}(e)");
                         }
                     }
 
@@ -546,12 +570,18 @@ internal sealed partial class MachineEmitter
         _w.Line();
         using (_w.Block($"private {ValueTaskType} UnhandledValue({V} value)"))
         {
+            if (ForwardingValues.Count > 0)
+            {
+                _w.Line("if (ForwardsValues()) return ForwardValue(value);");
+            }
+
             if (Telemetry)
             {
                 WriteUnhandledCount();
             }
 
             _w.Line("OnUnhandled(_leaf, value);");
+            _w.Line("if (_observer != null) _observer.UnhandledValue(StateType, value);");
             Unhandled("value.ToString()");
         }
 
@@ -560,12 +590,18 @@ internal sealed partial class MachineEmitter
             _w.Line();
             using (_w.Block($"private {ValueTaskType} UnhandledEvent{i}({Name(_events[i])} e)"))
             {
+                if (HasForwarding)
+                {
+                    _w.Line($"if (Forwards()) return ForwardEvent{i}(e);");
+                }
+
                 if (Telemetry)
                 {
                     WriteUnhandledCount();
                 }
 
                 _w.Line("OnUnhandled(_leaf, in e);");
+                _w.Line($"if (_observer != null) _observer.UnhandledEvent(StateType, typeof({Name(_events[i])}));");
                 Unhandled(Literal("event " + _events[i].Name));
             }
         }
@@ -573,6 +609,7 @@ internal sealed partial class MachineEmitter
         _w.Line();
         using (_w.Block($"private void UnhandledUnknown({TypeType} type)"))
         {
+            _w.Line("if (_observer != null) _observer.UnhandledEvent(StateType, type);");
             if (Telemetry)
             {
                 WriteUnhandledCount();
@@ -604,22 +641,7 @@ internal sealed partial class MachineEmitter
     /// </summary>
     private void WriteValueCases(int leaf, string argument, System.Action<IReadOnlyList<TransitionModel>, int, string, string> write)
     {
-        var runs = new List<(long Low, long High, IReadOnlyList<TransitionModel> Candidates, string Key)>();
-        foreach (var value in _model.Options.Domain.Values)
-        {
-            var candidates = _resolver.ForValue(leaf, value);
-            var key = string.Join(",", candidates.Select(c => c.Index));
-            if (runs.Count > 0 && runs[runs.Count - 1].Key == key && runs[runs.Count - 1].High == value - 1)
-            {
-                var last = runs[runs.Count - 1];
-                runs[runs.Count - 1] = (last.Low, value, last.Candidates, key);
-            }
-            else
-            {
-                runs.Add((value, value, candidates, key));
-            }
-        }
-
+        var runs = ValueRuns(leaf);
         var fallback = runs.GroupBy(r => r.Key).OrderByDescending(g => g.Sum(r => r.High - r.Low + 1)).First();
         var unhandled = $"UnhandledValue({argument})";
         foreach (var run in runs.Where(r => r.Key != fallback.Key && r.High - r.Low >= 8))
@@ -663,6 +685,28 @@ internal sealed partial class MachineEmitter
         }
     }
 
+    /// <summary>A leaf's values in runs of neighbours with the same candidates, in value order.</summary>
+    private List<(long Low, long High, IReadOnlyList<TransitionModel> Candidates, string Key)> ValueRuns(int leaf)
+    {
+        var runs = new List<(long Low, long High, IReadOnlyList<TransitionModel> Candidates, string Key)>();
+        foreach (var value in _model.Options.Domain.Values)
+        {
+            var candidates = _resolver.ForValue(leaf, value);
+            var key = string.Join(",", candidates.Select(c => c.Index));
+            if (runs.Count > 0 && runs[runs.Count - 1].Key == key && runs[runs.Count - 1].High == value - 1)
+            {
+                var last = runs[runs.Count - 1];
+                runs[runs.Count - 1] = (last.Low, value, last.Candidates, key);
+            }
+            else
+            {
+                runs.Add((value, value, candidates, key));
+            }
+        }
+
+        return runs;
+    }
+
     /// <summary>
     /// The candidates for one trigger in one leaf, in the order they are tried: each guarded one if its guard passes,
     /// then the unguarded one — or, with none, the unhandled path. A decision's candidate decides; a run's is handed
@@ -677,6 +721,12 @@ internal sealed partial class MachineEmitter
             {
                 _decisions.Add((candidate.Index, leaf));
                 call = $"{DecisionName(candidate.Index, leaf)}({argument})";
+            }
+            else if (candidate.IsJoin)
+            {
+                _arrivals.Add((candidate.Index, leaf));
+                _transitions.Add((candidate.Index, leaf));
+                call = $"{ArrivalName(candidate.Index, leaf)}({argument})";
             }
             else
             {
@@ -698,6 +748,9 @@ internal sealed partial class MachineEmitter
 
         _w.Line($"return {unhandled};");
     }
+
+    /// <summary>Whether event <paramref name="tag"/> is <c>[Internal]</c>: only <c>Enqueue</c> raises it.</summary>
+    private bool IsInternal(int tag) => _events[tag].GetAttributes().Any(a => a.AttributeClass is { } c && SymbolModelBuilder.MetadataName(c) == "StateAlchemist.InternalAttribute");
 
     private string TransitionName(int transition, int leaf) => $"T{transition}_{_stateIds[leaf]}";
 

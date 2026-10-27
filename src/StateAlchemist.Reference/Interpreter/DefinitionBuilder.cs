@@ -15,27 +15,43 @@ internal static class DefinitionBuilder
             .Select(s => new StateDefinition(s.Index, machine.StateTypes[s.Index], s.Parent, s.IsInitial))
             .ToList();
         var transitions = model.Transitions
-            .Select(t => new TransitionDefinition(
-                t.Index,
-                t.Name,
-                t.Source,
-                t.Target,
-                (TransitionKind)t.Kind,
-                Trigger(t.Trigger),
-                t.Order,
-                t.IsGuarded,
-                t.IsRun,
-                new[] { t.Guard, t.Transform }.OfType<MethodModel>().Any(m => m.Parameters.Any(p => p.Kind == ParameterKind.Context)),
-                t.IsDecision,
-                Outcomes(t)))
+            .Select(t => t.Join is { } join
+                ? new TransitionDefinition(
+                    t.Index,
+                    t.Name,
+                    t.Source,
+                    t.Target,
+                    (TransitionKind)t.Kind,
+                    Trigger(t.Trigger),
+                    t.Order,
+                    UsesContext(t),
+                    join.Events.Select(FindType).ToList(),
+                    (History)t.History)
+                : new TransitionDefinition(
+                    t.Index,
+                    t.Name,
+                    t.Source,
+                    t.Target,
+                    (TransitionKind)t.Kind,
+                    Trigger(t.Trigger),
+                    t.Order,
+                    t.IsGuarded,
+                    t.IsRun,
+                    UsesContext(t),
+                    t.IsDecision,
+                    Outcomes(t),
+                    (History)t.History))
             .ToList();
         return new MachineDefinition(machine.Spec.Value!, states, transitions);
     }
 
+    private static bool UsesContext(TransitionModel transition) =>
+        new[] { transition.Guard, transition.Transform }.OfType<MethodModel>().Any(m => m.Parameters.Any(p => p.Kind == ParameterKind.Context));
+
     /// <summary>A decision's outcomes and where each goes; the same data a generated machine writes as a constant.</summary>
     private static IReadOnlyList<OutcomeDefinition> Outcomes(TransitionModel transition) =>
         (transition.Decision?.Completions ?? [])
-            .Select(c => new OutcomeDefinition(FindType(c.OutcomeType), c.Target))
+            .Select(c => new OutcomeDefinition(FindType(c.OutcomeType), c.Target, (History)c.History))
             .ToList();
 
     private static TriggerDefinition Trigger(TriggerModel trigger) => trigger.Kind switch
@@ -43,10 +59,11 @@ internal static class DefinitionBuilder
         MatchKind.Value => TriggerDefinition.ForValue(trigger.Low),
         MatchKind.Range => TriggerDefinition.ForRange(trigger.Low, trigger.High),
         MatchKind.Any => TriggerDefinition.ForAny(),
+        MatchKind.Timer => TriggerDefinition.ForTimer(trigger.DelayedBy is null ? TimeSpan.FromTicks(trigger.Low * TimeSpan.TicksPerMillisecond) : null),
         _ => TriggerDefinition.ForEvent(FindType(trigger.EventType!)),
     };
 
-    private static Type FindType(string fullName) =>
+    internal static Type FindType(string fullName) =>
         AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetType(fullName)).FirstOrDefault(t => t is not null)
         ?? throw new InvalidOperationException($"Event type '{fullName}' is not loaded.");
 }

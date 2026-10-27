@@ -25,7 +25,9 @@ internal sealed partial class MachineEmitter
 
     private void WriteInboxStorage()
     {
-        _w.Line("private readonly object _sync = new object();");
+        // Only ever taken with the lock statement, never Monitor, so it can be a Lock where there is one: lock on a
+        // Lock compiles to its EnterScope, which the lock statement's documentation recommends from .NET 9 and C# 13.
+        _w.Line(_lockType ? "private readonly global::System.Threading.Lock _sync = new global::System.Threading.Lock();" : "private readonly object _sync = new object();");
         _w.Line("private readonly global::System.Collections.Generic.List<Input> _inbox = new global::System.Collections.Generic.List<Input>();");
         _w.Line("private readonly global::System.Collections.Generic.List<Input> _queued = new global::System.Collections.Generic.List<Input>();");
         _w.Line("private readonly global::System.Collections.Generic.Stack<Input> _pool = new global::System.Collections.Generic.Stack<Input>();");
@@ -100,6 +102,23 @@ internal sealed partial class MachineEmitter
                 _w.Line("public bool ArrivedWhilePending;");
             }
 
+            if (HasTimers)
+            {
+                _w.Line("public int Timer;");
+                _w.Line("public int TimerGeneration;");
+            }
+
+            if (HasInvokes)
+            {
+                _w.Line("public int Child;");
+                _w.Line("public int ChildGeneration;");
+            }
+
+            if (HasForwarding)
+            {
+                _w.Line("public Forwarded Forwarded;");
+            }
+
             _w.Line($"public {Sources}ManualResetValueTaskSourceCore<bool> Core;");
             _w.Line($"public Input({machine} machine) {{ Machine = machine; Core.RunContinuationsAsynchronously = true; }}");
             _w.Line("public bool IsEvent { get { return Tag != -2; } }");
@@ -166,6 +185,10 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line("input.Unknown = null;");
+            if (HasForwarding)
+            {
+                _w.Line("input.Forwarded = null;");
+            }
             _w.Line("input.HasCaller = false;");
             _w.Line("input.StopAtBoundary = false;");
             _w.Line("input.BoundaryDone = null;");
@@ -429,7 +452,9 @@ internal sealed partial class MachineEmitter
         using (_w.Block($"private Step NextStep(out Input item, out Input owner{(Deciding ? ", out Pending pending" : "")})"))
         {
             _w.Line(Deciding ? "item = null; owner = null; pending = null;" : "item = null; owner = null;");
-            _w.Line($"if (_status != {Rt}MachineStatus.Running) return Step.None;");
+            _w.Line(HasCompletion
+                ? $"if (_status != {Rt}MachineStatus.Running && _status != {Rt}MachineStatus.Completed) return Step.None;"
+                : $"if (_status != {Rt}MachineStatus.Running) return Step.None;");
             if (Deciding)
             {
                 using (_w.Block("if (_pending != null)"))
@@ -444,7 +469,7 @@ internal sealed partial class MachineEmitter
                     {
                         // Leaving the inbox frees its room, here as anywhere: an event the decision handles is
                         // taken straight out of it, and a bounded inbox that never released this would fill up.
-                        _w.Line($"if (_inbox[i].IsEvent && Handles(_pending.Decision, _inbox[i].Tag)) {{ item = _inbox[i]; _inbox.RemoveAt(i);{(Bounded ? " _room.Release();" : string.Empty)} owner = item; return Step.Event; }}");
+                        _w.Line($"if (_inbox[i].IsEvent && Handles(_pending.Decision, _inbox[i].Tag)) {{ item = _inbox[i]; _inbox.RemoveAt(i);{(Bounded ? ReleaseRoom("item") : string.Empty)} owner = item; return Step.Event; }}");
                     }
 
                     _w.Line("return Step.None;");
@@ -452,7 +477,7 @@ internal sealed partial class MachineEmitter
             }
 
             _w.Line("if (_queued.Count > 0 && _queued[0].HasCaller) { item = _queued[0]; _queued.RemoveAt(0); owner = item; return Step.Event; }");
-            _w.Line($"if (_current == null && _inbox.Count > 0) {{ _current = _inbox[0]; _inbox.RemoveAt(0);{(Bounded ? " _room.Release();" : "")} }}");
+            _w.Line($"if (_current == null && _inbox.Count > 0) {{ _current = _inbox[0]; _inbox.RemoveAt(0);{(Bounded ? ReleaseRoom("_current") : "")} }}");
             _w.Line("if (_current == null) return Step.None;");
             _w.Line("if (_queued.Count > 0) { item = _queued[0]; _queued.RemoveAt(0); owner = item.HasCaller ? item : _current; return Step.Event; }");
             _w.Line("item = _current;");
@@ -583,10 +608,25 @@ internal sealed partial class MachineEmitter
                     _w.Line($"case {i}: return DispatchEvent{i}(input.E{i});");
                 }
 
-                _w.Line($"default: UnhandledUnknown(input.Unknown); return default({ValueTaskType});");
+                if (HasTimers)
+                {
+                    _w.Line($"case {TimerTag}: return DispatchTimer(input.Timer, input.TimerGeneration);");
+                }
+
+                if (HasInvokes)
+                {
+                    _w.Line($"case {ChildTag}: return DispatchChild(input.Child, input.ChildGeneration);");
+                }
+
+                _w.Line(HasForwarding
+                    ? "default: return ForwardUnknown(input.Unknown, input.Forwarded);"
+                    : $"default: UnhandledUnknown(input.Unknown); return default({ValueTaskType});");
             }
         }
     }
+
+    /// <summary>Releases an input's room as it leaves a bounded inbox; a timer's firing or a child's completion took none.</summary>
+    private string ReleaseRoom(string input) => HasOwnInputs ? $" if (!({IsOwnInput(input)})) _room.Release();" : " _room.Release();";
 
     private void WriteEndings()
     {
@@ -635,12 +675,30 @@ internal sealed partial class MachineEmitter
                 }
 
                 _w.Line("waiting.AddRange(_inbox);");
-                if (Bounded)
+                if (Bounded && HasOwnInputs)
+                {
+                    // A timer's firing or a child's completion took no room.
+                    _w.Line("var room = 0;");
+                    _w.Line($"foreach (var inboxed in _inbox) if (!({IsOwnInput("inboxed")})) room++;");
+                    _w.Line("if (room > 0) _room.Release(room);");
+                }
+                else if (Bounded)
                 {
                     _w.Line("if (_inbox.Count > 0) _room.Release(_inbox.Count);");
                 }
 
+                if (HasTimers)
+                {
+                    _w.Line("DisposeTimers();");
+                }
+
                 _w.Line("waiting.AddRange(_queued);");
+                if (HasDefer)
+                {
+                    _w.Line("waiting.AddRange(_deferred);");
+                    _w.Line("_deferred.Clear();");
+                }
+
                 _w.Line("if (_current != null) waiting.Add(_current);");
                 _w.Line("_inbox.Clear();");
                 _w.Line("_queued.Clear();");
@@ -681,7 +739,8 @@ internal sealed partial class MachineEmitter
                 using (_w.Block("for (var i = 0; i < _inbox.Count;)"))
                 {
                     _w.Line("var waited = _inbox[i];");
-                    _w.Line($"if (waited.IsEvent && waited.ArrivedWhilePending) {{ _inbox.RemoveAt(i);{(Bounded ? " _room.Release();" : string.Empty)} waited.ArrivedWhilePending = false; _queued.Add(waited); }} else i++;");
+                    var waits = HasOwnInputs ? $"waited.IsEvent && waited.ArrivedWhilePending && !({IsOwnInput("waited")})" : "waited.IsEvent && waited.ArrivedWhilePending";
+                    _w.Line($"if ({waits}) {{ _inbox.RemoveAt(i);{(Bounded ? " _room.Release();" : string.Empty)} waited.ArrivedWhilePending = false; _queued.Add(waited); }} else i++;");
                 }
 
                 using (_w.Block("foreach (var pending in ended)"))

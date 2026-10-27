@@ -25,11 +25,59 @@ public sealed partial class ReferenceMachine<TValue>
     /// <summary>One trigger, resolved and run. True when it started an async decision, which pauses its input.</summary>
     private async ValueTask<bool> RunTriggerAsync(Trigger trigger, Work owner)
     {
-        var chosen = Choose(Candidates(trigger), trigger, hooks: true);
+        if (trigger.Event is Armed armed)
+        {
+            return await RunTimerAsync(armed, owner);
+        }
+
+        if (Status == MachineStatus.Completed)
+        {
+            return false;
+        }
+
+        if (trigger.Event is ChildDone done)
+        {
+            await RunChildDoneAsync(done);
+            return false;
+        }
+
+        var deferred = false;
+        var candidates = trigger is { HasValue: false, Event: { } e }
+            ? _resolver.ForEvent(_leaf, e.GetType().FullName!, out deferred)
+            : Candidates(trigger);
+        var chosen = Choose(candidates, trigger, hooks: true);
         if (chosen is null)
         {
-            Unhandled(trigger);
+            if (deferred)
+            {
+                lock (_sync)
+                {
+                    _deferred.Add(trigger.Event!);
+                }
+
+                return false;
+            }
+
+            if (!await ForwardAsync(trigger))
+            {
+                Unhandled(trigger);
+            }
+
             return false;
+        }
+
+        if (chosen.Join is { } join)
+        {
+            var payloads = Arrivals(chosen);
+            payloads[join.BitOf(chosen.Trigger.EventType!)] = trigger.Event;
+            if (payloads.Any(p => p is null))
+            {
+                return false;
+            }
+
+            // Fired: the join forgets its arrivals, and the transition reads them from the trigger.
+            _joins.Remove(chosen.Name);
+            trigger = trigger with { Joined = payloads };
         }
 
         if (chosen.Decision is { } decision)
@@ -43,7 +91,7 @@ public sealed partial class ReferenceMachine<TValue>
             return true;
         }
 
-        await ExecuteAsync(chosen, chosen.Transform, chosen.Completed, PathPlanner.Plan(_hierarchy, chosen, _leaf), (TransitionKind)chosen.Kind, trigger, outcome: null);
+        await ExecuteAsync(chosen, chosen.Transform, chosen.Completed, PlanNow(chosen), (TransitionKind)chosen.Kind, trigger, outcome: null);
         return false;
     }
 
@@ -57,7 +105,7 @@ public sealed partial class ReferenceMachine<TValue>
                 return candidate;
             }
 
-            var path = PathPlanner.Plan(_hierarchy, candidate, _leaf);
+            var path = PlanNow(candidate);
             var info = Info(candidate, path, (TransitionKind)candidate.Kind, trigger, Phase.Guard);
             try
             {
@@ -95,11 +143,13 @@ public sealed partial class ReferenceMachine<TValue>
     {
         var startedOver = new HashSet<int>(path.Exiting.Intersect(path.Entering));
         var snapshots = startedOver.ToDictionary(state => state, state => RuntimeHelpers.GetObjectValue(_slots[state]));
+        var joinSnapshots = _joins.Where(j => startedOver.Contains(SourceOf(j.Key))).ToDictionary(j => j.Key, j => (object?[])j.Value.Clone());
 
         // 2. reset the entering states
         foreach (var state in path.Entering)
         {
             _slots[state] = Cleared(state);
+            ClearJoins(state);
         }
 
         // 3. transform
@@ -126,6 +176,11 @@ public sealed partial class ReferenceMachine<TValue>
                     _slots[state] = snapshot;
                 }
 
+                foreach (var (name, arrivals) in joinSnapshots)
+                {
+                    _joins[name] = arrivals;
+                }
+
                 if (Resolve(exception, info) == ExceptionResolution.Rethrow)
                 {
                     ExceptionDispatchInfo.Capture(exception).Throw();
@@ -137,19 +192,61 @@ public sealed partial class ReferenceMachine<TValue>
             WriteBack(transform, arguments);
         }
 
-        // 4. commit. A move leaves the pending state below the leaf, if there is one, which ends its decision.
+        // The entered states' timers' delays, which a Delay method computes from the new data. A Delay that throws is
+        // a transform that throws: nothing commits.
+        List<(TimerModel Timer, TimeSpan Delay)> delays;
+        try
+        {
+            delays = Delays(path.Entering);
+        }
+        catch (Exception exception)
+        {
+            foreach (var (state, snapshot) in snapshots)
+            {
+                _slots[state] = snapshot;
+            }
+
+            if (Resolve(exception, info) == ExceptionResolution.Rethrow)
+            {
+                ExceptionDispatchInfo.Capture(exception).Throw();
+            }
+
+            return;
+        }
+
+        // 4. commit. A move leaves the pending state below the leaf, if there is one, which ends its decision. The
+        // exited states' timers are cancelled, and the entered states' armed.
         _leaf = path.TargetLeaf;
-        if (path.Exiting.Count > 0)
+        foreach (var state in path.Exiting)
+        {
+            _recorded[state] = path.Leaf;
+        }
+
+        if (path.Exiting.Count > 0 || path.Entering.Count > 0)
         {
             lock (_sync)
             {
-                if (_pending is { } pending)
+                if (path.Exiting.Count > 0 && _pending is { } pending)
                 {
                     EndPending(pending);
                 }
+
+                // A move: the events kept by [Defer] are queued again, ahead of what this transition's actions queue.
+                if (path.Exiting.Count > 0)
+                {
+                    foreach (var kept in _deferred)
+                    {
+                        _queue.Enqueue(Work.Queued(kept));
+                    }
+
+                    _deferred.Clear();
+                }
+
+                Rearm(path.Exiting, delays);
             }
         }
 
+        await StopChildrenAsync(path.Exiting);
         try
         {
             // 5. exited, leaf first; 6. entered, outermost first; 7. completed
@@ -175,10 +272,14 @@ public sealed partial class ReferenceMachine<TValue>
             foreach (var state in path.Exiting.Where(s => !startedOver.Contains(s)))
             {
                 _slots[state] = Cleared(state);
+                ClearJoins(state);
             }
         }
 
+        await StartChildrenAsync(path.Entering);
         _hooks.Transitioned?.Invoke(info.With(Phase.Completed));
+        Observe(info.With(Phase.Completed));
+        await SettleAsync(path.Entering.Contains(path.TargetLeaf));
     }
 
     private async ValueTask<bool> RunStateActionsAsync(ActionPhase phase, int state, TransitionInfo<TValue> info, IReadOnlyDictionary<int, object?>? snapshots)
@@ -252,7 +353,7 @@ public sealed partial class ReferenceMachine<TValue>
                 ParameterKind.Value => trigger.Value,
                 ParameterKind.Run => null, // passed as a span by InvokeRun
                 ParameterKind.RunMemory => trigger.Run,
-                ParameterKind.Event => trigger.Event,
+                ParameterKind.Event => trigger.Joined is { } joined ? joined[JoinOf(method).BitOf(parameter.TypeName)] : trigger.Event,
                 ParameterKind.Outcome => outcome,
                 ParameterKind.Config => _config,
                 ParameterKind.Context => _context,
@@ -319,6 +420,12 @@ public sealed partial class ReferenceMachine<TValue>
 
     private void Unhandled(Trigger trigger)
     {
+        if (trigger.Timer is not null)
+        {
+            return;
+        }
+
+        ObserveUnhandled(trigger);
         if (trigger.HasValue)
         {
             _hooks.UnhandledValue?.Invoke(StateType, trigger.Value);
@@ -334,16 +441,26 @@ public sealed partial class ReferenceMachine<TValue>
         }
     }
 
-    private TransitionPlan PlanFor(IReadOnlyList<TransitionModel> candidates, Trigger trigger)
+    private TransitionPlan PlanFor(IReadOnlyList<TransitionModel> candidates, Trigger trigger, bool deferred = false)
     {
         var refused = new List<string>();
         var chosen = Choose(candidates, trigger, hooks: false, refused);
+        if (chosen is null && deferred)
+        {
+            return TransitionPlan.ForDeferred(StateType, refused);
+        }
+
         if (chosen is null)
         {
             return refused.Count == 0 ? TransitionPlan.None : new TransitionPlan(refused);
         }
 
-        var path = PathPlanner.Plan(_hierarchy, chosen, _leaf);
+        if (chosen.Join is { } join && !WouldComplete(chosen, join))
+        {
+            return TransitionPlan.ForJoinArrival(chosen.Name, _machine.StateTypes[_leaf], refused);
+        }
+
+        var path = PlanNow(chosen);
         return new TransitionPlan(
             chosen.Name,
             _machine.StateTypes[path.Leaf],
@@ -354,6 +471,47 @@ public sealed partial class ReferenceMachine<TValue>
             chosen.IsDecision,
             refused);
     }
+
+    /// <summary>The path <paramref name="transition"/> takes from the active leaf now, recalling what was recorded.</summary>
+    private TransitionPath PlanNow(TransitionModel transition) =>
+        transition.Kind == MoveKind.Stay || transition.IsDecision
+            ? PathPlanner.Stay(_leaf)
+            : PathPlanner.Move(_hierarchy, _leaf, transition.Target, transition.History, _recorded[transition.Target]);
+
+    /// <summary>The arrivals recorded for <paramref name="join"/>'s join, created empty on its first.</summary>
+    private object?[] Arrivals(TransitionModel join)
+    {
+        if (!_joins.TryGetValue(join.Name, out var payloads))
+        {
+            payloads = new object?[join.Join!.Events.Count];
+            _joins[join.Name] = payloads;
+        }
+
+        return payloads;
+    }
+
+    /// <summary>Whether <paramref name="arriving"/>'s event would complete its join now.</summary>
+    private bool WouldComplete(TransitionModel arriving, JoinModel join)
+    {
+        var bit = join.BitOf(arriving.Trigger.EventType!);
+        return _joins.TryGetValue(arriving.Name, out var payloads)
+            ? payloads.Where((p, i) => i != bit).All(p => p is not null)
+            : join.Events.Count == 1;
+    }
+
+    /// <summary>Forgets the arrivals of the joins whose source is <paramref name="state"/>: they live as long as its data.</summary>
+    private void ClearJoins(int state)
+    {
+        foreach (var name in _joins.Keys.Where(name => SourceOf(name) == state).ToList())
+        {
+            _joins.Remove(name);
+        }
+    }
+
+    private int SourceOf(string join) => _model.Transitions.First(t => t.Name == join && t.IsJoin).Source;
+
+    /// <summary>The join a method belongs to.</summary>
+    private JoinModel JoinOf(MethodModel method) => _model.Transitions.First(t => t.Join is not null && t.Methods.Contains(method)).Join!;
 
     private TransitionInfo<TValue> Info(TransitionModel transition, TransitionPath path, TransitionKind kind, Trigger trigger, Phase phase) =>
         new(transition.Name,

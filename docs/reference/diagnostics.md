@@ -72,6 +72,17 @@ The machine rests only in leaves, so entering a state with children must know wh
 
 **Fix:** mark exactly one child `[Initial]`.
 
+## SALCH0005
+
+**Invalid final state** · error · app
+
+> Final state '{0}' {1}
+
+A `[Final]` state ends its parent: entering it fires the parent's `[OnDone]` transitions, or, under the root,
+completes the machine. So it must be a leaf, it cannot be the root, and it is the source of no transition.
+
+**Fix:** move the transition to the parent, or drop `[Final]`.
+
 ## SALCH0101
 
 **Conflicting transitions** · error · app
@@ -127,7 +138,12 @@ small integral type.
 > '{0}' {1}
 
 A transition does not name its `From` state, has no trigger, mixes value and event triggers, has an empty range,
-or names a trigger value that is not an integral constant.
+or names a trigger value that is not an integral constant. For a [join](../concepts/triggers.md#joins): an
+`[OnAll]` alongside another trigger, listing fewer than two or more than 32 events or one event twice, or a join
+with a `Guard` or a decision. For a [timer](../concepts/timers.md): `[After]` mixed with another trigger or on a
+decision, both `Milliseconds` and `Seconds` set, a negative delay or one longer than 4294967294 milliseconds, no
+delay and no `Delay` method, both a delay and a `Delay` method, or a `Delay` method on a transition that does not
+fire on `[After]`.
 
 ## SALCH0107
 
@@ -164,6 +180,52 @@ package that was meant to offer a module does not, or the attribute is left over
 **Fix:** name the module with `[Include]`, or remove `[IncludeExported]`. See
 [modules and the machine declaration](../concepts/machines.md#modules).
 
+## SALCH0110
+
+**Invalid eventless transition** · error · app
+
+> Eventless transition '{0}' {1}
+
+An `[Always]` transition fires as soon as its guard passes, so it must move to another state. Reported for one that
+stays, one that re-enters its own state without a guard, and unguarded eventless transitions that lead back to where
+they started: each would fire forever. A guarded loop is possible, so it is not reported; at run time a chain that
+fires 64 times in a row throws `InvalidOperationException`.
+
+**Fix:** give it a `To` state, or a guard that the transition makes false.
+
+## SALCH0111
+
+**Done transition never fires** · warning · app
+
+> '{0}' fires when '{1}' is done, but {2}
+
+An `[OnDone]` transition fires when its `From` state is done: when one of its `[Final]` children is entered, or when
+every machine it invokes with `[Invoke]` has completed. A state with neither is never done. The root is never done
+either: entering its final child completes the machine instead.
+
+**Fix:** mark a child `[Final]`, or move the transition.
+
+## SALCH0112
+
+**Invalid deferred event** · error · app
+
+> State '{0}' defers '{1}': {2}
+
+`[Defer]` keeps an event until the machine leaves the state. Reported when the type is not an event, and when the same
+state also handles the event, since resolution would have to pick one.
+
+**Fix:** handle the event or defer it, not both.
+
+## SALCH0113
+
+**Invalid invoked machine** · error · app
+
+> [Invoke] '{0}' {1}
+
+An `[Invoke]` method creates a child machine for its state. It is `public static`, returns a type that implements
+`IStatechart<TValue>`, and takes only active states (`in`), the configuration, the context and a `CancellationToken`
+(the parent's lifetime token). With `Forward`, values go to the child only when its value type is the parent's.
+
 ## SALCH0201
 
 **Writing to an exiting state** · error · app
@@ -183,8 +245,10 @@ code fix that does the first half. See
 > Parameter '{0}' of '{1}' names '{2}', which {3}
 
 The parameter names a state the transition does not touch — a sibling, an unrelated branch — or, for a
-transition declared on a parent, a state that binds differently depending on the active leaf. For a state action,
-a state that is neither the action's state nor one of its ancestors.
+transition declared on a parent, a state that binds differently depending on the active leaf. For a move by
+[history](../concepts/states.md#going-back-with-history), a state under its target: which of those it enters is
+known only when it runs. For a state action, a state that is neither the action's state nor one of its ancestors.
+For a timer's `Delay`, a state that is neither the source nor one of its ancestors.
 
 ## SALCH0203
 
@@ -193,8 +257,8 @@ a state that is neither the action's state nor one of its ancestors.
 > '{0}' must {1}
 
 `Guard` returns `bool`; `Transform` and `Complete` return `void`; `Completed` returns `void` and
-`CompletedAsync` `ValueTask`; `DecideAsync` returns `ValueTask<TOutcome>`; a decision declares `Decide` or
-`DecideAsync`.
+`CompletedAsync` `ValueTask`; `DecideAsync` returns `ValueTask<TOutcome>`; `Delay` returns `TimeSpan`
+synchronously; a decision declares `Decide` or `DecideAsync`.
 
 ## SALCH0204
 
@@ -204,7 +268,8 @@ a state that is neither the action's state nor one of its ancestors.
 
 A parameter that is not a state, the value, the event that fired, a run, the configuration, the context, a
 decision outcome, a `CancellationToken` or the transition info — or one of those where its method cannot take it,
-such as a `CancellationToken` on a transform, or a value on an event transition.
+such as a `CancellationToken` on a transform, a value on an event or timer transition, an event a
+[join](../concepts/triggers.md#joins) does not list, or a state taken by `ref` in a `Delay`.
 
 ## SALCH0205
 
@@ -218,7 +283,7 @@ See [purity](../concepts/machines.md#purity).
 
 **Unknown phase method** · error · declaring library
 
-> '{0}' is not a phase; a class-form transition may declare Guard, Transform, Decide, DecideAsync, Complete, Completed and CompletedAsync
+> '{0}' is not a phase; a class-form transition may declare Guard, Transform, Delay, Decide, DecideAsync, Complete, Completed and CompletedAsync
 
 In a class-form transition, a method's name says when it runs. A name that is not a phase would never run.
 
@@ -228,7 +293,7 @@ In a class-form transition, a method's name says when it runs. A name that is no
 
 > '{0}' {1}
 
-A phase returning a task is named with `Async`; one that does not is named without. `Guard`, `Transform` and
+A phase returning a task is named with `Async`; one that does not is named without. `Guard`, `Transform`, `Delay` and
 `Complete` run before the state changes and cannot be async. The code fix renames the method.
 
 ## SALCH0208
@@ -244,6 +309,16 @@ A phase returning a task is named with `Async`; one that does not is named witho
 > Machine '{0}' is Unchecked but has async actions or decisions; await every FireAsync before calling the next
 
 See [concurrency](../concepts/concurrency.md#unchecked).
+
+## SALCH0210
+
+**History without a state to recall** · error · app
+
+> '{0}' asks for history, but {1}
+
+`History = History.Shallow` or `History.Deep` on a stay, or on a move whose target has no children in this
+machine or is the root. A leaf has nothing below it to recall, and the root is never exited. See
+[history](../concepts/states.md#going-back-with-history).
 
 ## SALCH0301
 
@@ -276,7 +351,9 @@ Every case of a decision's outcome union needs exactly one `Complete` overload.
 
 In that leaf, those values match no transition at any level and fall to the machine's
 [unhandled](../concepts/triggers.md#unhandled-triggers) behaviour. Add an `[OnAny]` on the leaf or an ancestor if
-that is not what you want.
+that is not what you want. A final child of the root is not checked, since a completed machine refuses values, and
+neither is a leaf under a state whose `[Invoke(Forward = true)]` child takes the same value type: what the leaf leaves
+unhandled goes to the child.
 
 ## SALCH0502
 
@@ -296,6 +373,17 @@ Every machine has the synchronous `Fire`, because the generator writes one machi
 caller means to use it. On a machine that can suspend the call would block the calling thread until the action came
 back — a deadlock waiting for a synchronization context — so using it there is an error at the call, where the
 choice is made.
+
+## SALCH0602
+
+**Internal event fired from outside** · error · anywhere
+
+> '{0}' is [Internal]: only code inside the machine raises it, with Enqueue
+
+A machine writes no `FireAsync` or `Fire` overload for an `[Internal]` event, and its generic `FireAsync<TEvent>`
+throws `InvalidOperationException` for one. This analyzer reports the generic call where it is written.
+
+**Fix:** raise it with `Enqueue` from an action, or remove `[Internal]`.
 
 ## SALCH0701
 

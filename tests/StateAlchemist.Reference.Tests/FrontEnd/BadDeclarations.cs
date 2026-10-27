@@ -58,3 +58,138 @@ public static class RivalGmcpModule
 public static class NotAModule
 {
 }
+
+public readonly struct Knock : IEvent
+{
+}
+
+public readonly struct Ring : IEvent
+{
+}
+
+[Module]
+public static class GuardedJoinModule
+{
+    [Transition(From = typeof(Idle), To = typeof(Command)), OnAll(typeof(Knock), typeof(Ring))]
+    public static class Answer
+    {
+        public static bool Guard(TelnetContext context) => true;
+    }
+}
+
+[Module]
+public static class MixedJoinModule
+{
+    [Transition(From = typeof(Idle), To = typeof(Command)), OnEvent(typeof(Error)), OnAll(typeof(Knock), typeof(Ring))]
+    public static void Answer()
+    {
+    }
+}
+
+[Module]
+public static class LonelyJoinModule
+{
+    [Transition(From = typeof(Idle), To = typeof(Command)), OnAll(typeof(Knock))]
+    public static void Answer()
+    {
+    }
+}
+
+[Module]
+public static class UnlistedJoinEventModule
+{
+    [Transition(From = typeof(Idle), To = typeof(Command)), OnAll(typeof(Knock), typeof(Ring))]
+    public static void Answer(in Error error)
+    {
+    }
+}
+
+[Module]
+public static class TimerBothUnitsModule
+{
+    [Transition(From = typeof(Idle)), After(Milliseconds = 500, Seconds = 1)]
+    public static void Both()
+    {
+    }
+}
+
+[Module]
+public static class TimerNoDelayModule
+{
+    [Transition(From = typeof(Idle)), After]
+    public static void Never()
+    {
+    }
+}
+
+[Module]
+public static class TimerTwoDelaysModule
+{
+    [Transition(From = typeof(Idle)), After(Seconds = 1)]
+    public static class Twice
+    {
+        public static System.TimeSpan Delay() => System.TimeSpan.FromSeconds(2);
+    }
+}
+
+[Module]
+public static class TimerMixedModule
+{
+    [Transition(From = typeof(Idle)), After(Seconds = 1), On(1)]
+    public static void Mixed()
+    {
+    }
+}
+
+[Module]
+public static class TimerDecisionModule
+{
+    [Decision(From = typeof(Idle)), After(Seconds = 1)]
+    public static class Wait
+    {
+        public static ValueTask<Willing> DecideAsync(System.Threading.CancellationToken cancellation) => default;
+
+        [To(typeof(Idle))]
+        public static void Complete(Willing outcome)
+        {
+        }
+    }
+}
+
+[Module]
+public static class StrayDelayModule
+{
+    [Transition(From = typeof(Idle)), On(1)]
+    public static class Stray
+    {
+        public static System.TimeSpan Delay() => System.TimeSpan.FromSeconds(1);
+    }
+}
+
+[Module]
+public static class DelayReadsLeftStateModule
+{
+    [Transition(From = typeof(Idle)), After]
+    public static class Late
+    {
+        public static System.TimeSpan Delay(in Naws other, ref Idle self) => System.TimeSpan.FromSeconds(1);
+    }
+}
+
+[Module]
+public static class TimerNegativeModule
+{
+    [Transition(From = typeof(Idle)), After(Seconds = -1)]
+    public static void Back()
+    {
+    }
+}
+
+[Module]
+public static class TimerTooLongModule
+{
+    [Transition(From = typeof(Idle)), After(Seconds = 5000000)]
+    public static void Forever()
+    {
+    }
+}

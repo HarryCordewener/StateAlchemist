@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Time.Testing;
 
 namespace StateAlchemist.Contracts.Machines;
 
@@ -32,6 +33,9 @@ public sealed class RecordingContext
     /// <summary>Completed when an async decision starts, with the token it was given.</summary>
     public TaskCompletionSource<CancellationToken> Deciding { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+    /// <summary>The clock a machine with timers runs on: a test moves it with <c>Advance</c>.</summary>
+    public FakeTimeProvider Clock { get; } = new(new DateTimeOffset(2026, 10, 6, 0, 0, 0, TimeSpan.Zero));
+
     /// <summary>The machine, for actions that enqueue or fire.</summary>
     public IMachine<byte>? Machine { get; set; }
 
@@ -43,9 +47,35 @@ public sealed class RecordingContext
             throw new InvalidOperationException($"{entry} failed");
         }
 
-        Log.Add(entry);
+        lock (Log)
+        {
+            Log.Add(entry);
+        }
+    }
+
+    /// <summary>Builds a child machine for an <c>[Invoke]</c> method; a test sets it.</summary>
+    public Func<IStatechart<byte>>? CreateChild { get; set; }
+
+    /// <summary>The children built so far, in order.</summary>
+    public List<IStatechart<byte>> Children { get; } = [];
+
+    /// <summary>What an <c>[Invoke]</c> method returns: a new child, built by <see cref="CreateChild"/>.</summary>
+    public IStatechart<byte> Spawn()
+    {
+        var child = CreateChild!();
+        Children.Add(child);
+        return child;
     }
 
     /// <summary>The log, joined: the form order-of-operations assertions compare.</summary>
-    public string Trace => string.Join(" | ", Log);
+    public string Trace
+    {
+        get
+        {
+            lock (Log)
+            {
+                return string.Join(" | ", Log);
+            }
+        }
+    }
 }

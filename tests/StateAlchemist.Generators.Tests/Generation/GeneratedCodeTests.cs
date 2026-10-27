@@ -44,6 +44,10 @@ public class GeneratedCodeTests
     [Arguments("RecorderWithTelemetry")]
     [Arguments("DecidingWithTelemetry")]
     [Arguments("RunsWithTelemetry")]
+    [Arguments("Finals")]
+    [Arguments("Defers")]
+    [Arguments("Invokes")]
+    [Arguments("InvokesWithTelemetry")]
     public async Task TheGeneratedCodeIsCSharp73AndCompilesWithoutAWarning(string machine)
     {
         var source = machine switch
@@ -60,6 +64,11 @@ public class GeneratedCodeTests
             "RecorderWithTelemetry" => TestCompilation.Machine("M", typeof(Root), typeof(byte), typeof(RecordingContext), [typeof(RecorderModule), typeof(RecorderExtras)],
                 ", Telemetry = true", " { }"),
             "DecidingWithTelemetry" => TestCompilation.Machine("M", typeof(DecideRoot), typeof(byte), typeof(RecordingContext), [typeof(DecidingModule)],
+                ", Telemetry = true", " { }"),
+            "Finals" => TestCompilation.Machine("M", typeof(Contracts.Machines.Finals.FinRoot), typeof(byte), typeof(RecordingContext), [typeof(Contracts.Machines.Finals.FinalModule)], body: " { }"),
+            "Defers" => TestCompilation.Machine("M", typeof(Contracts.Machines.Defers.DefRoot), typeof(byte), typeof(RecordingContext), [typeof(Contracts.Machines.Defers.DeferModule)], body: " { }"),
+            "Invokes" => TestCompilation.Machine("M", typeof(Contracts.Machines.Invokes.InvRoot), typeof(byte), typeof(RecordingContext), [typeof(Contracts.Machines.Invokes.InvokeModule)], body: " { }"),
+            "InvokesWithTelemetry" => TestCompilation.Machine("M", typeof(Contracts.Machines.Invokes.InvRoot), typeof(byte), typeof(RecordingContext), [typeof(Contracts.Machines.Invokes.InvokeModule)],
                 ", Telemetry = true", " { }"),
             "RunsWithTelemetry" => TestCompilation.Machine("M", typeof(RunRoot), typeof(byte), typeof(RecordingContext), [typeof(RunModule)], ", Telemetry = true", " { }"),
             _ => TestCompilation.Machine("M", typeof(FailRoot), typeof(byte), typeof(RecordingContext), [typeof(FailureModule)], body: """
@@ -78,5 +87,41 @@ public class GeneratedCodeTests
 
         await Assert.That(output.SyntaxTrees.Count()).IsEqualTo(2);
         await Assert.That(Problems(output)).IsEqualTo("");
+    }
+
+    // lock on a Lock means EnterScope from C# 13, so below it the inbox keeps an object even where the framework has
+    // the type. The C# 13 side is in the generated tests: this Roslyn has no C# 13 to parse.
+    [Test]
+    public async Task BelowCSharp13TheInboxLocksAnObject()
+    {
+        var source = TestCompilation.Machine("M", typeof(DecideRoot), typeof(byte), typeof(RecordingContext), [typeof(DecidingModule)],
+            ", Concurrency = global::StateAlchemist.Concurrency.Serialized", " { }");
+        var compilation = TestCompilation.Create(LanguageVersion.CSharp12, source);
+
+        Driver(LanguageVersion.CSharp12).RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+
+        var generated = output.SyntaxTrees.Last().ToString();
+        await Assert.That(generated).Contains("private readonly object _sync = new object();");
+        await Assert.That(Problems(output)).IsEqualTo("");
+    }
+
+    // A Lock the application cannot name, such as an internal polyfill in a reference, is no Lock to the inbox.
+    [Test]
+    [Arguments("public", true)]
+    [Arguments("internal", false)]
+    public async Task TheInboxLocksALockOnlyWhereTheApplicationCanSeeIt(string access, bool expected)
+    {
+        var polyfill = CSharpCompilation.Create(
+            "Polyfill",
+            [CSharpSyntaxTree.ParseText($"namespace System.Threading {{ {access} sealed class Lock {{ }} }}")],
+            TestCompilation.References.Where(r => r.Display?.EndsWith("netstandard.dll", StringComparison.Ordinal) == true),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var app = CSharpCompilation.Create(
+            "App",
+            [CSharpSyntaxTree.ParseText("class C { }", new CSharpParseOptions((LanguageVersion)1300))],
+            [polyfill.ToMetadataReference()],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        await Assert.That(MachineGenerator.HasLockType(app)).IsEqualTo(expected);
     }
 }

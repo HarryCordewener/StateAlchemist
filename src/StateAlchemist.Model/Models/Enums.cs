@@ -36,6 +36,7 @@ public enum ReturnShape
     ValueTaskOfResult,
     Task,
     TaskOfResult,
+    TimeSpan,
     Other,
 }
 
@@ -46,6 +47,13 @@ public enum MatchKind
     Range,
     Any,
     Event,
+    Timer,
+
+    /// <summary>No trigger: <c>[Always]</c>.</summary>
+    Always,
+
+    /// <summary>The source state is done: <c>[OnDone]</c>.</summary>
+    Done,
 }
 
 /// <summary>What a transition does to the active path.</summary>
@@ -54,6 +62,14 @@ public enum MoveKind
     Stay,
     Move,
     Reenter,
+}
+
+/// <summary>Which child a move into a state with children enters (matches the runtime's <c>History</c>).</summary>
+public enum HistoryKind
+{
+    None,
+    Shallow,
+    Deep,
 }
 
 /// <summary>When a state action runs.</summary>

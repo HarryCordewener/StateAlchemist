@@ -10,8 +10,17 @@ namespace StateAlchemist;
 /// </summary>
 /// <param name="type">The outcome case's type, such as the <c>Allowed</c> of an <c>Answer</c> union.</param>
 /// <param name="target">The target state's index.</param>
-public sealed class OutcomeDefinition(Type type, int target)
+/// <param name="history">Whether the move enters what was last active in the target.</param>
+public sealed class OutcomeDefinition(Type type, int target, History history)
 {
+    /// <summary>Creates an outcome that enters its target's <c>[Initial]</c> path.</summary>
+    /// <param name="type">The outcome case's type.</param>
+    /// <param name="target">The target state's index.</param>
+    public OutcomeDefinition(Type type, int target)
+        : this(type, target, History.None)
+    {
+    }
+
     /// <summary>The outcome case's type.</summary>
     public Type Type { get; } = type ?? throw new ArgumentNullException(nameof(type));
 
@@ -20,4 +29,7 @@ public sealed class OutcomeDefinition(Type type, int target)
 
     /// <summary>The target state's index: where the decision goes when its reader answers with this case.</summary>
     public int Target { get; } = target;
+
+    /// <summary>Whether the move enters what was active when the target was last exited, instead of its <c>[Initial]</c> path.</summary>
+    public History History { get; } = history;
 }

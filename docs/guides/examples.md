@@ -205,7 +205,7 @@ await phone.FireAsync(Button.Hold);           // log: "connected (call 1)"
 await phone.FireAsync(Button.Second);
 await phone.FireAsync(Button.HangUp);         // log: "talked for 1s"
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/SampleTests.cs#L24-L38' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-run' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/SampleTests.cs#L25-L39' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-phone-run' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 Three seconds before the hold and one after: holding the call leaves `Talking`, so the seconds it counts start
@@ -585,7 +585,7 @@ Three things are worth reading twice:
 ```cs
 await door.FireAsync(new Badge(7));           // completes when the reader has answered and the door has opened
 ```
-<sup><a href='/tests/StateAlchemist.Generated.Tests/SampleTests.cs#L153-L155' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-door-fire' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Generated.Tests/SampleTests.cs#L169-L171' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-door-fire' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Reading a pipe

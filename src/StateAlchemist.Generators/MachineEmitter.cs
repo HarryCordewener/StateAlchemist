@@ -22,6 +22,7 @@ internal sealed partial class MachineEmitter
     private static readonly string[] ExceptionPhases = ["Guard", "Transform", "Exited", "Entered", "Completed"];
 
     private readonly SymbolMachine _machine;
+    private readonly bool _lockType;
     private readonly MachineModel _model;
     private readonly Hierarchy _hierarchy;
     private readonly Resolver _resolver;
@@ -30,29 +31,36 @@ internal sealed partial class MachineEmitter
     private readonly List<INamedTypeSymbol> _events;
     private readonly SortedSet<(int Transition, int Leaf)> _transitions = [];
     private readonly SortedSet<(int Transition, int Leaf)> _guards = [];
+    private readonly IReadOnlyList<TimerModel> _timers;
 
-    private MachineEmitter(SymbolMachine machine)
+    private MachineEmitter(SymbolMachine machine, bool lockType)
     {
         _machine = machine;
+        _lockType = lockType;
         _model = machine.Model;
         _hierarchy = new Hierarchy(_model.States);
         _resolver = new Resolver(_model, _hierarchy);
         _stateIds = StateIds(_model.States);
         _events = machine.Events.OrderBy(e => e.Key, StringComparer.Ordinal).Select(e => e.Value).ToList();
+        _timers = Timers.Of(_model);
     }
 
     /// <summary>The machine's source.</summary>
-    public static string Emit(SymbolMachine machine) => new MachineEmitter(machine).Write();
+    /// <param name="machine">The machine.</param>
+    /// <param name="lockType">Whether the inbox can lock a <c>System.Threading.Lock</c> instead of an <c>object</c>.</param>
+    public static string Emit(SymbolMachine machine, bool lockType) => new MachineEmitter(machine, lockType).Write();
 
     private string V => Name(_machine.Value!);
 
     private bool IsChecked => _model.Options.Concurrency == ConcurrencyMode.Checked;
 
     /// <summary>
-    /// Whether the machine needs the inbox and the pump (spec §6.6, §6.10): it is <c>Serialized</c>, or has an async
-    /// decision, while which it must accept events from other callers. Every other machine runs each call inline.
+    /// Whether the machine needs the inbox and the pump (spec §6.6, §6.10): it is <c>Serialized</c>, has an async
+    /// decision, while which it must accept events from other callers, or has a timer, whose firing comes from another
+    /// thread. Every other machine runs each call inline.
     /// </summary>
-    private bool HasInbox => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.Decision?.DecideAsync is not null);
+    private bool HasInbox => _model.Options.Concurrency == ConcurrencyMode.Serialized || _model.Transitions.Any(t => t.Decision?.DecideAsync is not null || t.IsTimer)
+        || _model.Invokes.Count > 0;
 
     private bool HasRuns => _model.Transitions.Any(t => t.IsRun);
 
@@ -72,7 +80,7 @@ internal sealed partial class MachineEmitter
             scopes.Add(_w.Block($"partial {Keyword(outer)} {outer.Name}"));
         }
 
-        using (_w.Block($"partial class {_machine.Machine.Name} : {Rt}IBoundaryMachine<{V}>"))
+        using (_w.Block($"partial class {_machine.Machine.Name} : {Rt}IStatechart<{V}>"))
         {
             WriteStorage();
             if (Telemetry)
@@ -84,16 +92,29 @@ internal sealed partial class MachineEmitter
             WriteDefinition();
             WriteDiagrams();
             WriteLifecycle();
+            WriteSnapshots();
             WriteFiring();
             WriteDispatch();
             WritePlans();
+            WritePermitted();
             WriteRuns();
             WriteDecisions();
+            if (HasTimers)
+            {
+                WriteTimers();
+            }
+
+            WriteStatechart();
+            WriteDefer();
+            WriteInvokes();
             WriteTransitions();
+            WriteRecalls();
             if (HasInbox)
             {
                 WriteInbox();
             }
+
+            WriteTimerHookSupport();
 
             WriteHooks();
         }
@@ -124,9 +145,12 @@ internal sealed partial class MachineEmitter
             _w.Line($"private {S(i)} {Field(i)};");
         }
 
+        WriteJoinStorage();
         _w.Line("private StateId _leaf;");
+        WriteHistoryStorage();
         _w.Line($"private {Rt}MachineStatus _status;");
         _w.Line("private bool _inside;");
+        _w.Line("private bool _restored;");
         _w.Line("private bool _boundaryRequested;");
         if (!HasInbox)
         {
@@ -136,6 +160,14 @@ internal sealed partial class MachineEmitter
         // [Exited] actions running under that stop still read it, and so may an action the stop abandoned. It
         // holds no wait handle and no timer, so it is ordinary garbage once the machine is.
         _w.Line("private global::System.Threading.CancellationTokenSource _lifetime;");
+        WriteStatechartStorage();
+        WriteDeferStorage();
+        WriteInvokeStorage();
+        if (HasTimers)
+        {
+            WriteTimerStorage();
+        }
+
         if (HasInbox)
         {
             WriteInboxStorage();
@@ -176,7 +208,17 @@ internal sealed partial class MachineEmitter
             parameters.Add($"in {Name(g)} config");
         }
 
+        if (HasTimers)
+        {
+            parameters.Add("global::System.TimeProvider timeProvider = null");
+        }
+
         _w.Line("/// <summary>Creates the machine in its initial state. Runs no actions: call <see cref=\"StartAsync\"/>.</summary>");
+        if (HasTimers)
+        {
+            _w.Line("/// <remarks>Its <c>[After]</c> timers run on <c>timeProvider</c>, or on the system clock when it is <see langword=\"null\"/>.</remarks>");
+        }
+
         using (_w.Block($"public {_machine.Machine.Name}({string.Join(", ", parameters)})"))
         {
             if (_machine.Context is not null)
@@ -189,7 +231,13 @@ internal sealed partial class MachineEmitter
                 _w.Line("_config = config;");
             }
 
+            if (HasTimers)
+            {
+                _w.Line("_time = timeProvider ?? global::System.TimeProvider.System;");
+            }
+
             _w.Line($"_leaf = StateId.{_stateIds[_hierarchy.InitialLeaf(_hierarchy.Root)]};");
+            WriteHistoryInitialization();
         }
 
         if (HasInbox)
@@ -311,7 +359,7 @@ internal sealed partial class MachineEmitter
         _w.Line("    {");
         foreach (var state in _model.States)
         {
-            _w.Line($"        new {Rt}StateDefinition({state.Index}, typeof({S(state.Index)}), {state.Parent}, {Bool(state.IsInitial)}),");
+            _w.Line($"        new {Rt}StateDefinition({state.Index}, typeof({S(state.Index)}), {state.Parent}, {Bool(state.IsInitial)}{(state.IsFinal ? ", true" : string.Empty)}),");
         }
 
         _w.Line("    },");
@@ -320,8 +368,15 @@ internal sealed partial class MachineEmitter
         foreach (var t in _model.Transitions)
         {
             var usesContext = new[] { t.Guard, t.Transform }.Any(m => m is not null && m.Parameters.Any(p => p.Kind == ParameterKind.Context));
+            if (t.Join is { } join)
+            {
+                _w.Line($"        new {Rt}TransitionDefinition({t.Index}, {Literal(t.Name)}, {t.Source}, {t.Target}, {Rt}TransitionKind.{t.Kind}, {TriggerDefinition(t.Trigger)}, " +
+                        $"{t.Order}, {Bool(usesContext)}, new {TypeType}[] {{ {string.Join(", ", join.Events.Select(e => $"typeof({Event(e)})"))} }}{HistoryArgument(t.History)}),");
+                continue;
+            }
+
             _w.Line($"        new {Rt}TransitionDefinition({t.Index}, {Literal(t.Name)}, {t.Source}, {t.Target}, {Rt}TransitionKind.{t.Kind}, {TriggerDefinition(t.Trigger)}, " +
-                    $"{t.Order}, {Bool(t.IsGuarded)}, {Bool(t.IsRun)}, {Bool(usesContext)}, {Bool(t.IsDecision)}, {OutcomeDefinitions(t)}),");
+                    $"{t.Order}, {Bool(t.IsGuarded)}, {Bool(t.IsRun)}, {Bool(usesContext)}, {Bool(t.IsDecision)}, {OutcomeDefinitions(t)}{HistoryArgument(t.History)}),");
         }
 
         _w.Line("    });");
@@ -342,15 +397,23 @@ internal sealed partial class MachineEmitter
         return completions.Count == 0
             ? $"new {Rt}OutcomeDefinition[0]"
             : $"new {Rt}OutcomeDefinition[] {{ " +
-              string.Join(", ", completions.Select(c => $"new {Rt}OutcomeDefinition(typeof({Name(OutcomeType(c))}), {c.Target})")) +
+              string.Join(", ", completions.Select(c => $"new {Rt}OutcomeDefinition(typeof({Name(OutcomeType(c))}), {c.Target}{HistoryArgument(c.History)})")) +
               " }";
     }
+
+    /// <summary>The trailing <c>History</c> argument of a definition, written only when there is one.</summary>
+    private static string HistoryArgument(HistoryKind history) => history == HistoryKind.None ? string.Empty : $", {Rt}History.{history}";
 
     private string TriggerDefinition(TriggerModel trigger) => trigger.Kind switch
     {
         MatchKind.Value => $"{Rt}TriggerDefinition.ForValue({trigger.Low})",
         MatchKind.Range => $"{Rt}TriggerDefinition.ForRange({trigger.Low}, {trigger.High})",
         MatchKind.Any => $"{Rt}TriggerDefinition.ForAny()",
+        MatchKind.Always => $"{Rt}TriggerDefinition.ForAlways()",
+        MatchKind.Done => $"{Rt}TriggerDefinition.ForDone()",
+        MatchKind.Timer => trigger.DelayedBy is null
+            ? $"{Rt}TriggerDefinition.ForTimer(new global::System.TimeSpan({trigger.Low}L * global::System.TimeSpan.TicksPerMillisecond))"
+            : $"{Rt}TriggerDefinition.ForTimer(null)",
         _ => $"{Rt}TriggerDefinition.ForEvent(typeof({Event(trigger.EventType!)}))",
     };
 
@@ -367,6 +430,13 @@ internal sealed partial class MachineEmitter
             _w.Line();
             _w.Line($"/// <summary>A <see cref=\"{Name(e)}\"/> nothing handles.</summary>");
             _w.Line($"partial void OnUnhandled(StateId state, in {Name(e)} e);");
+        }
+
+        if (HasTimers)
+        {
+            _w.Line();
+            _w.Line("/// <summary>A timer's transition threw, and no phase hook resolved it. A timer has no caller: implement this to see it.</summary>");
+            _w.Line("partial void OnTimerException(global::System.Exception exception, string transition);");
         }
 
         foreach (var phase in ExceptionPhases)

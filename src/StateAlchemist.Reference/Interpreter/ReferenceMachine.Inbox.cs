@@ -128,7 +128,7 @@ public sealed partial class ReferenceMachine<TValue>
     /// <summary>The next runnable step, or <see langword="null"/>. Called under the lock.</summary>
     private Func<Task>? NextStep()
     {
-        if (Status != MachineStatus.Running)
+        if (Status is not (MachineStatus.Running or MachineStatus.Completed))
         {
             return null;
         }
@@ -298,7 +298,12 @@ public sealed partial class ReferenceMachine<TValue>
 
             _inbox.Clear();
             _queue.Clear();
+            _deferred.Clear();
             _current = null;
+            for (var i = 0; i < _armed.Length; i++)
+            {
+                Disarm(i);
+            }
         }
 
         abandoned?.Cancellation.Cancel();
@@ -355,6 +360,9 @@ public sealed partial class ReferenceMachine<TValue>
         public static Work ForEvent(object e) => new(default, e, hasCaller: true);
 
         public static Work Queued(object e) => new(default, e, hasCaller: false);
+
+        /// <summary>A timer's firing. Nobody awaits it but the pump task the timer starts, which swallows what it throws.</summary>
+        public static Work ForTimer(object armed) => new(default, armed, hasCaller: true);
     }
 
     /// <summary>What the current flow is doing inside the machine: running a transition, or deciding.</summary>

@@ -80,6 +80,122 @@ Which states belong to a machine is decided by the machine, not the state: a sta
 root, if an included module's transition names it, or if it is an ancestor of one that is. A state whose children
 are all left out of a machine is a leaf in that machine.
 
+## Going back with history
+
+Entering a parent normally continues down its `[Initial]` children. A move can instead ask for the parent's
+**history**: what was active under it when it was last exited. A car radio that comes back on the band it was
+playing:
+
+<!-- snippet: sample-radio-states -->
+<a id='snippet-sample-radio-states'></a>
+```cs
+/// <summary>The radio.</summary>
+public struct Radio : IRootState
+{
+}
+
+/// <summary>Switched off. Where the machine starts.</summary>
+[Initial]
+public struct Off : IState<Radio>
+{
+}
+
+/// <summary>Switched on, playing one band or the other.</summary>
+public struct Playing : IState<Radio>
+{
+}
+
+/// <summary>FM, the band a fresh start plays.</summary>
+[Initial]
+public struct Fm : IState<Playing>
+{
+}
+
+/// <summary>AM.</summary>
+public struct Am : IState<Playing>
+{
+}
+```
+<sup><a href='/samples/StateAlchemist.Samples/Radio/CarRadio.cs#L18-L45' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-radio-states' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample-radio-module -->
+<a id='snippet-sample-radio-module'></a>
+```cs
+/// <summary>The transitions.</summary>
+[Module]
+public static class RadioModule
+{
+    /// <summary>Switching on enters the band that was playing when the radio was switched off.</summary>
+    [Transition(From = typeof(Off), To = typeof(Playing), History = History.Deep), On(Knob.Power)]
+    public static void SwitchOn()
+    {
+    }
+
+    [Transition(From = typeof(Playing), To = typeof(Off)), On(Knob.Power)]
+    public static void SwitchOff()
+    {
+    }
+
+    [Transition(From = typeof(Fm), To = typeof(Am)), On(Knob.Band)]
+    public static void ToAm()
+    {
+    }
+
+    [Transition(From = typeof(Am), To = typeof(Fm)), On(Knob.Band)]
+    public static void ToFm()
+    {
+    }
+
+    /// <summary>Without <c>History</c>, a move into <see cref="Playing"/> enters its <c>[Initial]</c> path.</summary>
+    [Transition(From = typeof(Radio), To = typeof(Playing)), On(Knob.Reset)]
+    public static void Reset()
+    {
+    }
+
+    /// <summary>A control that does not apply where the radio is.</summary>
+    [Transition(From = typeof(Radio)), OnAny]
+    public static void Ignore()
+    {
+    }
+}
+```
+<sup><a href='/samples/StateAlchemist.Samples/Radio/CarRadio.cs#L47-L85' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-radio-module' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+<!-- snippet: sample-radio-run -->
+<a id='snippet-sample-radio-run'></a>
+```cs
+await using var radio = new CarRadio();
+await radio.StartAsync();
+
+await radio.FireAsync(Knob.Power);   // on: FM, Playing's [Initial] child
+await radio.FireAsync(Knob.Band);    // AM
+await radio.FireAsync(Knob.Power);   // off
+await radio.FireAsync(Knob.Power);   // on again, by history: AM
+// radio.State == CarRadio.StateId.Am
+```
+<sup><a href='/tests/StateAlchemist.Generated.Tests/DocumentationExampleTests.cs#L123-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample-radio-run' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+- **`History.Deep`** enters the leaf that was active. **`History.Shallow`** enters the child that was active, then
+  that child's `[Initial]` path.
+- **Before the parent has been exited once**, there is nothing to recall: the move enters the `[Initial]` path.
+- **A move without `History`** enters the `[Initial]` path, whatever was active before. `Reset` above does this.
+- **History restores which state is active, not its data.** Every state the move enters starts reset, as on any
+  entry. Data that should survive belongs in a state above, as [below](#how-long-data-lives).
+- **A move to a parent on the active path** exits it, which records the leaf the machine is in, so it comes back to
+  that same leaf with fresh data.
+- A decision outcome asks for history the same way: `[To(typeof(Playing), History = History.Deep)]`.
+- History needs something to recall: on a stay, on a target with no children, or on the root it is
+  [`SALCH0210`](../reference/diagnostics.md#salch0210).
+- A move by history can write its target and the states above it, but not the states below the target: which of
+  them it enters is known only when it runs ([`SALCH0202`](../reference/diagnostics.md#salch0202)).
+
+The machine keeps one `StateId` per parent that some move enters by history, written when a move exits that parent.
+Recalling it is a `switch`; nothing allocates. `Plan` names the leaf the move would enter now, and the
+[diagrams](../guides/examples.md) draw the move as an arrow to an `H` (shallow) or `H*` (deep) node inside the parent.
+
 ## How long data lives
 
 Entering a state **resets** its data; leaving it **clears** it. So *where data sits in the tree is how long it

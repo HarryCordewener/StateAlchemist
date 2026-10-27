@@ -24,11 +24,12 @@ internal sealed partial class MachineEmitter
             WriteGuard(_model.Transitions[index], leaf);
         }
 
+        WriteArrivals();
         foreach (var (index, leaf) in _transitions)
         {
             var transition = _model.Transitions[index];
-            WriteSteps(TransitionName(index, leaf), TriggerParameter(transition), transition, PathPlanner.Plan(_hierarchy, transition, leaf),
-                transition.Transform, transition.Completed, transition.Kind.ToString(), outcome: null);
+            WriteMove(TransitionName(index, leaf), TriggerParameter(transition), TriggerArgumentName(transition), transition, PathPlanner.Plans(_hierarchy, transition, leaf),
+                transition.Target, transition.History, transition.Transform, transition.Completed, transition.Kind.ToString(), outcome: null);
         }
     }
 
@@ -66,7 +67,7 @@ internal sealed partial class MachineEmitter
     {
         var startedOver = new HashSet<int>(path.Exiting.Intersect(path.Entering));
         var actions = Actions(completed, path);
-        var isAsync = actions.Any(a => a.Method.IsAsync);
+        var isAsync = actions.Any(a => a.Method.IsAsync) || StartsOrStopsChildren(path);
         var skip = actions.Any(a => Implements($"On{a.Phase}Exception"));
         var done = isAsync ? "return;" : $"return default({ValueTaskType});";
         var transformPhase = outcome is null ? "Transform" : "Complete";
@@ -96,20 +97,41 @@ internal sealed partial class MachineEmitter
                 _w.Line($"var old{state} = {Field(state)};");
             }
 
+            var startedOverJoins = JoinsOf(startedOver).ToList();
+            foreach (var join in startedOverJoins)
+            {
+                _w.Line($"var old{JoinField(join)} = {JoinField(join)};");
+            }
+
             // 2. reset the entering states
             foreach (var state in path.Entering)
             {
                 Clear(state);
             }
 
-            // 3. transform: nothing has committed, so a failure puts back what step 2 started over
+            // 3. transform: nothing has committed, so a failure puts back what step 2 started over. The entered states'
+            // timers' delays are read here too, after the transform, so a Delay reads the new data; one that throws is
+            // a transform that throws.
+            var arming = HasTimers ? TimersOn(path.Entering) : [];
+            var statements = new List<string>();
             if (transform is not null)
             {
-                var call = transition.IsRun
+                statements.Add(transition.IsRun
                     ? $"{name}_Run(run);"
-                    : $"{Owner(transform)}({Arguments(transform, Use.Transform, transition, path, startedOver)});";
+                    : $"{Owner(transform)}({Arguments(transform, Use.Transform, transition, path, startedOver)});");
+            }
+
+            foreach (var timer in arming)
+            {
+                _w.Line($"{TimeSpanType} delay{Num(timer.Index)};");
+                statements.Add($"delay{Num(timer.Index)} = Delay{Num(timer.Index)}();");
+            }
+
+            if (statements.Count > 0)
+            {
+                var call = string.Join(" ", statements);
                 var hook = Implements("OnTransformException");
-                if (startedOver.Count == 0 && !hook)
+                if (startedOver.Count == 0 && startedOverJoins.Count == 0 && !hook)
                 {
                     _w.Line(call);
                 }
@@ -121,6 +143,11 @@ internal sealed partial class MachineEmitter
                         foreach (var state in startedOver)
                         {
                             _w.Line($"{Field(state)} = old{state};");
+                        }
+
+                        foreach (var join in startedOverJoins)
+                        {
+                            _w.Line($"{JoinField(join)} = old{JoinField(join)};");
                         }
 
                         if (hook)
@@ -135,13 +162,23 @@ internal sealed partial class MachineEmitter
                 }
             }
 
-            // 4. commit. A move leaves any pending decision's state, which sits below the leaf: the decision ends.
+            // 4. commit. A move leaves any pending decision's state, which sits below the leaf: the decision ends. The
+            // exited states' timers are cancelled and the entered states' armed.
             _w.Line($"_leaf = StateId.{_stateIds[path.TargetLeaf]};");
+            WriteRecording(path);
+            WriteRedeliver(path);
             if (Deciding && path.Exiting.Count > 0)
             {
                 _w.Line("lock (_sync) { if (_pending != null) EndPending(_pending); }");
             }
 
+            var disarming = HasTimers ? TimersOn(path.Exiting) : [];
+            if (arming.Count + disarming.Count > 0)
+            {
+                _w.Line(ArmStatements(arming, disarming, t => $"delay{Num(t.Index)}"));
+            }
+
+            WriteStopping(path);
             var cleared = path.Exiting.Where(s => !startedOver.Contains(s)).ToList();
             if (actions.Count > 0 || cleared.Count > 0)
             {
@@ -168,13 +205,23 @@ internal sealed partial class MachineEmitter
                 }
             }
 
+            WriteStarting(path.Entering);
             if (Telemetry)
             {
                 WriteTransitionCount(transition);
             }
 
             _w.Line($"OnTransitioned({Info(transition, path, "Completed", kind: kind)});");
-            _w.Line(done);
+            _w.Line($"if (_observer != null) Observe({InfoArguments(transition, path, "Completed", kind: kind)});");
+            if (SettleCall(path) is { } settle)
+            {
+                _w.Line(isAsync ? $"await {settle};" : $"return {settle};");
+            }
+
+            if (isAsync || SettleCall(path) is null)
+            {
+                _w.Line(done);
+            }
         }
 
         if (transition.IsRun && transform is not null)
@@ -250,7 +297,11 @@ internal sealed partial class MachineEmitter
         return index < 0 ? int.MaxValue : index;
     }
 
-    private void Clear(int state) => _w.Line(_model.States[state].HasReset ? $"{Field(state)}.Reset();" : $"{Field(state)} = default({S(state)});");
+    private void Clear(int state)
+    {
+        _w.Line(_model.States[state].HasReset ? $"{Field(state)}.Reset();" : $"{Field(state)} = default({S(state)});");
+        ClearJoins(state);
+    }
 
     /// <summary>
     /// The arguments for one method. A state being started over is read from its snapshot — by a transform's
@@ -271,7 +322,7 @@ internal sealed partial class MachineEmitter
             {
                 ParameterKind.State => modifier + StateArgument(parameter, use, startedOver),
                 ParameterKind.Value => "value",
-                ParameterKind.Event => modifier + "e",
+                ParameterKind.Event => modifier + (transition.IsJoin ? JoinArgument(transition, parameter) : "e"),
                 ParameterKind.Run => "run.Span",
                 ParameterKind.RunMemory => "run",
                 ParameterKind.Outcome => "outcome",
@@ -303,21 +354,28 @@ internal sealed partial class MachineEmitter
     };
 
     /// <summary>The <c>TransitionInfo</c> for one phase of a transition fired from <paramref name="path"/>'s leaf.</summary>
-    private string Info(TransitionModel transition, TransitionPath path, string phase, int state = -1, string? kind = null)
+    private string Info(TransitionModel transition, TransitionPath path, string phase, int state = -1, string? kind = null) =>
+        $"new {Rt}TransitionInfo<{V}>({InfoArguments(transition, path, phase, state, kind)})";
+
+    /// <summary>What <see cref="Info"/> passes to the <c>TransitionInfo</c> constructor, and the observer's <c>Observe</c> takes.</summary>
+    private string InfoArguments(TransitionModel transition, TransitionPath path, string phase, int state = -1, string? kind = null)
     {
         var isEvent = transition.Trigger.Kind == MatchKind.Event;
-        return $"new {Rt}TransitionInfo<{V}>({Literal(transition.Name)}, typeof({S(transition.Source)}), typeof({S(path.Leaf)}), typeof({S(path.TargetLeaf)}), " +
-               $"{Rt}TransitionKind.{kind ?? transition.Kind.ToString()}, {Rt}Phase.{phase}, {(isEvent ? $"default({V})" : "value")}, {Bool(!isEvent)}, " +
-               $"{(isEvent ? $"typeof({Event(transition.Trigger.EventType!)})" : "null")}, {(state < 0 ? "null" : $"typeof({S(state)})")})";
+        var isValue = transition.Trigger.IsValue;
+        return $"{Literal(transition.Name)}, typeof({S(transition.Source)}), typeof({S(path.Leaf)}), {TargetType(transition, path, phase)}, " +
+               $"{Rt}TransitionKind.{kind ?? transition.Kind.ToString()}, {Rt}Phase.{phase}, {(isValue ? "value" : $"default({V})")}, {Bool(isValue)}, " +
+               $"{(isEvent ? $"typeof({Event(transition.Trigger.EventType!)})" : "null")}, {(state < 0 ? "null" : $"typeof({S(state)})")}";
     }
 
     /// <summary>The name of <see cref="TriggerParameter"/>'s parameter.</summary>
     private static string TriggerArgumentName(TransitionModel transition) =>
-        transition.Trigger.Kind == MatchKind.Event ? "e" : transition.IsRun ? "run" : "value";
+        transition.IsJoin ? "join" : transition.Trigger.Kind == MatchKind.Event ? "e" : transition.HasNoTriggerArgument ? string.Empty : transition.IsRun ? "run" : "value";
 
     /// <summary>What fires a transition, as its generated methods take it: the value, the event, or a run.</summary>
     private string TriggerParameter(TransitionModel transition, bool forGuard = false) =>
-        transition.Trigger.Kind == MatchKind.Event ? $"{Event(transition.Trigger.EventType!)} e"
+        transition.IsJoin ? $"{JoinType(JoinOf(transition))} join"
+        : transition.Trigger.Kind == MatchKind.Event ? $"{Event(transition.Trigger.EventType!)} e"
+        : transition.HasNoTriggerArgument ? string.Empty
         : transition.IsRun && !forGuard ? $"global::System.ReadOnlyMemory<{V}> run"
         : $"{V} value";
 

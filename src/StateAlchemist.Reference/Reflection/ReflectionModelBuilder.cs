@@ -16,7 +16,7 @@ public static class ReflectionModelBuilder
 {
     private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;
 
-    private static readonly string[] TransitionPhases = ["Guard", "Transform", "Completed", "CompletedAsync"];
+    private static readonly string[] TransitionPhases = ["Guard", "Transform", "Delay", "Completed", "CompletedAsync"];
     private static readonly string[] DecisionPhases = ["Guard", "Decide", "DecideAsync", "Complete", "Completed", "CompletedAsync"];
 
     /// <summary>Builds the model of a <c>[Machine]</c> class.</summary>
@@ -85,6 +85,7 @@ public static class ReflectionModelBuilder
 
             var transitions = new List<TransitionModel>();
             var actions = new List<StateActionModel>();
+            var invokes = new List<InvokeModel>();
             foreach (var declaration in declarations)
             {
                 switch (declaration)
@@ -100,10 +101,14 @@ public static class ReflectionModelBuilder
                         actions.Add(new StateActionModel(action.Phase, stateIndex[action.State], action.Order, action.Module.FullName!, action.DeclarationIndex,
                             MethodModelOf(action.Method, DisplayName(action.Module), stateIndex, [])));
                         break;
+                    case InvokeDeclaration invoke:
+                        invokes.Add(new InvokeModel(stateIndex[invoke.State], MethodModelOf(invoke.Method, DisplayName(invoke.Module), stateIndex, []), invoke.Forward,
+                            ChildValueOf(invoke.Method.ReturnType), invoke.Module.FullName!, invoke.DeclarationIndex));
+                        break;
                 }
             }
 
-            var model = new MachineModel(spec.Name, _options, states, transitions, actions, _diagnostics);
+            var model = new MachineModel(spec.Name, _options, states, transitions, actions, _diagnostics, invokes);
             return new ReflectedMachine(spec, model, _stateTypes, _methods);
         }
 
@@ -126,7 +131,7 @@ public static class ReflectionModelBuilder
                 switch (member)
                 {
                     case MethodInfo method when method.GetCustomAttribute<TransitionAttribute>() is { } attribute:
-                        yield return new TransitionDeclaration(module, method, null, attribute.From, attribute.To, attribute.Order, false, []);
+                        yield return new TransitionDeclaration(module, method, null, attribute.From, attribute.To, attribute.Order, false, [], (HistoryKind)attribute.History);
                         break;
                     case MethodInfo method:
                         foreach (var exited in method.GetCustomAttributes<ExitedAttribute>())
@@ -139,12 +144,17 @@ public static class ReflectionModelBuilder
                             yield return new ActionDeclaration(module, method, ActionPhase.Entered, entered.State, entered.Order, index++);
                         }
 
+                        foreach (var invoke in method.GetCustomAttributes<InvokeAttribute>())
+                        {
+                            yield return new InvokeDeclaration(module, method, invoke.State, invoke.Forward, index++);
+                        }
+
                         break;
                     case Type nested when nested.GetCustomAttribute<TransitionAttribute>() is { } attribute:
-                        yield return new TransitionDeclaration(module, null, nested, attribute.From, attribute.To, attribute.Order, false, []);
+                        yield return new TransitionDeclaration(module, null, nested, attribute.From, attribute.To, attribute.Order, false, [], (HistoryKind)attribute.History);
                         break;
                     case Type nested when nested.GetCustomAttribute<DecisionAttribute>() is { } attribute:
-                        yield return new TransitionDeclaration(module, null, nested, attribute.From, null, attribute.Order, true, attribute.Handle);
+                        yield return new TransitionDeclaration(module, null, nested, attribute.From, null, attribute.Order, true, attribute.Handle, HistoryKind.None);
                         break;
                 }
             }
@@ -181,6 +191,9 @@ public static class ReflectionModelBuilder
                         break;
                     case ActionDeclaration a:
                         pending.Add(a.State);
+                        break;
+                    case InvokeDeclaration i:
+                        pending.Add(i.State);
                         break;
                 }
             }
@@ -227,7 +240,28 @@ public static class ReflectionModelBuilder
                 HasReset: reset is not null && reset.ReturnType == typeof(void),
                 IsPublicStruct: type.IsValueType && !type.IsEnum && IsVisible(type),
                 ParentMarkers: markers,
-                SourceSpan.None);
+                SourceSpan.None,
+                IsFinal: type.GetCustomAttribute<FinalAttribute>() is not null,
+                Deferred: Deferred(type));
+        }
+
+        /// <summary>The event types a state defers; a type that is not an event is reported instead.</summary>
+        private List<string>? Deferred(Type type)
+        {
+            var deferred = new List<string>();
+            foreach (var attribute in type.GetCustomAttributes<DeferAttribute>())
+            {
+                if (typeof(IEvent).IsAssignableFrom(attribute.EventType))
+                {
+                    deferred.Add(attribute.EventType.FullName!);
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidDefer, SourceSpan.None, type.Name, attribute.EventType.Name, "it is not an event type"));
+                }
+            }
+
+            return deferred.Count == 0 ? null : deferred;
         }
 
         private IEnumerable<TransitionModel> TransitionModels(TransitionDeclaration declaration, IReadOnlyDictionary<Type, int> stateIndex)
@@ -240,7 +274,8 @@ public static class ReflectionModelBuilder
                 yield break;
             }
 
-            var triggers = Triggers(member, name);
+            var hasDelay = declaration.Class?.GetMethods(Declared).Any(m => m.Name == "Delay") == true;
+            var triggers = Triggers(member, name, declaration.IsDecision, hasDelay, out var join);
             if (triggers.Count == 0)
             {
                 yield break;
@@ -266,7 +301,8 @@ public static class ReflectionModelBuilder
             {
                 var completions = declaration.Class!.GetMethods(Declared).Where(m => m.Name == "Complete").OrderBy(m => m.MetadataToken).Select(m =>
                 {
-                    var target = m.GetCustomAttribute<ToAttribute>()?.Target;
+                    var to = m.GetCustomAttribute<ToAttribute>();
+                    var target = to?.Target;
                     var complete = MethodModelOf(m, declaringType, stateIndex, outcomes);
                     if (target is null)
                     {
@@ -274,7 +310,7 @@ public static class ReflectionModelBuilder
                     }
 
                     var outcome = m.GetParameters().Select(p => p.ParameterType).FirstOrDefault(t => outcomes.Contains(t.FullName!))?.FullName ?? string.Empty;
-                    return new OutcomeCompletion(outcome, target is null ? -1 : stateIndex[target], complete);
+                    return new OutcomeCompletion(outcome, target is null ? -1 : stateIndex[target], complete, (HistoryKind)(to?.History ?? History.None));
                 }).Where(c => c.Target >= 0).ToList();
                 decision = new DecisionModel(Phase("Decide"), Phase("DecideAsync"), outcomes, completions, declaration.Handle.Select(h => h.FullName!).ToList());
             }
@@ -285,12 +321,14 @@ public static class ReflectionModelBuilder
             foreach (var trigger in triggers)
             {
                 yield return new TransitionModel(0, name, source, target, trigger, declaration.Order, isRun, Phase("Guard"), transform,
-                    Phases("Completed", "CompletedAsync"), decision, unknown, declaration.Module.FullName!, SourceSpan.None);
+                    Phases("Completed", "CompletedAsync"), decision, unknown, declaration.Module.FullName!, SourceSpan.None, join, declaration.History,
+                    declaration.IsDecision ? null : Phase("Delay"));
             }
         }
 
-        private List<TriggerModel> Triggers(MemberInfo member, string name)
+        private List<TriggerModel> Triggers(MemberInfo member, string name, bool isDecision, bool hasDelay, out JoinModel? join)
         {
+            join = null;
             var triggers = new List<TriggerModel>();
             foreach (var on in member.GetCustomAttributes<OnAttribute>())
             {
@@ -335,6 +373,77 @@ public static class ReflectionModelBuilder
             if (onEvent is not null)
             {
                 triggers.Add(TriggerModel.Event(onEvent.EventType.FullName!));
+            }
+
+            if (member.GetCustomAttribute<OnAllAttribute>() is { } onAll)
+            {
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, "mixes [OnAll] with other triggers"));
+                    return [];
+                }
+
+                var listed = onAll.EventTypes ?? [];
+                if (JoinModel.Problem(listed.Length, listed.Any(t => t is null), listed.Where(t => t is not null).Select(t => t.FullName!).ToList()) is { } problem)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, problem));
+                    return [];
+                }
+
+                var events = listed.Select(t => t.FullName!).ToList();
+                join = new JoinModel(events);
+                triggers.AddRange(events.Select(TriggerModel.Event));
+            }
+
+            if (member.GetCustomAttribute<AfterAttribute>() is { } after)
+            {
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, "mixes [After] with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, "is a decision, which cannot fire on [After]"));
+                    return [];
+                }
+
+                if (Timers.Trigger(name, after.Milliseconds, after.Seconds, hasDelay, out var problem) is { } timer)
+                {
+                    triggers.Add(timer);
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, problem!));
+                    return [];
+                }
+            }
+
+            foreach (var (present, trigger, text) in new[]
+                     {
+                         (member.GetCustomAttribute<AlwaysAttribute>() is not null, TriggerModel.Always, "[Always]"),
+                         (member.GetCustomAttribute<OnDoneAttribute>() is not null, TriggerModel.Done, "[OnDone]"),
+                     })
+            {
+                if (!present)
+                {
+                    continue;
+                }
+
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, $"mixes {text} with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, SourceSpan.None, name, $"is a decision, which cannot fire on {text}"));
+                    return [];
+                }
+
+                triggers.Add(trigger);
             }
 
             if (triggers.Count == 0)
@@ -447,6 +556,7 @@ public static class ReflectionModelBuilder
             _ when type == typeof(bool) => ReturnShape.Bool,
             _ when type == typeof(ValueTask) => ReturnShape.ValueTask,
             _ when type == typeof(Task) => ReturnShape.Task,
+            _ when type == typeof(TimeSpan) => ReturnShape.TimeSpan,
             { IsGenericType: true } when type.GetGenericTypeDefinition() == typeof(ValueTask<>) => ReturnShape.ValueTaskOfResult,
             { IsGenericType: true } when type.GetGenericTypeDefinition() == typeof(Task<>) => ReturnShape.TaskOfResult,
             _ => ReturnShape.Other,
@@ -461,7 +571,19 @@ public static class ReflectionModelBuilder
             : type.FullName ?? type.Name;
     }
 
-    private sealed record TransitionDeclaration(Type Module, MethodInfo? Method, Type? Class, Type? From, Type? To, int Order, bool IsDecision, Type[] Handle);
+    private sealed record TransitionDeclaration(Type Module, MethodInfo? Method, Type? Class, Type? From, Type? To, int Order, bool IsDecision, Type[] Handle, HistoryKind History);
 
     private sealed record ActionDeclaration(Type Module, MethodInfo Method, ActionPhase Phase, Type State, int Order, int DeclarationIndex);
+
+    private sealed record InvokeDeclaration(Type Module, MethodInfo Method, Type State, bool Forward, int DeclarationIndex);
+
+    /// <summary>The <c>TValue</c> of the <c>IStatechart&lt;TValue&gt;</c> a type is or implements, or null.</summary>
+    internal static Type? ChildValueTypeOf(Type type)
+    {
+        static bool IsStatechart(Type t) => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IStatechart<>);
+        var statechart = IsStatechart(type) ? type : type.GetInterfaces().FirstOrDefault(IsStatechart);
+        return statechart?.GetGenericArguments()[0];
+    }
+
+    private static string? ChildValueOf(Type type) => ChildValueTypeOf(type)?.FullName;
 }

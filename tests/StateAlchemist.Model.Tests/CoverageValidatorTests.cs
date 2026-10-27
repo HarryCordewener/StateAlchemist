@@ -29,4 +29,22 @@ public class CoverageValidatorTests
         var built = model.Build();
         await Assert.That(CoverageValidator.Validate(built, new Hierarchy(built.States)).Describe()).IsEqualTo("");
     }
+
+    [Test]
+    public async Task ARootFinalLeafAndALeafThatForwardsAreNotChecked()
+    {
+        var model = new TestModel();
+        var root = model.Root();
+        var idle = model.State("Idle", root, initial: true);
+        var busy = model.State("Busy", root);
+        var other = model.State("Other", root);
+        var done = model.State("Done", root);
+        model.Final(done);
+        model.Add("All", idle, -1, TriggerModel.Any);
+        model.InvokeForwarding(busy, "System.Byte");
+        model.InvokeForwarding(other, "System.Int32");
+        var built = model.Build();
+        await Assert.That(CoverageValidator.Validate(built, new Hierarchy(built.States)).Describe())
+            .IsEqualTo("SALCH0501: Leaf 'Other' leaves 256 values unhandled and no [OnAny] covers them");
+    }
 }

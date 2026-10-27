@@ -34,6 +34,11 @@ internal sealed class KnownTypes(Compilation compilation)
 
     public INamedTypeSymbol? OnEvent { get; } = compilation.GetTypeByMetadataName("StateAlchemist.OnEventAttribute");
 
+    public INamedTypeSymbol? After { get; } = compilation.GetTypeByMetadataName("StateAlchemist.AfterAttribute");
+
+    public INamedTypeSymbol? TimeSpan { get; } = compilation.GetTypeByMetadataName("System.TimeSpan");
+    public INamedTypeSymbol? OnAll { get; } = compilation.GetTypeByMetadataName("StateAlchemist.OnAllAttribute");
+
     public INamedTypeSymbol? Run { get; } = compilation.GetTypeByMetadataName("StateAlchemist.RunAttribute");
 
     public INamedTypeSymbol? To { get; } = compilation.GetTypeByMetadataName("StateAlchemist.ToAttribute");
@@ -43,6 +48,18 @@ internal sealed class KnownTypes(Compilation compilation)
     public INamedTypeSymbol? Entered { get; } = compilation.GetTypeByMetadataName("StateAlchemist.EnteredAttribute");
 
     public INamedTypeSymbol? Initial { get; } = compilation.GetTypeByMetadataName("StateAlchemist.InitialAttribute");
+
+    public INamedTypeSymbol? Final { get; } = compilation.GetTypeByMetadataName("StateAlchemist.FinalAttribute");
+
+    public INamedTypeSymbol? Defer { get; } = compilation.GetTypeByMetadataName("StateAlchemist.DeferAttribute");
+
+    public INamedTypeSymbol? Always { get; } = compilation.GetTypeByMetadataName("StateAlchemist.AlwaysAttribute");
+
+    public INamedTypeSymbol? OnDone { get; } = compilation.GetTypeByMetadataName("StateAlchemist.OnDoneAttribute");
+
+    public INamedTypeSymbol? Internal { get; } = compilation.GetTypeByMetadataName("StateAlchemist.InternalAttribute");
+
+    public INamedTypeSymbol? Invoke { get; } = compilation.GetTypeByMetadataName("StateAlchemist.InvokeAttribute");
 
     public INamedTypeSymbol? RootState { get; } = compilation.GetTypeByMetadataName("StateAlchemist.IRootState");
 

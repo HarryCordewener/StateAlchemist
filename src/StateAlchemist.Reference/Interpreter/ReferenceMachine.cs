@@ -19,7 +19,7 @@ namespace StateAlchemist.Reference;
 /// what a half-run transform left behind.
 /// </remarks>
 /// <typeparam name="TValue">The value-trigger type.</typeparam>
-public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
+public sealed partial class ReferenceMachine<TValue> : IStatechart<TValue>
     where TValue : struct
 {
     private readonly ReflectedMachine _machine;
@@ -27,6 +27,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     private readonly Hierarchy _hierarchy;
     private readonly Resolver _resolver;
     private readonly object?[] _slots;
+
+    // Each join's arrivals, by its name: the payload recorded for each listed event, or null before it arrives.
+    private readonly Dictionary<string, object?[]> _joins = [];
     private readonly object? _context;
     private readonly object? _config;
     private readonly ReferenceHooks<TValue> _hooks;
@@ -37,7 +40,10 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     private readonly Lazy<MachineDefinition> _definition;
     private int _leaf;
 
-    private ReferenceMachine(ReflectedMachine machine, object? context, object? config, ReferenceHooks<TValue>? hooks)
+    /// <summary>For each state, the leaf that was active when it was last exited; −1 until it has been.</summary>
+    private readonly int[] _recorded;
+
+    private ReferenceMachine(ReflectedMachine machine, object? context, object? config, ReferenceHooks<TValue>? hooks, TimeProvider? time)
     {
         _machine = machine;
         _model = machine.Model;
@@ -48,12 +54,22 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
         _hooks = hooks ?? new ReferenceHooks<TValue>();
         _slots = machine.StateTypes.Select(t => Activator.CreateInstance(t)).ToArray();
         _leaf = _hierarchy.InitialLeaf(_hierarchy.Root);
+        _recorded = Enumerable.Repeat(-1, _model.States.Count).ToArray();
         _definition = new Lazy<MachineDefinition>(() => DefinitionBuilder.Build(machine));
+        _time = time ?? TimeProvider.System;
+        _timers = Timers.Of(_model);
+        _armed = new Armed?[_timers.Count];
+        _pausedLeft = new TimeSpan?[_timers.Count];
     }
 
     /// <summary>Interprets <paramref name="machine"/>.</summary>
+    /// <param name="machine">The machine.</param>
+    /// <param name="context">Its context.</param>
+    /// <param name="config">Its configuration.</param>
+    /// <param name="hooks">Its hooks.</param>
+    /// <param name="time">The clock its <c>[After]</c> timers run on; the system clock when <see langword="null"/>.</param>
     /// <exception cref="InvalidMachineException">The machine has errors.</exception>
-    public static ReferenceMachine<TValue> Create(ReflectedMachine machine, object? context = null, object? config = null, ReferenceHooks<TValue>? hooks = null)
+    public static ReferenceMachine<TValue> Create(ReflectedMachine machine, object? context = null, object? config = null, ReferenceHooks<TValue>? hooks = null, TimeProvider? time = null)
     {
         if (machine.Spec.Value != typeof(TValue))
         {
@@ -66,7 +82,7 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
             throw new InvalidMachineException(machine.Model.Name, errors);
         }
 
-        return new ReferenceMachine<TValue>(machine, context, config, hooks);
+        return new ReferenceMachine<TValue>(machine, context, config, hooks, time);
     }
 
     /// <inheritdoc/>
@@ -105,21 +121,128 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
             throw new InvalidOperationException("The machine has already been started.");
         }
 
-        await RunLifecycleAsync(ActionPhase.Entered, _hierarchy.PathFromRoot(_leaf));
-        Status = MachineStatus.Running;
+        var path = _hierarchy.PathFromRoot(_leaf);
+        await RunLifecycleAsync(ActionPhase.Entered, path);
+        var delays = Delays(path);
+        lock (_sync)
+        {
+            Status = MachineStatus.Running;
+            Rearm([], delays);
+            _pumping = true;
+        }
+
+        // The pump is held while the start's children start and its eventless transitions run: what arrives meanwhile,
+        // a child's completion included, waits its turn.
+        _inside.Value = Inside.Transition;
+        try
+        {
+            await StartChildrenAsync(path);
+            await SettleAsync(entered: true);
+        }
+        finally
+        {
+            _inside.Value = null;
+            lock (_sync)
+            {
+                _pumping = false;
+            }
+        }
+
+        await PumpAsync();
+    }
+
+    /// <inheritdoc/>
+    public ValueTask StartAsync<TState>()
+        where TState : struct
+    {
+        var state = IndexOf(typeof(TState));
+        if (state < 0)
+        {
+            throw new ArgumentException($"'{typeof(TState).Name}' is not a state of this machine.", nameof(TState));
+        }
+
+        if (Status != MachineStatus.NotStarted)
+        {
+            throw new InvalidOperationException("The machine has already been started or restored.");
+        }
+
+        _leaf = _hierarchy.InitialLeaf(state);
+        return StartAsync();
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<TriggerDefinition> PermittedTriggers()
+    {
+        var permitted = new List<TriggerDefinition>();
+        foreach (var value in _model.Options.Domain.Values)
+        {
+            var typed = FromInt64(value);
+            if (Choose(_resolver.ForValue(_leaf, value), Trigger.OfValue(typed), hooks: false) is not null)
+            {
+                Permit(permitted, value);
+            }
+        }
+
+        var events = _model.Transitions.Where(t => t.Trigger.Kind == MatchKind.Event).Select(t => t.Trigger.EventType!).Distinct().OrderBy(e => e, StringComparer.Ordinal);
+        foreach (var eventType in events)
+        {
+            var candidates = _resolver.ForEvent(_leaf, eventType);
+            if (candidates.Count == 0 || DefinitionBuilder.FindType(eventType).IsDefined(typeof(InternalAttribute), inherit: false))
+            {
+                continue;
+            }
+
+            // A guard that reads the event, or the transition info that names it, cannot be asked without a payload.
+            var unknowable = candidates.TakeWhile(c => c.Guard is not null)
+                .Any(c => c.Guard!.Parameters.Any(p => p.Kind is ParameterKind.Event or ParameterKind.TransitionInfo));
+            if (unknowable || Choose(candidates, Trigger.OfEvent(PermitProbe.Instance), hooks: false) is not null)
+            {
+                permitted.Add(TriggerDefinition.ForEvent(DefinitionBuilder.FindType(eventType)));
+            }
+        }
+
+        return permitted;
+    }
+
+    private static void Permit(List<TriggerDefinition> permitted, long value)
+    {
+        if (permitted.Count > 0 && permitted[^1] is { Kind: TriggerKind.Value or TriggerKind.Range } last && last.High == value - 1)
+        {
+            permitted[^1] = TriggerDefinition.ForRange(last.Low, value);
+            return;
+        }
+
+        permitted.Add(TriggerDefinition.ForValue(value));
+    }
+
+    private static TValue FromInt64(long value) =>
+        typeof(TValue).IsEnum ? (TValue)Enum.ToObject(typeof(TValue), value) : (TValue)Convert.ChangeType(value, typeof(TValue), System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Stands in for an event's payload when its guards do not read it.</summary>
+    private sealed class PermitProbe
+    {
+        public static readonly PermitProbe Instance = new();
     }
 
     /// <inheritdoc/>
     public async ValueTask StopAsync()
     {
-        if (Status != MachineStatus.Running)
+        if (Status is MachineStatus.NotStarted or MachineStatus.Stopped)
         {
             Status = MachineStatus.Stopped;
+            _completion.TrySetResult(true);
             return;
         }
 
         Abandon();
+        _completion.TrySetResult(true);
         _lifetime.Cancel();
+        foreach (var state in _hierarchy.PathFromRoot(_leaf))
+        {
+            _recorded[state] = _leaf;
+        }
+
+        await StopAllChildrenAsync();
         await RunLifecycleAsync(ActionPhase.Exited, _hierarchy.PathFromRoot(_leaf).Reverse().ToList());
     }
 
@@ -143,7 +266,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     /// <inheritdoc/>
     public ValueTask FireAsync<TEvent>(TEvent e)
         where TEvent : struct, IEvent =>
-        SubmitAsync(Work.ForEvent(e));
+        typeof(TEvent).IsDefined(typeof(InternalAttribute), inherit: false)
+            ? ValueTask.FromException(new InvalidOperationException($"'{typeof(TEvent).Name}' is [Internal]: raise it with Enqueue from inside the machine."))
+            : SubmitAsync(Work.ForEvent(e));
 
     /// <inheritdoc/>
     public void Enqueue<TEvent>(TEvent e)
@@ -202,7 +327,7 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
     /// <inheritdoc/>
     public TransitionPlan Plan<TEvent>(TEvent e)
         where TEvent : struct, IEvent =>
-        PlanFor(_resolver.ForEvent(_leaf, typeof(TEvent).FullName!), Trigger.OfEvent(e));
+        PlanFor(_resolver.ForEvent(_leaf, typeof(TEvent).FullName!, out var deferred), Trigger.OfEvent(e), deferred);
 
     private async ValueTask RunLifecycleAsync(ActionPhase phase, IReadOnlyList<int> states)
     {
@@ -221,7 +346,9 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
         }
     }
 
-    private IReadOnlyList<TransitionModel> Candidates(Trigger trigger) => trigger.HasValue
+    private IReadOnlyList<TransitionModel> Candidates(Trigger trigger) => trigger.Timer is { } timer
+        ? timer.Candidates
+        : trigger.HasValue
         ? _resolver.ForValue(_leaf, ToInt64(trigger.Value))
         : _resolver.ForEvent(_leaf, trigger.Event!.GetType().FullName!);
 
@@ -240,15 +367,20 @@ public sealed partial class ReferenceMachine<TValue> : IBoundaryMachine<TValue>
 
     private static long ToInt64(TValue value) => Convert.ToInt64(value);
 
-    /// <summary>What fired: a value (with the run it starts, one value long unless a run transition takes more) or an event.</summary>
-    private readonly record struct Trigger(TValue Value, bool HasValue, ReadOnlyMemory<TValue> Run, object? Event)
+    /// <summary>What fired: a value (with the run it starts, one value long unless a run transition takes more), an event, or a timer.</summary>
+    private readonly record struct Trigger(TValue Value, bool HasValue, ReadOnlyMemory<TValue> Run, object? Event, TimerModel? Timer = null)
     {
+        public static Trigger OfTimer(TimerModel timer) => new(default, false, default, null, timer);
+
+        /// <summary>For a join that fired, the payload recorded for each of its events, by the join's order.</summary>
+        public object?[]? Joined { get; init; }
+
         public static Trigger OfValue(TValue value) => new(value, true, new[] { value }, null);
 
         public static Trigger OfRun(ReadOnlyMemory<TValue> run) => new(run.Span[0], true, run, null);
 
         public static Trigger OfEvent(object e) => new(default, false, default, e);
 
-        public override string ToString() => HasValue ? Value.ToString()! : "event " + Event!.GetType().Name;
+        public override string ToString() => HasValue ? Value.ToString()! : Timer is { } timer ? timer.Trigger.ToString() : "event " + Event!.GetType().Name;
     }
 }

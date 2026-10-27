@@ -13,7 +13,7 @@ namespace StateAlchemist.Generators;
 /// </summary>
 internal static class SymbolModelBuilder
 {
-    private static readonly string[] TransitionPhases = ["Guard", "Transform", "Completed", "CompletedAsync"];
+    private static readonly string[] TransitionPhases = ["Guard", "Transform", "Delay", "Completed", "CompletedAsync"];
     private static readonly string[] DecisionPhases = ["Guard", "Decide", "DecideAsync", "Complete", "Completed", "CompletedAsync"];
 
     /// <summary>Builds the model of <paramref name="machine"/>. Problems become diagnostics; nothing throws for a bad declaration.</summary>
@@ -140,6 +140,7 @@ internal static class SymbolModelBuilder
             var states = _stateTypes.Select((type, index) => StateModelOf(type, index, stateIndex)).ToList();
             var transitions = new List<TransitionModel>();
             var actions = new List<StateActionModel>();
+            var invokes = new List<InvokeModel>();
             foreach (var declaration in declarations)
             {
                 switch (declaration)
@@ -155,6 +156,10 @@ internal static class SymbolModelBuilder
                         actions.Add(new StateActionModel(action.Phase, stateIndex[action.State], action.Order, MetadataName(action.Module), action.DeclarationIndex,
                             MethodModelOf(action.Method, DisplayName(action.Module), stateIndex, [])));
                         break;
+                    case InvokeDeclaration invoke:
+                        invokes.Add(new InvokeModel(stateIndex[invoke.State], MethodModelOf(invoke.Method, DisplayName(invoke.Module), stateIndex, []), invoke.Forward,
+                            ChildValueOf(invoke.Method.ReturnType), MetadataName(invoke.Module), invoke.DeclarationIndex));
+                        break;
                 }
             }
 
@@ -164,7 +169,7 @@ internal static class SymbolModelBuilder
                 Event(failed);
             }
 
-            var model = new MachineModel(machine.Name, _options, states, transitions, actions, _diagnostics);
+            var model = new MachineModel(machine.Name, _options, states, transitions, actions, _diagnostics, invokes);
             return new SymbolMachine(machine, model, _stateTypes, _methods, _events, _value, _context, _config, _locations, machineLocation,
                 modules.Select(m => MetadataName(m)).ToList(), _telemetry);
         }
@@ -241,13 +246,13 @@ internal static class SymbolModelBuilder
                 if (nested.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.Transition)) is { } transition)
                 {
                     yield return new TransitionDeclaration(module, null, nested, TypeArgument(transition, "From"), TypeArgument(transition, "To"),
-                        IntArgument(transition, "Order"), false, []);
+                        IntArgument(transition, "Order"), false, [], (HistoryKind)IntArgument(transition, "History"));
                 }
                 else if (nested.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.Decision)) is { } decision)
                 {
                     var handle = decision.NamedArguments.FirstOrDefault(a => a.Key == "Handle").Value;
                     var events = handle.Kind == TypedConstantKind.Array ? handle.Values.Select(v => v.Value).OfType<INamedTypeSymbol>().ToArray() : [];
-                    yield return new TransitionDeclaration(module, null, nested, TypeArgument(decision, "From"), null, IntArgument(decision, "Order"), true, events);
+                    yield return new TransitionDeclaration(module, null, nested, TypeArgument(decision, "From"), null, IntArgument(decision, "Order"), true, events, HistoryKind.None);
                 }
             }
 
@@ -257,7 +262,7 @@ internal static class SymbolModelBuilder
                 if (method.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.Transition)) is { } transition)
                 {
                     yield return new TransitionDeclaration(module, method, null, TypeArgument(transition, "From"), TypeArgument(transition, "To"),
-                        IntArgument(transition, "Order"), false, []);
+                        IntArgument(transition, "Order"), false, [], (HistoryKind)IntArgument(transition, "History"));
                     continue;
                 }
 
@@ -274,6 +279,15 @@ internal static class SymbolModelBuilder
                     if (FirstArgument(entered) is INamedTypeSymbol state)
                     {
                         yield return new ActionDeclaration(module, method, ActionPhase.Entered, state, IntArgument(entered, "Order"), index++);
+                    }
+                }
+
+                foreach (var invoke in method.GetAttributes().Where(a => Is(a.AttributeClass, known.Invoke)))
+                {
+                    if (FirstArgument(invoke) is INamedTypeSymbol state)
+                    {
+                        var forward = invoke.NamedArguments.FirstOrDefault(a => a.Key == "Forward").Value.Value is true;
+                        yield return new InvokeDeclaration(module, method, state, forward, index++);
                     }
                 }
             }
@@ -312,6 +326,9 @@ internal static class SymbolModelBuilder
                         break;
                     case ActionDeclaration a:
                         pending.Add(a.State);
+                        break;
+                    case InvokeDeclaration i:
+                        pending.Add(i.State);
                         break;
                 }
             }
@@ -361,7 +378,28 @@ internal static class SymbolModelBuilder
                 HasReset: reset,
                 IsPublicStruct: type.TypeKind == TypeKind.Struct && IsVisible(type),
                 ParentMarkers: markers,
-                location);
+                location,
+                IsFinal: type.GetAttributes().Any(a => Is(a.AttributeClass, known.Final)),
+                Deferred: Deferred(type));
+        }
+
+        /// <summary>The event types a state defers. A <c>[Defer]</c> naming something that is not an event is reported by the validator.</summary>
+        private IReadOnlyList<string>? Deferred(INamedTypeSymbol type)
+        {
+            var deferred = new List<string>();
+            foreach (var e in type.GetAttributes().Where(a => Is(a.AttributeClass, known.Defer)).Select(FirstArgument).OfType<INamedTypeSymbol>())
+            {
+                if (e.AllInterfaces.Any(i => Is(i, known.Event)))
+                {
+                    deferred.Add(Event(e));
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidDefer, Span(type.Locations.FirstOrDefault()), type.Name, e.Name, "it is not an event type"));
+                }
+            }
+
+            return deferred.Count == 0 ? null : deferred;
         }
 
         private IEnumerable<TransitionModel> TransitionModels(TransitionDeclaration declaration, IReadOnlyDictionary<ITypeSymbol, int> stateIndex)
@@ -375,7 +413,8 @@ internal static class SymbolModelBuilder
                 yield break;
             }
 
-            var triggers = Triggers(member, name, location);
+            var classMethods = declaration.Class?.GetMembers().OfType<IMethodSymbol>().Where(m => m.MethodKind == MethodKind.Ordinary).ToList() ?? [];
+            var triggers = Triggers(member, name, location, declaration.IsDecision, classMethods.Any(m => m.Name == "Delay"), out var join);
             if (triggers.Count == 0)
             {
                 yield break;
@@ -383,7 +422,6 @@ internal static class SymbolModelBuilder
 
             var declaringType = declaration.Class is null ? DisplayName(declaration.Module) : DisplayName(declaration.Class);
             var outcomes = declaration.IsDecision ? OutcomesOf(declaration.Class!) : [];
-            var classMethods = declaration.Class?.GetMembers().OfType<IMethodSymbol>().Where(m => m.MethodKind == MethodKind.Ordinary).ToList() ?? [];
             MethodModel? Phase(string phase) => classMethods.FirstOrDefault(m => m.Name == phase) is { } method
                 ? MethodModelOf(method, declaringType, stateIndex, outcomes)
                 : null;
@@ -403,7 +441,8 @@ internal static class SymbolModelBuilder
             {
                 var completions = classMethods.Where(m => m.Name == "Complete").Select(m =>
                 {
-                    var target = FirstArgument(m.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.To))) as INamedTypeSymbol;
+                    var to = m.GetAttributes().FirstOrDefault(a => Is(a.AttributeClass, known.To));
+                    var target = FirstArgument(to) as INamedTypeSymbol;
                     var complete = MethodModelOf(m, declaringType, stateIndex, outcomes);
                     if (target is null)
                     {
@@ -411,7 +450,7 @@ internal static class SymbolModelBuilder
                     }
 
                     var outcome = m.Parameters.Select(p => MetadataName(p.Type)).FirstOrDefault(outcomes.Contains) ?? string.Empty;
-                    return new OutcomeCompletion(outcome, target is null ? -1 : stateIndex[target], complete);
+                    return new OutcomeCompletion(outcome, target is null ? -1 : stateIndex[target], complete, to is null ? HistoryKind.None : (HistoryKind)IntArgument(to, "History"));
                 }).Where(c => c.Target >= 0).ToList();
                 decision = new DecisionModel(Phase("Decide"), Phase("DecideAsync"), outcomes, completions, declaration.Handle.Select(h => Event(h)).ToList());
             }
@@ -422,12 +461,14 @@ internal static class SymbolModelBuilder
             foreach (var trigger in triggers)
             {
                 yield return new TransitionModel(0, name, source, target, trigger, declaration.Order, isRun, Phase("Guard"), transform,
-                    Phases("Completed", "CompletedAsync"), decision, unknown, MetadataName(declaration.Module), location);
+                    Phases("Completed", "CompletedAsync"), decision, unknown, MetadataName(declaration.Module), location, join, declaration.History,
+                    declaration.IsDecision ? null : Phase("Delay"));
             }
         }
 
-        private List<TriggerModel> Triggers(ISymbol member, string name, SourceSpan location)
+        private List<TriggerModel> Triggers(ISymbol member, string name, SourceSpan location, bool isDecision, bool hasDelay, out JoinModel? join)
         {
+            join = null;
             var triggers = new List<TriggerModel>();
             var attributes = member.GetAttributes();
             foreach (var on in attributes.Where(a => Is(a.AttributeClass, known.On)))
@@ -484,6 +525,76 @@ internal static class SymbolModelBuilder
             if (FirstArgument(onEvent) is INamedTypeSymbol eventType)
             {
                 triggers.Add(TriggerModel.Event(Event(eventType)));
+            }
+
+            var onAll = attributes.FirstOrDefault(a => Is(a.AttributeClass, known.OnAll));
+            if (onAll is not null)
+            {
+                if (triggers.Count > 0)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "mixes [OnAll] with other triggers"));
+                    return [];
+                }
+
+                var listed = onAll.ConstructorArguments.Length == 1 && onAll.ConstructorArguments[0].Kind == TypedConstantKind.Array
+                    ? onAll.ConstructorArguments[0].Values.Select(v => v.Value as INamedTypeSymbol).ToList()
+                    : [];
+                if (JoinModel.Problem(listed.Count, listed.Any(t => t is null), listed.Where(t => t is not null).Select(t => MetadataName(t!)).ToList()) is { } problem)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, problem));
+                    return [];
+                }
+
+                var events = listed.Select(t => Event(t!)).ToList();
+                join = new JoinModel(events);
+                triggers.AddRange(events.Select(TriggerModel.Event));
+            }
+
+            if (attributes.FirstOrDefault(a => Is(a.AttributeClass, known.After)) is { } after)
+            {
+                if (triggers.Count > 0 || onEvent is not null)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "mixes [After] with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, "is a decision, which cannot fire on [After]"));
+                    return [];
+                }
+
+                if (Timers.Trigger(name, IntArgument(after, "Milliseconds"), IntArgument(after, "Seconds"), hasDelay, out var problem) is { } timer)
+                {
+                    triggers.Add(timer);
+                }
+                else
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, problem!));
+                    return [];
+                }
+            }
+
+            foreach (var (attribute, trigger, text) in new[] { (known.Always, TriggerModel.Always, "[Always]"), (known.OnDone, TriggerModel.Done, "[OnDone]") })
+            {
+                if (!attributes.Any(a => Is(a.AttributeClass, attribute)))
+                {
+                    continue;
+                }
+
+                if (triggers.Count > 0 || onEvent is not null)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, $"mixes {text} with another trigger"));
+                    return [];
+                }
+
+                if (isDecision)
+                {
+                    _diagnostics.Add(new(DiagnosticCatalog.InvalidTransition, location, name, $"is a decision, which cannot fire on {text}"));
+                    return [];
+                }
+
+                triggers.Add(trigger);
             }
 
             if (triggers.Count == 0)
@@ -633,6 +744,8 @@ internal static class SymbolModelBuilder
         private static INamedTypeSymbol? TypeArgument(AttributeData attribute, string name) =>
             attribute.NamedArguments.FirstOrDefault(a => a.Key == name).Value.Value as INamedTypeSymbol;
 
+        private static string? ChildValueOf(ITypeSymbol type) => ChildValueSymbol(type) is { } value ? MetadataName(value) : null;
+
         private static int IntArgument(AttributeData attribute, string name) =>
             attribute.NamedArguments.FirstOrDefault(a => a.Key == name).Value.Value is int value ? value : 0;
 
@@ -650,6 +763,7 @@ internal static class SymbolModelBuilder
             _ when type.SpecialType == SpecialType.System_Boolean => ReturnShape.Bool,
             _ when Is(type, known.ValueTask) => ReturnShape.ValueTask,
             _ when Is(type, known.Task) => ReturnShape.Task,
+            _ when Is(type, known.TimeSpan) => ReturnShape.TimeSpan,
             INamedTypeSymbol { IsGenericType: true } g when Is(g.OriginalDefinition, known.ValueTaskOfT) => ReturnShape.ValueTaskOfResult,
             INamedTypeSymbol { IsGenericType: true } g when Is(g.OriginalDefinition, known.TaskOfT) => ReturnShape.TaskOfResult,
             _ => ReturnShape.Other,
@@ -677,12 +791,34 @@ internal static class SymbolModelBuilder
         }
     }
 
+    /// <summary>
+    /// The <c>TValue</c> of the <c>IStatechart&lt;TValue&gt;</c> a type is or implements, or null. A <c>[Machine]</c>
+    /// class in this compilation implements it in the part the generator writes, which a generator cannot see, so its
+    /// attribute's <c>Value</c> stands in.
+    /// </summary>
+    internal static ITypeSymbol? ChildValueSymbol(ITypeSymbol type)
+    {
+        static bool IsStatechart(INamedTypeSymbol t) =>
+            t.OriginalDefinition.MetadataName == "IStatechart`1" && t.ContainingNamespace.ToDisplayString() == "StateAlchemist";
+
+        var statechart = type is INamedTypeSymbol named && IsStatechart(named) ? named : type.AllInterfaces.FirstOrDefault(IsStatechart);
+        if (statechart is not null)
+        {
+            return statechart.TypeArguments[0];
+        }
+
+        var machine = type.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "StateAlchemist.MachineAttribute");
+        return machine?.NamedArguments.FirstOrDefault(a => a.Key == "Value").Value.Value as ITypeSymbol;
+    }
+
     /// <summary>A parameter type's name as the reference front-end records it: generic types written out with their arguments.</summary>
     internal static string FriendlyName(ITypeSymbol type) => type is INamedTypeSymbol { IsGenericType: true } generic
         ? $"{MetadataName(generic.OriginalDefinition).Split('`')[0]}<{string.Join(", ", generic.TypeArguments.Select(FriendlyName))}>"
         : MetadataName(type);
 
-    private sealed record TransitionDeclaration(INamedTypeSymbol Module, IMethodSymbol? Method, INamedTypeSymbol? Class, INamedTypeSymbol? From, INamedTypeSymbol? To, int Order, bool IsDecision, INamedTypeSymbol[] Handle);
+    private sealed record TransitionDeclaration(INamedTypeSymbol Module, IMethodSymbol? Method, INamedTypeSymbol? Class, INamedTypeSymbol? From, INamedTypeSymbol? To, int Order, bool IsDecision, INamedTypeSymbol[] Handle, HistoryKind History);
 
     private sealed record ActionDeclaration(INamedTypeSymbol Module, IMethodSymbol Method, ActionPhase Phase, INamedTypeSymbol State, int Order, int DeclarationIndex);
+
+    private sealed record InvokeDeclaration(INamedTypeSymbol Module, IMethodSymbol Method, INamedTypeSymbol State, bool Forward, int DeclarationIndex);
 }

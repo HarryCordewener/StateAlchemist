@@ -9,6 +9,7 @@ internal sealed class TestModel
     private readonly List<StateModel> _states = [];
     private readonly List<TransitionModel> _transitions = [];
     private readonly List<StateActionModel> _actions = [];
+    private readonly List<InvokeModel> _invokes = [];
 
     public ValueDomain Domain { get; set; } = ValueDomain.Byte;
 
@@ -81,8 +82,29 @@ internal sealed class TestModel
 
     public void Replace(int state, StateModel replacement) => _states[state] = replacement;
 
+    /// <summary>Marks <paramref name="state"/> <c>[Final]</c>.</summary>
+    public void Final(int state) => _states[state] = _states[state] with { IsFinal = true };
+
+    /// <summary>Has <paramref name="state"/> defer <paramref name="events"/>.</summary>
+    public void Defer(int state, params string[] events) => _states[state] = _states[state] with { Deferred = events };
+
+    /// <summary>Has <paramref name="state"/> invoke a machine whose value type is <paramref name="childValue"/>; null for a method that returns no statechart.</summary>
+    public void Invoke(int state, string? childValue, params ParameterModel[] parameters) =>
+        _invokes.Add(new InvokeModel(state, Method("T.Module", "Child" + _invokes.Count, ReturnShape.Other, parameters), false, childValue, "T.Module", _invokes.Count));
+
+    /// <summary>Has <paramref name="state"/> invoke a machine that takes what the parent leaves unhandled.</summary>
+    public void InvokeForwarding(int state, string childValue) =>
+        _invokes.Add(new InvokeModel(state, Method("T.Module", "Child" + _invokes.Count, ReturnShape.Other), true, childValue, "T.Module", _invokes.Count));
+
+    /// <summary>Puts <paramref name="transition"/> in place of the transition at its index.</summary>
+    public TransitionModel Replace(TransitionModel transition)
+    {
+        _transitions[transition.Index] = transition;
+        return transition;
+    }
+
     public MachineModel Build(string name = "TestMachine") =>
-        new(name, new MachineOptions("System.Byte", Domain, Concurrency: Concurrency, Purity: Purity), _states.ToList(), _transitions.ToList(), _actions.ToList());
+        new(name, new MachineOptions("System.Byte", Domain, Concurrency: Concurrency, Purity: Purity), _states.ToList(), _transitions.ToList(), _actions.ToList(), invokes: _invokes.ToList());
 
     private int AddState(string name, int parent, bool initial, bool hasData)
     {

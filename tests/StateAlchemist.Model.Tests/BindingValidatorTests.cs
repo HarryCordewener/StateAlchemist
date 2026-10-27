@@ -38,6 +38,23 @@ public class BindingValidatorTests
     }
 
     [Test]
+    public async Task AJoinTakesAnyOfItsEvents()
+    {
+        var join = new JoinModel(["T.Paid", "T.Reserved"]);
+        foreach (var e in join.Events)
+        {
+            _model.Add(new TransitionModel(0, "Ship", _idle, -1, TriggerModel.Event(e), 0, false, null,
+                TestModel.Method("Ship", "Transform", ReturnShape.Void,
+                    new ParameterModel("paid", "T.Paid", ParameterKind.Event, Passing.In),
+                    new ParameterModel("reserved", "T.Reserved", ParameterKind.Event, Passing.In),
+                    new ParameterModel("error", "T.Error", ParameterKind.Event, Passing.In)),
+                [], null, [], "T.Module", SourceSpan.None, join));
+        }
+
+        await Assert.That(Problems()).IsEqualTo("SALCH0204: Parameter 'error' of 'Ship.Transform' cannot be bound: this join waits for Paid, Reserved, not 'T.Error'");
+    }
+
+    [Test]
     public async Task OnlyARunTransformTakesARun()
     {
         _model.Add("Capture", _idle, -1, TriggerModel.Any, new ParameterModel("run", "System.ReadOnlySpan<System.Byte>", ParameterKind.Run, Passing.Value));

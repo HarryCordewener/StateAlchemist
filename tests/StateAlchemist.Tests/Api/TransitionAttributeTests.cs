@@ -30,7 +30,7 @@ public class TransitionAttributeTests
     public async Task PhaseNamesListImperativeBeforePastTense()
     {
         await Assert.That(string.Join(",", PhaseNames.All))
-            .IsEqualTo("Guard,Transform,Decide,DecideAsync,Complete,Completed,CompletedAsync");
+            .IsEqualTo("Guard,Transform,Delay,Decide,DecideAsync,Complete,Completed,CompletedAsync");
     }
 
     [Test]
