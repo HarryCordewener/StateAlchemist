@@ -106,7 +106,7 @@ stops:
 ```cs
 builder.Services.AddMachineSet<string, Session, byte>((services, key) => new Session(log));
 ```
-<sup><a href='/tests/StateAlchemist.Hosting.Tests/MachineSetTests.cs#L111-L113' title='Snippet source file'>snippet source</a> | <a href='#snippet-hosting-machine-set' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Hosting.Tests/MachineSetTests.cs#L112-L114' title='Snippet source file'>snippet source</a> | <a href='#snippet-hosting-machine-set' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The set works without a host too:
