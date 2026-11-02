@@ -1,6 +1,28 @@
 {
   "version": 2,
   "dependencies": {
+    "net10.0": {
+      "System.IO.Pipelines": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "pLVClkIC4XfXhcOQXNtNDJl5LYJOS4XAQAdzbqF8rj6sk2zdXO/5uikBsZqgqnAAb07z9Fmtu0sMj3TwEiBtIw=="
+      },
+      "statealchemist": {
+        "type": "Project"
+      }
+    },
+    "net11.0": {
+      "System.IO.Pipelines": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "pLVClkIC4XfXhcOQXNtNDJl5LYJOS4XAQAdzbqF8rj6sk2zdXO/5uikBsZqgqnAAb07z9Fmtu0sMj3TwEiBtIw=="
+      },
+      "statealchemist": {
+        "type": "Project"
+      }
+    },
     "net8.0": {
       "System.IO.Pipelines": {
         "type": "Direct",
