@@ -14,6 +14,7 @@
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.DotNet.ILCompiler" />
     <ProjectReference Include="..\..\src\StateAlchemist\StateAlchemist.csproj" />
     <ProjectReference Include="..\..\src\StateAlchemist.Hosting\StateAlchemist.Hosting.csproj" />
     <ProjectReference Include="..\StateAlchemist.Samples\StateAlchemist.Samples.csproj" />
