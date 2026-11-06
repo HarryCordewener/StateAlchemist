@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-11-06
+
 ### Added
 - `IStatechart<TValue>`, which every generated machine and the reference interpreter implement, alongside
   `IMachine<TValue>`: `PermittedTriggers()` lists the values and events that would fire a transition now,
