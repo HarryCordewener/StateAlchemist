@@ -83,7 +83,8 @@ public class MachineSetTests
         await machine.FireAsync(1);
 
         // StopAsync reports Stopped before it runs the Exited actions, so wait for those as well.
-        await Eventually(() => set.Count == 0 && machine.Status == MachineStatus.Stopped && log.Count == 2);
+        // List<T>.Add raises Count before it stores the item, so wait for the item itself.
+        await Eventually(() => set.Count == 0 && machine.Status == MachineStatus.Stopped && log.Count == 2 && log[1] == "ended");
         await Assert.That(log).IsEquivalentTo(new[] { "opened", "ended" });
 
         var next = await set.GetOrStartAsync(3);
