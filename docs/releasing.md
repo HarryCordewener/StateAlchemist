@@ -37,8 +37,8 @@ it would fight MinVer. A "Verify the packed version matches the tag" step fails 
    The tag triggers `.github/workflows/release.yml`; `workflow_dispatch` with the tag name as input does the same
    thing by hand.
 3. After the release lands on nuget.org, set `PackageValidationBaselineVersion` to it in
-   `src/StateAlchemist/StateAlchemist.csproj`. Package validation then diffs every later build against that
-   published surface and fails on a break.
+   `src/StateAlchemist/StateAlchemist.csproj` and `src/StateAlchemist.Hosting/StateAlchemist.Hosting.csproj`.
+   Package validation then diffs every later build against that published surface and fails on a break.
 
    For a release that does remove or re-signature public API, drop the property for that build, release, then set
    it to the new version. The API snapshot test (`RuntimeApi.verified.txt`) still records the change.
