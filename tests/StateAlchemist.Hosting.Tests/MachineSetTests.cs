@@ -12,6 +12,14 @@ namespace StateAlchemist.Hosting.Tests;
 /// <summary>Machines by key: started on first use, stopped when removed, completed, or the host stops.</summary>
 public class MachineSetTests
 {
+    private static string[] Snapshot(List<string> log)
+    {
+        lock (log)
+        {
+            return [.. log];
+        }
+    }
+
     private static async Task Eventually(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
@@ -83,9 +91,9 @@ public class MachineSetTests
         await machine.FireAsync(1);
 
         // StopAsync reports Stopped before it runs the Exited actions, so wait for those as well.
-        // List<T>.Add raises Count before it stores the item, so wait for the item itself.
-        await Eventually(() => set.Count == 0 && machine.Status == MachineStatus.Stopped && log.Count == 2 && log[1] == "ended");
-        await Assert.That(log).IsEquivalentTo(new[] { "opened", "ended" });
+        // The Exited action writes the log on the machine's thread; read it under the same lock.
+        await Eventually(() => set.Count == 0 && machine.Status == MachineStatus.Stopped && Snapshot(log).Length == 2);
+        await Assert.That(Snapshot(log)).IsEquivalentTo(new[] { "opened", "ended" });
 
         var next = await set.GetOrStartAsync(3);
         await Assert.That(next).IsNotSameReferenceAs(machine);

@@ -35,10 +35,22 @@ public static class SessionModule
     }
 
     [Entered(typeof(SessionRoot))]
-    public static void Opened(List<string> log) => log.Add("opened");
+    public static void Opened(List<string> log)
+    {
+        lock (log)
+        {
+            log.Add("opened");
+        }
+    }
 
     [Exited(typeof(SessionRoot))]
-    public static void Ended(List<string> log) => log.Add("ended");
+    public static void Ended(List<string> log)
+    {
+        lock (log)
+        {
+            log.Add("ended");
+        }
+    }
 }
 
 [Machine(Root = typeof(SessionRoot), Value = typeof(byte), Context = typeof(List<string>))]
