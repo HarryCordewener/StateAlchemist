@@ -5,7 +5,7 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Changed
-- Package validation diffs every build of `StateAlchemist` and `StateAlchemist.Hosting` against 1.4.0, the latest
+- Package validation diffs every pack of `StateAlchemist` and `StateAlchemist.Hosting` against 1.4.0, the latest
   release.
 
 ## [1.4.0] — 2026-11-06
