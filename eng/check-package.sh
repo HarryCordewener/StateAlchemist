@@ -15,6 +15,10 @@ symbols="$(ls "$work/feed"/*.snupkg)"
 echo "packed $(basename "$package") and $(basename "$symbols")"
 version="$(basename "$package" .nupkg | sed 's/^StateAlchemist\.//')"
 
+# StateAlchemist.Hosting is not inspected further, but packing it runs its package validation against the published
+# baseline, which no other CI step does before a tag.
+dotnet pack "$root/src/StateAlchemist.Hosting" -c Release -o "$work/hosting" --nologo | tail -1
+
 # A symbol package with no PDB in it would look like symbols and debug like nothing.
 if ! unzip -Z1 "$symbols" | grep -q "lib/net8.0/StateAlchemist.pdb"; then
     echo "the symbol package has no portable PDB for net8.0" >&2
