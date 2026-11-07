@@ -11,9 +11,10 @@
     <PackageTags>state-machine;statemachine;hosting;dependency-injection;backgroundservice</PackageTags>
     <PackageReadmeFile>PACKAGE.md</PackageReadmeFile>
     <PackageIcon Condition="Exists('..\..\docs\images\StateAlchemist.png')">StateAlchemist.png</PackageIcon>
-    <!-- Checked for compatibility across its target frameworks. There is no published version yet to diff against;
-         the first release becomes the baseline. -->
+    <!-- Checked for compatibility across its target frameworks, and diffed against the published baseline below,
+         as StateAlchemist is. See docs/releasing.md. -->
     <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageValidationBaselineVersion>1.4.0</PackageValidationBaselineVersion>
   </PropertyGroup>
 
   <!-- The core package stays free of dependencies; hosting is what brings Microsoft.Extensions in. The lowest
