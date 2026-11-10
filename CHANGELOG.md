@@ -5,6 +5,7 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Changed
+- Built with the .NET 11 GA SDK (11.0.100); the net11.0 builds are compiled against the release runtime.
 - Package validation diffs every pack of `StateAlchemist` and `StateAlchemist.Hosting` against 1.4.0, the latest
   release.
 
