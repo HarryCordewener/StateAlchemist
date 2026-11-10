@@ -4,8 +4,9 @@
     place of a compiler-generated state machine. It is set here rather than in the props because a project's own
     <TargetFramework> is not yet known when the props are read. Only net11.0 and later: below it the flag makes the
     compiler call preview-only APIs (SYSLIB5007, CA2252), and netstandard2.0 has no such runtime.
+    /p:UseRuntimeAsync=false builds state machines instead, which the runtime-async benchmark's baseline needs.
   -->
-  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))">
+  <PropertyGroup Condition="'$(UseRuntimeAsync)' != 'false' AND $([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))">
     <Features>$(Features);runtime-async=on</Features>
   </PropertyGroup>
 </Project>
