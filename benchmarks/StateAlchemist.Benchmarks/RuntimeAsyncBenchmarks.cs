@@ -9,9 +9,9 @@ using StateAlchemist.Samples.Performance;
 namespace StateAlchemist.Benchmarks;
 
 /// <summary>
-/// The suspending paths twice over: once as built today, and once with every project compiled under
-/// <c>runtime-async=on</c>, the .NET 11 preview feature. Both jobs build their own copy, so this class is run out of
-/// process, unlike the rest.
+/// The suspending paths twice over: once with every project compiled to state machines, and once under
+/// <c>runtime-async=on</c>, which the repository's net11.0 builds use. Both jobs build their own copy, so this class is
+/// run out of process, unlike the rest.
 /// </summary>
 [Config(typeof(RuntimeAsyncConfig))]
 [MemoryDiagnoser]
@@ -55,11 +55,10 @@ public class RuntimeAsyncBenchmarks
         public RuntimeAsyncConfig()
         {
             var job = Job.Default.WithRuntime(CoreRuntime.Core11_0);
-            AddJob(job.WithId("StateMachines").AsBaseline());
-
-            // %3D is an escaped '=': the property's value is runtime-async=on. A global property, so it reaches the
-            // samples' actions as well as this project and the machines generated into it.
-            AddJob(job.WithArguments([new MsBuildArgument("/p:Features=runtime-async%3Don")]).WithId("RuntimeAsync"));
+            // Directory.Build.targets turns runtime async on for net11.0; UseRuntimeAsync=false turns it off. A global
+            // property, so it reaches the samples' actions as well as this project and the machines generated into it.
+            AddJob(job.WithArguments([new MsBuildArgument("/p:UseRuntimeAsync=false")]).WithId("StateMachines").AsBaseline());
+            AddJob(job.WithArguments([new MsBuildArgument("/p:UseRuntimeAsync=true")]).WithId("RuntimeAsync"));
         }
     }
 }

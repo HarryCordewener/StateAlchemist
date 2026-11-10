@@ -5,7 +5,10 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Changed
-- Built with the .NET 11 GA SDK (11.0.100); the net11.0 builds are compiled against the release runtime.
+- Built with the .NET 11 GA SDK (11.0.100), no longer a release candidate.
+- The `net11.0` builds use runtime async: the compiler marks async methods `MethodImplOptions.Async` and the runtime
+  runs them, with no compiler-generated state machine. This covers `StateAlchemist.Hosting` and the samples.
+  `net8.0`, `net10.0` and `netstandard2.0` are unchanged. Native AOT publishing still works without warnings.
 - Package validation diffs every pack of `StateAlchemist` and `StateAlchemist.Hosting` against 1.4.0, the latest
   release.
 
