@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-11-10
+
 ### Changed
 - Built with the .NET 11 GA SDK (11.0.100), no longer a release candidate.
 - The `net11.0` builds use runtime async: the compiler marks async methods `MethodImplOptions.Async` and the runtime
