@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Changed
+- `StateAlchemist.Hosting` depends on Microsoft.Extensions.Hosting.Abstractions 11.0.0 on `net10.0` and `net11.0`,
+  and `StateAlchemist` on Microsoft.Bcl.AsyncInterfaces and Microsoft.Bcl.TimeProvider 11.0.0 on `netstandard2.0`.
+  `net8.0` keeps 10.0.14, because the 11.0 packages do not support it. With Microsoft.Extensions.Hosting 11.0, a
+  hosted machine whose firing throws makes the host's `RunAsync` and `StopAsync` throw that exception.
+
 ## [1.5.0] — 2026-11-10
 
 ### Changed

@@ -81,9 +81,9 @@
       },
       "System.IO.Pipelines": {
         "type": "Direct",
-        "requested": "[11.0.0, )",
-        "resolved": "11.0.0",
-        "contentHash": "F3biHUDT5JWIKhEcZrRjKuYy7XGZOe3GOU2N6rSOQeZBx+Ko/PY7K+VaC3BwD+ofQ9k0MXIhEB7uqJSRkZAkQQ=="
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "pLVClkIC4XfXhcOQXNtNDJl5LYJOS4XAQAdzbqF8rj6sk2zdXO/5uikBsZqgqnAAb07z9Fmtu0sMj3TwEiBtIw=="
       },
       "TUnit.Assertions": {
         "type": "Direct",
@@ -104,7 +104,7 @@
         "type": "Project",
         "dependencies": {
           "StateAlchemist": "[1.0.0, )",
-          "System.IO.Pipelines": "[11.0.0, )"
+          "System.IO.Pipelines": "[10.0.14, )"
         }
       }
     }

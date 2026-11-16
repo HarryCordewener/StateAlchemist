@@ -542,7 +542,7 @@
       },
       "System.IO.Pipelines": {
         "type": "CentralTransitive",
-        "requested": "[11.0.0, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.10",
         "contentHash": "7WX0W96y3dpQdYG4sEGdh38g3/0lOD4/dKbn2rRVOVzKhzoZUn2gKNIKaFeKWs8RCbpFfmmEWsRhSy95hMpvqA=="
       },

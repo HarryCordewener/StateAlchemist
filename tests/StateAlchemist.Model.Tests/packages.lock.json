@@ -101,13 +101,13 @@
       },
       "TUnit.Assertions": {
         "type": "CentralTransitive",
-        "requested": "[1.81.10, )",
+        "requested": "[1.84.0, )",
         "resolved": "1.84.0",
         "contentHash": "+TRZFh1Io2wPfIc4i8ehMvtlAhtYTO6XRzn4BLt/uj7ZQF0LzJbmBLGa0zGL1lAj7K9+y+8GAMTr4Nq2YzX2zg=="
       },
       "TUnit.Core": {
         "type": "CentralTransitive",
-        "requested": "[1.81.10, )",
+        "requested": "[1.84.0, )",
         "resolved": "1.84.0",
         "contentHash": "njfQ8FhLVpeJ6dWKeF9eHdKkON+fOzmqb1Xcr0WxilsHIdrfkhtTi8ug0VCl8Q330A23tzAH/idW4+/7Iop0Ww=="
       }
@@ -212,13 +212,13 @@
       },
       "TUnit.Assertions": {
         "type": "CentralTransitive",
-        "requested": "[1.81.10, )",
+        "requested": "[1.84.0, )",
         "resolved": "1.84.0",
         "contentHash": "+TRZFh1Io2wPfIc4i8ehMvtlAhtYTO6XRzn4BLt/uj7ZQF0LzJbmBLGa0zGL1lAj7K9+y+8GAMTr4Nq2YzX2zg=="
       },
       "TUnit.Core": {
         "type": "CentralTransitive",
-        "requested": "[1.81.10, )",
+        "requested": "[1.84.0, )",
         "resolved": "1.84.0",
         "contentHash": "njfQ8FhLVpeJ6dWKeF9eHdKkON+fOzmqb1Xcr0WxilsHIdrfkhtTi8ug0VCl8Q330A23tzAH/idW4+/7Iop0Ww=="
       }
@@ -350,19 +350,19 @@
       },
       "System.IO.Pipelines": {
         "type": "CentralTransitive",
-        "requested": "[11.0.0, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.10",
         "contentHash": "7WX0W96y3dpQdYG4sEGdh38g3/0lOD4/dKbn2rRVOVzKhzoZUn2gKNIKaFeKWs8RCbpFfmmEWsRhSy95hMpvqA=="
       },
       "TUnit.Assertions": {
         "type": "CentralTransitive",
-        "requested": "[1.81.10, )",
+        "requested": "[1.84.0, )",
         "resolved": "1.84.0",
         "contentHash": "+TRZFh1Io2wPfIc4i8ehMvtlAhtYTO6XRzn4BLt/uj7ZQF0LzJbmBLGa0zGL1lAj7K9+y+8GAMTr4Nq2YzX2zg=="
       },
       "TUnit.Core": {
         "type": "CentralTransitive",
-        "requested": "[1.81.10, )",
+        "requested": "[1.84.0, )",
         "resolved": "1.84.0",
         "contentHash": "njfQ8FhLVpeJ6dWKeF9eHdKkON+fOzmqb1Xcr0WxilsHIdrfkhtTi8ug0VCl8Q330A23tzAH/idW4+/7Iop0Ww=="
       }
