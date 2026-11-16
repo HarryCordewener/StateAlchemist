@@ -19,7 +19,7 @@ builder.Services.AddSingleton<PhoneLog>();
 builder.Services.AddHostedMachine<PhoneCall, Button>(
     services => new PhoneCall(services.GetRequiredService<PhoneLog>()));
 ```
-<sup><a href='/tests/StateAlchemist.Hosting.Tests/HostedMachineTests.cs#L208-L212' title='Snippet source file'>snippet source</a> | <a href='#snippet-hosting-register' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Hosting.Tests/HostedMachineTests.cs#L214-L218' title='Snippet source file'>snippet source</a> | <a href='#snippet-hosting-register' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 This registers three singletons:
@@ -70,7 +70,7 @@ builder.Services.AddHostedMachine<CardDoor, byte, Badge>(
     (door, badge) => door.FireAsync(badge),
     capacity);
 ```
-<sup><a href='/tests/StateAlchemist.Hosting.Tests/HostedMachineTests.cs#L225-L230' title='Snippet source file'>snippet source</a> | <a href='#snippet-hosting-events' title='Start of snippet'>anchor</a></sup>
+<sup><a href='/tests/StateAlchemist.Hosting.Tests/HostedMachineTests.cs#L231-L236' title='Snippet source file'>snippet source</a> | <a href='#snippet-hosting-events' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The second type argument is the machine's value type, which C# cannot infer from the machine.
@@ -85,7 +85,9 @@ The second type argument is the machine's value type, which C# cannot infer from
 | shutdown timeout reached while stopping | inputs still queued are dropped, and `StopAsync` runs anyway, which cancels a pending decision |
 
 An exception from firing ends the service, and the host does what `HostOptions.BackgroundServiceExceptionBehavior`
-says. Its default, `StopHost`, stops the host.
+says. Its default, `StopHost`, stops the host. From Microsoft.Extensions.Hosting 11.0, the host's `RunAsync` and
+`StopAsync` then throw that exception
+([breaking change](https://learn.microsoft.com/dotnet/core/compatibility/extensions/11/ihost-runasync-stopasync-throw-backgroundservice-failure)).
 
 See [lifecycle](../concepts/lifecycle.md) for what starting and stopping do inside the machine.
 

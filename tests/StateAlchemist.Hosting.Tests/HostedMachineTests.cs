@@ -170,7 +170,13 @@ public class HostedMachineTests
         await host.Services.GetRequiredService<MachineInbox<PhoneCall, Button>>().WriteAsync(Button.Lift);
 
         await stopping.Task.WaitAsync(TimeSpan.FromSeconds(30));
+#if NET10_0_OR_GREATER
+        // Microsoft.Extensions.Hosting 11.0 rethrows the failed service's exception from StopAsync; 10.0, which
+        // net8.0 runs on, completes it quietly.
+        await Assert.That(() => host.StopAsync()).Throws<InvalidOperationException>().WithMessage("broken");
+#else
         await host.StopAsync();
+#endif
         await Assert.That(host.Services.GetRequiredService<PhoneCall>().Status).IsEqualTo(MachineStatus.Stopped);
     }
 
