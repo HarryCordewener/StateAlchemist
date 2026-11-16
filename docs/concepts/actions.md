@@ -84,6 +84,13 @@ suspends moves the rest of the call into a continuation. The rest of the call is
 queued and the release, and all of it finishes in one async method, whose state machine is pooled on `net6.0` and
 later. So a suspending action costs what the action costs, plus that one continuation.
 
+On .NET 11 a project can turn on runtime async (`<Features>runtime-async=on</Features>`), and then the compiler
+hands every async method to the runtime and ignores `[AsyncMethodBuilder]`. The runtime's continuations are not
+pooled. The generated async methods therefore carry `[RuntimeAsyncMethodGeneration(false)]` on `net11.0` and later,
+which keeps them pooled state machines; the generator declares that attribute, internally, in any project that writes
+a machine and cannot already see one. An action of yours that uses the pooling builder needs the same attribute
+under runtime async, or it allocates on every suspension.
+
 While a transition's actions are awaited, the transition is still running: it [runs to
 completion](#run-to-completion) before the next trigger.
 

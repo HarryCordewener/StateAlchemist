@@ -28,6 +28,8 @@ public class GeneratedCodeTests
         parseOptions: new CSharpParseOptions(language),
         driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, track));
 
+    private static string Machine(Compilation output) => output.SyntaxTrees.Single(t => t.FilePath.EndsWith("M.g.cs", StringComparison.Ordinal)).ToString();
+
     private static string Problems(Compilation compilation) => string.Join("\n", compilation.GetDiagnostics()
         .Where(d => d.Severity >= DiagnosticSeverity.Warning && !d.Id.StartsWith("SALCH", StringComparison.Ordinal))
         .Select(d => d.ToString()));
@@ -85,7 +87,8 @@ public class GeneratedCodeTests
 
         Driver(LanguageVersion.CSharp7_3).RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
-        await Assert.That(output.SyntaxTrees.Count()).IsEqualTo(2);
+        // The application's source, the machine, and the runtime-async opt-out attribute.
+        await Assert.That(output.SyntaxTrees.Count()).IsEqualTo(3);
         await Assert.That(Problems(output)).IsEqualTo("");
     }
 
@@ -100,7 +103,7 @@ public class GeneratedCodeTests
 
         Driver(LanguageVersion.CSharp12).RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
 
-        var generated = output.SyntaxTrees.Last().ToString();
+        var generated = Machine(output);
         await Assert.That(generated).Contains("private readonly object _sync = new object();");
         await Assert.That(Problems(output)).IsEqualTo("");
     }
@@ -123,5 +126,53 @@ public class GeneratedCodeTests
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         await Assert.That(MachineGenerator.HasLockType(app)).IsEqualTo(expected);
+    }
+    // Runtime async ignores [AsyncMethodBuilder], so on .NET 11 the pooled methods also opt out of it. The attribute is
+    // declared once per compilation that writes a machine, unless the application can already see one.
+    [Test]
+    public async Task OnNet11ThePooledMethodsOptOutOfRuntimeAsync()
+    {
+        var source = TestCompilation.Machine("M", typeof(Root), typeof(byte), typeof(RecordingContext), [typeof(RecorderModule), typeof(RecorderExtras)], body: " { }");
+        var symbols = new[] { "NET6_0_OR_GREATER", "NET8_0_OR_GREATER", "NET11_0_OR_GREATER" };
+        var compilation = TestCompilation.Create(LanguageVersion.Latest, symbols, source);
+
+        CSharpGeneratorDriver.Create([new MachineGenerator().AsSourceGenerator()], parseOptions: new CSharpParseOptions(LanguageVersion.Latest, preprocessorSymbols: symbols))
+            .RunGeneratorsAndUpdateCompilation(compilation, out var output, out _);
+
+        var generated = Machine(output);
+        var pooled = generated.Split('\n').Count(line => line.Contains("PoolingAsyncValueTaskMethodBuilder"));
+        var optedOut = generated.Split('\n').Count(line => line.Contains("[global::System.Runtime.CompilerServices.RuntimeAsyncMethodGenerationAttribute(false)]"));
+        await Assert.That(pooled).IsGreaterThan(0);
+        await Assert.That(optedOut).IsEqualTo(pooled);
+        await Assert.That(output.SyntaxTrees.Count(t => t.FilePath.EndsWith("StateAlchemist.RuntimeAsyncMethodGenerationAttribute.g.cs", StringComparison.Ordinal))).IsEqualTo(1);
+        await Assert.That(Problems(output)).IsEqualTo("");
+    }
+
+    [Test]
+    public async Task TheOptOutAttributeIsNotDeclaredWithoutAMachine()
+    {
+        Driver().RunGeneratorsAndUpdateCompilation(TestCompilation.Create("class C { }"), out var output, out _);
+
+        await Assert.That(output.SyntaxTrees.Count()).IsEqualTo(1);
+    }
+
+    // One the application can see — its own, or a reference's through InternalsVisibleTo — would conflict with a second.
+    [Test]
+    [Arguments("public", true)]
+    [Arguments("internal", false)]
+    public async Task TheOptOutAttributeIsDeclaredOnlyWhereTheApplicationCannotSeeOne(string access, bool visible)
+    {
+        var polyfill = CSharpCompilation.Create(
+            "Polyfill",
+            [CSharpSyntaxTree.ParseText($"namespace System.Runtime.CompilerServices {{ {access} sealed class RuntimeAsyncMethodGenerationAttribute : System.Attribute {{ public RuntimeAsyncMethodGenerationAttribute(bool b) {{ }} }} }}")],
+            TestCompilation.References.Where(r => r.Display?.EndsWith("netstandard.dll", StringComparison.Ordinal) == true),
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+        var app = CSharpCompilation.Create(
+            "App",
+            [CSharpSyntaxTree.ParseText("class C { }")],
+            [polyfill.ToMetadataReference()],
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        await Assert.That(MachineGenerator.HasRuntimeAsyncOptOut(app)).IsEqualTo(visible);
     }
 }

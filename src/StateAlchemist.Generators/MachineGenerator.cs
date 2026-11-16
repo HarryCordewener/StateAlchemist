@@ -36,6 +36,17 @@ public sealed class MachineGenerator : IIncrementalGenerator
                 output.AddSource(machine.HintName, machine.Source);
             }
         });
+
+        // Once per compilation, and only where a machine is written: the attribute the pooled async methods opt out of
+        // runtime async with, unless the application can already see one.
+        var declareOptOut = context.CompilationProvider.Select(static (compilation, _) => !HasRuntimeAsyncOptOut(compilation));
+        context.RegisterSourceOutput(machines.Collect().Combine(declareOptOut), static (output, pair) =>
+        {
+            if (pair.Right && pair.Left.Any(m => m.Source is not null))
+            {
+                output.AddSource(RuntimeAsyncOptOut.HintName, RuntimeAsyncOptOut.Source);
+            }
+        });
     }
 
     internal static GeneratedMachine Generate(INamedTypeSymbol machine, Compilation compilation, CancellationToken cancellation)
@@ -58,6 +69,14 @@ public sealed class MachineGenerator : IIncrementalGenerator
     /// internal polyfill of the type, which the generated field could not name. 1300 is C# 13, which Roslyn 4.8 has
     /// no name for.
     /// </summary>
+    /// <summary>
+    /// Whether the application can already see a <c>RuntimeAsyncMethodGenerationAttribute</c>: its own, or a
+    /// referenced assembly's through <c>InternalsVisibleTo</c>. Declaring a second one would conflict with it.
+    /// </summary>
+    internal static bool HasRuntimeAsyncOptOut(Compilation compilation) =>
+        compilation.GetTypeByMetadataName(RuntimeAsyncOptOut.MetadataName) is { } type &&
+        compilation.IsSymbolAccessibleWithin(type, compilation.Assembly);
+
     internal static bool HasLockType(Compilation compilation) =>
         compilation is CSharpCompilation { LanguageVersion: >= (LanguageVersion)1300 } &&
         compilation.GetTypeByMetadataName("System.Threading.Lock") is { } type &&
