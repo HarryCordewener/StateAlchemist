@@ -92,6 +92,11 @@ public static class PerformanceModule
         // measures the sample's state machine instead of the machine's.
         [global::System.Runtime.CompilerServices.AsyncMethodBuilder(typeof(global::System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder))]
 #endif
+#if NET11_0_OR_GREATER
+        // Runtime async ignores the builder; this keeps the method a pooled state machine. The generator declares the
+        // attribute in this project, since it writes machines here.
+        [global::System.Runtime.CompilerServices.RuntimeAsyncMethodGeneration(false)]
+#endif
         public static async ValueTask CompletedAsync(Counters counters)
         {
             await Task.Yield();

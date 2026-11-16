@@ -45,6 +45,7 @@ public static class SuspendingDecisionModule
     {
         // Pooled for the same reason as the sample's suspending action: the benchmark measures the machine.
         [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+        [RuntimeAsyncMethodGeneration(false)]
         public static async ValueTask<Answer> DecideAsync(Counters counters)
         {
             await Task.Yield();

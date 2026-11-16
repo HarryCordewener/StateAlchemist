@@ -424,12 +424,17 @@ internal sealed partial class MachineEmitter
 
     /// <summary>
     /// Marks the next async method to use the pooling builder where the runtime has one (.NET 6 and later), so an
-    /// action that suspends allocates nothing in steady state.
+    /// action that suspends allocates nothing in steady state. Runtime async (.NET 11, <c>runtime-async=on</c>)
+    /// ignores the builder and allocates on every suspension, so from .NET 11 the method also opts out of it and
+    /// stays a pooled state machine. <see cref="RuntimeAsyncOptOut"/> declares the attribute where it is missing.
     /// </summary>
     private void AsyncMethod()
     {
         _w.Line("#if NET6_0_OR_GREATER");
         _w.Line("[global::System.Runtime.CompilerServices.AsyncMethodBuilder(typeof(global::System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder))]");
+        _w.Line("#endif");
+        _w.Line("#if NET11_0_OR_GREATER");
+        _w.Line($"[global::{RuntimeAsyncOptOut.MetadataName}(false)]");
         _w.Line("#endif");
     }
 

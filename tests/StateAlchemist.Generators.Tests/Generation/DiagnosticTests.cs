@@ -120,7 +120,7 @@ public class DiagnosticTests
         var result = Driver().RunGenerators(TestCompilation.Create(source)).GetRunResult();
 
         await Assert.That(result.Diagnostics.Where(d => d.Id == "CS8785").Select(d => d.GetMessage())).IsEmpty();
-        await Assert.That(result.GeneratedTrees.Length).IsEqualTo(1);
+        await Assert.That(result.GeneratedTrees.Count(t => t.FilePath.EndsWith("Machine.g.cs", StringComparison.Ordinal))).IsEqualTo(1);
     }
 
     [Test]

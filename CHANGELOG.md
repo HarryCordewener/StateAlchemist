@@ -10,6 +10,14 @@ All notable changes to this project are documented here.
   `net8.0` keeps 10.0.14, because the 11.0 packages do not support it. With Microsoft.Extensions.Hosting 11.0, a
   hosted machine whose firing throws makes the host's `RunAsync` and `StopAsync` throw that exception.
 
+### Fixed
+- Under runtime async (`runtime-async=on`, .NET 11) a suspending call allocates nothing in steady state again. The
+  compiler ignores `[AsyncMethodBuilder]` there, so the generated pooled methods ran as runtime async and allocated
+  on every suspension: 455 B per suspending `FireAsync` through the sample machine. On `net11.0` and later they now
+  carry `[RuntimeAsyncMethodGeneration(false)]` and stay pooled state machines. The generator declares that
+  attribute, internally, in a project that writes a machine and cannot already see one; .NET 11 has it only
+  internally. A pooled action of your own needs the same attribute (see [actions](docs/concepts/actions.md#what-async-costs)).
+
 ## [1.5.0] — 2026-11-10
 
 ### Changed

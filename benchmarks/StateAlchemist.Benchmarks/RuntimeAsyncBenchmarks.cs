@@ -11,7 +11,9 @@ namespace StateAlchemist.Benchmarks;
 /// <summary>
 /// The suspending paths twice over: once with every project compiled to state machines, and once under
 /// <c>runtime-async=on</c>, which the repository's net11.0 builds use. Both jobs build their own copy, so this class is
-/// run out of process, unlike the rest.
+/// run out of process, unlike the rest. The machine's pooled methods and the pooled actions opt out of runtime async
+/// with <c>[RuntimeAsyncMethodGeneration(false)]</c>, so the RuntimeAsync job compiles them as state machines too and
+/// the difference is in everything else, BenchmarkDotNet's generated caller included.
 /// </summary>
 [Config(typeof(RuntimeAsyncConfig))]
 [MemoryDiagnoser]
