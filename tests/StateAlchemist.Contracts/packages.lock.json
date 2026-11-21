@@ -4,9 +4,9 @@
     "net10.0": {
       "Microsoft.Extensions.TimeProvider.Testing": {
         "type": "Direct",
-        "requested": "[11.0.0, )",
-        "resolved": "11.0.0",
-        "contentHash": "GMXLbXAPI1GrcNQJQCHr0jgH/5fdPAGI4easP0KwMeJ6neSeWFeZcd8PhxDlII8TVXO1UctHl/4OC0sYZS4iuA=="
+        "requested": "[11.0.1, )",
+        "resolved": "11.0.1",
+        "contentHash": "2lLxpcMnu31ZrNwJ3ypqNKlavMvkJ8LhSn9YMgSTxfuyXxJGCvDHdGEyAtlc9NrXVLDA7lcIDqv0T+RnWc4nsg=="
       },
       "System.IO.Pipelines": {
         "type": "Direct",
@@ -16,15 +16,15 @@
       },
       "TUnit.Assertions": {
         "type": "Direct",
-        "requested": "[1.84.0, )",
-        "resolved": "1.84.0",
-        "contentHash": "+TRZFh1Io2wPfIc4i8ehMvtlAhtYTO6XRzn4BLt/uj7ZQF0LzJbmBLGa0zGL1lAj7K9+y+8GAMTr4Nq2YzX2zg=="
+        "requested": "[1.87.12, )",
+        "resolved": "1.87.12",
+        "contentHash": "jyPHuEj+d5Ba6+ZWzzptfn9blTLRCDaj6yUPUEFvRk0jH3XdKRr7w/4JrBliFlNnzNFoFwYp/LnRFsT28EL7+g=="
       },
       "TUnit.Core": {
         "type": "Direct",
-        "requested": "[1.84.0, )",
-        "resolved": "1.84.0",
-        "contentHash": "njfQ8FhLVpeJ6dWKeF9eHdKkON+fOzmqb1Xcr0WxilsHIdrfkhtTi8ug0VCl8Q330A23tzAH/idW4+/7Iop0Ww=="
+        "requested": "[1.87.12, )",
+        "resolved": "1.87.12",
+        "contentHash": "++7fLI7pTnFbdchOkcJ4siVRtcRpTqyS+XjjWO+zPeL1yZ05xjpcloFzNe0tz7+BuZCAbQ6JyVh1hzb9GH7lNQ=="
       },
       "statealchemist": {
         "type": "Project"
@@ -40,9 +40,9 @@
     "net11.0": {
       "Microsoft.Extensions.TimeProvider.Testing": {
         "type": "Direct",
-        "requested": "[11.0.0, )",
-        "resolved": "11.0.0",
-        "contentHash": "GMXLbXAPI1GrcNQJQCHr0jgH/5fdPAGI4easP0KwMeJ6neSeWFeZcd8PhxDlII8TVXO1UctHl/4OC0sYZS4iuA=="
+        "requested": "[11.0.1, )",
+        "resolved": "11.0.1",
+        "contentHash": "2lLxpcMnu31ZrNwJ3ypqNKlavMvkJ8LhSn9YMgSTxfuyXxJGCvDHdGEyAtlc9NrXVLDA7lcIDqv0T+RnWc4nsg=="
       },
       "System.IO.Pipelines": {
         "type": "Direct",
@@ -52,15 +52,15 @@
       },
       "TUnit.Assertions": {
         "type": "Direct",
-        "requested": "[1.84.0, )",
-        "resolved": "1.84.0",
-        "contentHash": "+TRZFh1Io2wPfIc4i8ehMvtlAhtYTO6XRzn4BLt/uj7ZQF0LzJbmBLGa0zGL1lAj7K9+y+8GAMTr4Nq2YzX2zg=="
+        "requested": "[1.87.12, )",
+        "resolved": "1.87.12",
+        "contentHash": "jyPHuEj+d5Ba6+ZWzzptfn9blTLRCDaj6yUPUEFvRk0jH3XdKRr7w/4JrBliFlNnzNFoFwYp/LnRFsT28EL7+g=="
       },
       "TUnit.Core": {
         "type": "Direct",
-        "requested": "[1.84.0, )",
-        "resolved": "1.84.0",
-        "contentHash": "njfQ8FhLVpeJ6dWKeF9eHdKkON+fOzmqb1Xcr0WxilsHIdrfkhtTi8ug0VCl8Q330A23tzAH/idW4+/7Iop0Ww=="
+        "requested": "[1.87.12, )",
+        "resolved": "1.87.12",
+        "contentHash": "++7fLI7pTnFbdchOkcJ4siVRtcRpTqyS+XjjWO+zPeL1yZ05xjpcloFzNe0tz7+BuZCAbQ6JyVh1hzb9GH7lNQ=="
       },
       "statealchemist": {
         "type": "Project"
@@ -75,9 +75,9 @@
     "net8.0": {
       "Microsoft.Extensions.TimeProvider.Testing": {
         "type": "Direct",
-        "requested": "[11.0.0, )",
-        "resolved": "11.0.0",
-        "contentHash": "GMXLbXAPI1GrcNQJQCHr0jgH/5fdPAGI4easP0KwMeJ6neSeWFeZcd8PhxDlII8TVXO1UctHl/4OC0sYZS4iuA=="
+        "requested": "[11.0.1, )",
+        "resolved": "11.0.1",
+        "contentHash": "2lLxpcMnu31ZrNwJ3ypqNKlavMvkJ8LhSn9YMgSTxfuyXxJGCvDHdGEyAtlc9NrXVLDA7lcIDqv0T+RnWc4nsg=="
       },
       "System.IO.Pipelines": {
         "type": "Direct",
@@ -87,15 +87,15 @@
       },
       "TUnit.Assertions": {
         "type": "Direct",
-        "requested": "[1.84.0, )",
-        "resolved": "1.84.0",
-        "contentHash": "+TRZFh1Io2wPfIc4i8ehMvtlAhtYTO6XRzn4BLt/uj7ZQF0LzJbmBLGa0zGL1lAj7K9+y+8GAMTr4Nq2YzX2zg=="
+        "requested": "[1.87.12, )",
+        "resolved": "1.87.12",
+        "contentHash": "jyPHuEj+d5Ba6+ZWzzptfn9blTLRCDaj6yUPUEFvRk0jH3XdKRr7w/4JrBliFlNnzNFoFwYp/LnRFsT28EL7+g=="
       },
       "TUnit.Core": {
         "type": "Direct",
-        "requested": "[1.84.0, )",
-        "resolved": "1.84.0",
-        "contentHash": "njfQ8FhLVpeJ6dWKeF9eHdKkON+fOzmqb1Xcr0WxilsHIdrfkhtTi8ug0VCl8Q330A23tzAH/idW4+/7Iop0Ww=="
+        "requested": "[1.87.12, )",
+        "resolved": "1.87.12",
+        "contentHash": "++7fLI7pTnFbdchOkcJ4siVRtcRpTqyS+XjjWO+zPeL1yZ05xjpcloFzNe0tz7+BuZCAbQ6JyVh1hzb9GH7lNQ=="
       },
       "statealchemist": {
         "type": "Project"
